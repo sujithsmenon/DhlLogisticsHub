@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DhlLogistics.Shared\DhlLogistics.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.21.2" />
+    <PackageReference Include="itext7" Version="9.6.0" />
+    <PackageReference Include="MailKit" Version="4.16.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.6">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+    <PackageReference Include="Syncfusion.Blazor.Buttons" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.Calendars" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.Charts" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.Grid" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.Inputs" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.Navigations" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.Popups" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.ProgressBar" Version="33.1.49" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\js\" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>

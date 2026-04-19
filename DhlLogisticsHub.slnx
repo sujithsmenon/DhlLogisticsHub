@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="DhlLogistics.Mobile/DhlLogistics.Mobile.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="DhlLogistics.Shared/DhlLogistics.Shared.csproj" />
+  <Project Path="DhlLogistics.Web/DhlLogistics.Web.csproj" />
+</Solution>
