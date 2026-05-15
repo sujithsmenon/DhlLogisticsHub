@@ -255,6 +255,10 @@ app.MapHub<NotificationHub>("/notificationhub");
 app.MapRazorPages();
 
 // ── Blazor ────────────────────────────────────────────────────────────────────
+// MapStaticAssets registers the endpoint-based static asset routes that
+// MapRazorComponents/AddInteractiveServerRenderMode depends on in .NET 10.
+// UseStaticFiles (above) is the middleware fallback. Having both is safe.
+app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();
