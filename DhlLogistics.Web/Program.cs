@@ -18,6 +18,20 @@ var builder = WebApplication.CreateBuilder(args);
 Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(
     "Ngo9BigBOggjHTQxAR8/V1JHaF5cWWdCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdlWXped3RVQmheU0R3V0VWYEo=");
 
+// ── Forwarded headers (Render's load balancer terminates TLS) ───────────────
+// MUST be configured via the options pattern so the *internal* allowlists
+// (including .NET 10's new KnownIPNetworks) are all cleared — clearing only
+// KnownNetworks/KnownProxies in the inline middleware options misses one in
+// .NET 10 and the headers get silently ignored, breaking the Blazor circuit.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                              | ForwardedHeaders.XForwardedProto
+                              | ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // ── Database (Supabase Postgres via Npgsql) ──────────────────────────────────
 // Connection string lives in User Secrets in Development:
 //   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=...;Port=6543;Database=postgres;Username=postgres.<projectref>;Password=...;SSL Mode=Require;Trust Server Certificate=true"
@@ -186,16 +200,13 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-// Behind Render / any reverse proxy, honour X-Forwarded-* so Identity cookies,
-// HTTPS redirects, and Request.Scheme see the original public scheme.
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    // Render's load balancer is the only proxy in front of us — clear the
-    // default empty allow-lists so it gets trusted.
-    KnownNetworks = { },
-    KnownProxies  = { },
-});
+// Forwarded headers MUST come before everything else so subsequent middleware
+// (auth, antiforgery, Blazor SignalR hub) see the real public scheme/host.
+app.UseForwardedHeaders();
+
+// Explicit WebSockets — Blazor Server's circuit relies on this. Auto-wired by
+// MapRazorComponents but enabling explicitly avoids any race with hub mapping.
+app.UseWebSockets();
 
 // Render terminates TLS at the edge and forwards plain HTTP to the container,
 // so UseHttpsRedirection() inside the container would loop. Only enable it
