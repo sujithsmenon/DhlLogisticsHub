@@ -52,7 +52,10 @@
     <script src="js/dhlpush.js"></script>
 
 
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <!-- Framework JS is a virtual endpoint registered by MapRazorComponents.
+         Don't route it through @Assets[] — it isn't in the static-assets manifest,
+         and the helper emits a fingerprinted URL the framework endpoint won't serve. -->
+    <script src="_framework/blazor.web.js"></script>
 </body>
 @* 
     <meta charset="utf-8" />
