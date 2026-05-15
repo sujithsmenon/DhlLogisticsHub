@@ -34,10 +34,9 @@ ENV ASPNETCORE_URLS=http://0.0.0.0:${PORT:-10000}
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 
-COPY --from=build /app/publish ./
-
-# Drop privileges
-RUN groupadd -r app && useradd -r -g app app && chown -R app:app /app
+# The aspnet:10.0 image already ships with a non-root 'app' user owning /app —
+# no need to create it. Just make sure copied files belong to it.
+COPY --from=build --chown=app:app /app/publish ./
 USER app
 
 EXPOSE 10000
