@@ -86,6 +86,19 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.ExpireTimeSpan   = TimeSpan.FromDays(7);
 });
 
+// ── CORS — open policy (matches CBM AllowAll). Needed so the mobile app
+// (Maui) on a different origin can hit the API endpoints; for the Blazor
+// dashboard itself it's same-origin so this is essentially a no-op there.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // ── Blazor + Syncfusion ───────────────────────────────────────────────────────
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddSyncfusionBlazor();
@@ -214,11 +227,14 @@ app.UseWebSockets();
 if (!app.Environment.IsProduction() || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")))
     app.UseHttpsRedirection();
 
-// Serve wwwroot/* AND _framework/* (Blazor runtime) AND _content/* (RCL assets).
-// MapStaticAssets below adds fingerprinting on top; UseStaticFiles is the
-// belt-and-suspenders fallback so framework files load even when the
-// fingerprint manifest doesn't match (which we hit on Render).
+// Serve wwwroot/* + _framework/* (Blazor runtime) + _content/* (RCL assets).
+// Using UseStaticFiles (the .NET 8 / CBM-compatible pattern) instead of
+// MapStaticAssets because MapStaticAssets's fingerprint manifest doesn't
+// load reliably in our Docker publish, causing _framework/blazor.web.js
+// to 404 and breaking the Blazor circuit.
 app.UseStaticFiles();
+
+app.UseCors("AllowAll");
 
 app.UseAntiforgery();
 app.UseAuthentication();
@@ -239,7 +255,6 @@ app.MapHub<NotificationHub>("/notificationhub");
 app.MapRazorPages();
 
 // ── Blazor ────────────────────────────────────────────────────────────────────
-app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();
