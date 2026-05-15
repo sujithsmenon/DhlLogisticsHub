@@ -240,6 +240,43 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// ── Diagnostic endpoint (TEMP — remove after deployment is debugged) ────────
+// Lists what files actually exist on disk in the deployed container so we can
+// compare against the local publish output and isolate why static files 404.
+app.MapGet("/_diag/files", () =>
+{
+    var contentRoot = AppContext.BaseDirectory;
+    var webRoot = Path.Combine(contentRoot, "wwwroot");
+    string Tree(string dir, int depth = 0, int max = 3)
+    {
+        if (!Directory.Exists(dir) || depth > max) return "";
+        var sb = new System.Text.StringBuilder();
+        try
+        {
+            foreach (var f in Directory.GetFiles(dir).OrderBy(f => f))
+                sb.AppendLine(new string(' ', depth * 2) + Path.GetFileName(f));
+            foreach (var d in Directory.GetDirectories(dir).OrderBy(d => d))
+            {
+                sb.AppendLine(new string(' ', depth * 2) + "[" + Path.GetFileName(d) + "/]");
+                sb.Append(Tree(d, depth + 1, max));
+            }
+        }
+        catch (Exception ex) { sb.AppendLine($"<error: {ex.Message}>"); }
+        return sb.ToString();
+    }
+    var report = new System.Text.StringBuilder();
+    report.AppendLine($"ContentRoot:   {contentRoot}");
+    report.AppendLine($"WebRootPath:   {webRoot} (exists: {Directory.Exists(webRoot)})");
+    report.AppendLine($"CWD:           {Directory.GetCurrentDirectory()}");
+    report.AppendLine();
+    report.AppendLine("=== Content root ===");
+    report.Append(Tree(contentRoot, 0, 1));
+    report.AppendLine();
+    report.AppendLine("=== wwwroot tree (depth 3) ===");
+    report.Append(Tree(webRoot, 0, 3));
+    return Results.Text(report.ToString(), "text/plain");
+}).AllowAnonymous();
+
 // ── API endpoints ─────────────────────────────────────────────────────────────
 app.MapAuthEndpoints();
 app.MapJobEndpoints();
