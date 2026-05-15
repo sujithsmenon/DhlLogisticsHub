@@ -1,0 +1,125 @@
+@page "/cargo"
+@inject LogisticsService Svc
+
+<div class="page-hdr">
+    <div>
+        <h1>Cargo &amp; Containers</h1>
+        <div class="sub">@_containers.Count container(s) total</div>
+    </div>
+</div>
+
+<!-- Stat bar -->
+<div class="stat-bar">
+    <div class="stat-item">
+        <div class="stat-num" style="color:var(--green);">@_available</div>
+        <div class="stat-lbl">Available</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num" style="color:var(--blue);">@_inUse</div>
+        <div class="stat-lbl">In Use</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num" style="color:var(--orange);">@_maintenance</div>
+        <div class="stat-lbl">Maintenance</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">@_containers.Count</div>
+        <div class="stat-lbl">Total</div>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="filter-bar">
+    @foreach (var f in _filters)
+    {
+        <button class="filter-btn @(_activeFilter == f ? "active" : "")"
+                @onclick="() => SetFilter(f)">@f</button>
+    }
+</div>
+
+@if (_loading)
+{
+    <div class="loading-wrap">Loading containers…</div>
+}
+else if (!_filtered.Any())
+{
+    <div class="empty-state">No containers match this filter</div>
+}
+else
+{
+    <!-- Utilization bar -->
+    @if (_containers.Count > 0)
+    {
+        var usePct = (int)Math.Round(_inUse * 100.0 / _containers.Count);
+        <div class="card mb20" style="padding:16px 20px;">
+            <div class="flex-between" style="margin-bottom:8px;">
+                <span style="font-size:13px;font-weight:600;">Fleet Utilization</span>
+                <span style="font-weight:800;font-size:15px;">@usePct%</span>
+            </div>
+            <div style="background:var(--border);border-radius:6px;height:10px;overflow:hidden;">
+                <div style="width:@usePct%;background:linear-gradient(90deg,var(--blue),var(--purple));height:100%;border-radius:6px;transition:width .5s;"></div>
+            </div>
+        </div>
+    }
+
+    <div class="container-grid">
+        @foreach (var c in _filtered)
+        {
+            <div class="container-card">
+                <div style="font-size:22px;margin-bottom:8px;">@ContainerIcon(c.Status)</div>
+                <div class="container-num">@c.ContainerNumber</div>
+                <div class="container-type">@c.ContainerType</div>
+                <span class="pill @StatusPill(c.Status)">@c.Status</span>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Container> _containers = [];
+    private List<Container> _filtered   = [];
+    private bool            _loading    = true;
+    private string          _activeFilter = "All";
+    private int             _available, _inUse, _maintenance;
+
+    private static readonly string[] _filters = ["All", "Available", "InUse", "Maintenance"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _containers  = await Svc.GetContainersAsync();
+        _available   = _containers.Count(c => c.Status == ContainerStatus.Available);
+        _inUse       = _containers.Count(c => c.Status == ContainerStatus.InUse);
+        _maintenance = _containers.Count(c => c.Status == ContainerStatus.Maintenance);
+        ApplyFilter();
+        _loading = false;
+    }
+
+    private void SetFilter(string f) { _activeFilter = f; ApplyFilter(); }
+
+    private void ApplyFilter()
+    {
+        _filtered = _activeFilter switch
+        {
+            "Available"   => _containers.Where(c => c.Status == ContainerStatus.Available).ToList(),
+            "InUse"       => _containers.Where(c => c.Status == ContainerStatus.InUse).ToList(),
+            "Maintenance" => _containers.Where(c => c.Status == ContainerStatus.Maintenance).ToList(),
+            _             => _containers,
+        };
+    }
+
+    private static string StatusPill(ContainerStatus s) => s switch
+    {
+        ContainerStatus.Available   => "pill-available",
+        ContainerStatus.InUse       => "pill-inuse",
+        ContainerStatus.Maintenance => "pill-maint",
+        _                           => "",
+    };
+
+    private static string ContainerIcon(ContainerStatus s) => s switch
+    {
+        ContainerStatus.Available   => "📦",
+        ContainerStatus.InUse       => "🚢",
+        ContainerStatus.Maintenance => "🔧",
+        _                           => "📦",
+    };
+}

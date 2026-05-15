@@ -1,0 +1,210 @@
+@page "/settings"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="main-div">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header"><b>Settings</b></div>
+                <div class="card-body">
+
+                    @if (!_ready)
+                    {
+                        <div class="loading-wrap">Loading settings…</div>
+                    }
+                    else
+                    {
+                        <!-- Appearance -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">🎨 Appearance</div>
+                            <div class="settings-row">
+                                <div>
+                                    <div class="settings-label">Theme</div>
+                                    <div class="settings-hint">Choose how PVGT Logistics looks for you.</div>
+                                </div>
+                                <div class="theme-segmented" style="min-width:200px;">
+                                    <button class="theme-seg-btn @(!_darkMode ? "active" : "")"
+                                            @onclick="@(() => SetTheme(false))">
+                                        ☀ Light
+                                    </button>
+                                    <button class="theme-seg-btn @(_darkMode ? "active" : "")"
+                                            @onclick="@(() => SetTheme(true))">
+                                        ☾ Dark
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notifications -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">🔔 Notifications</div>
+                            <div class="settings-row">
+                                <div>
+                                    <div class="settings-label">Browser push notifications</div>
+                                    <div class="settings-hint">Get alerted when new jobs or status changes occur.</div>
+                                </div>
+                                <label class="settings-toggle">
+                                    <input type="checkbox" checked="@_pushEnabled" @onchange="@(e => TogglePush((bool)e.Value!))" />
+                                    <span class="settings-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <div>
+                                    <div class="settings-label">Toast pop-ups</div>
+                                    <div class="settings-hint">Show in-app toast pop-ups for incoming events.</div>
+                                </div>
+                                <label class="settings-toggle">
+                                    <input type="checkbox" checked="@_toastEnabled" @onchange="@(e => ToggleToast((bool)e.Value!))" />
+                                    <span class="settings-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Account -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">👤 Account</div>
+                            <div class="settings-row">
+                                <div>
+                                    <div class="settings-label">Signed in as</div>
+                                    <div class="settings-hint">@_name &middot; @_role</div>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <SfButton CssClass="e-small" IconCss="e-icons e-user"
+                                              OnClick="@(() => Nav.NavigateTo("/profile"))">View Profile</SfButton>
+                                    <SfButton CssClass="e-small" IconCss="e-icons e-logout"
+                                              OnClick="@(() => Nav.NavigateTo("/Account/Logout", true))">Sign Out</SfButton>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .settings-section {
+        padding: 14px 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .settings-section:last-child { border-bottom: none; }
+    .settings-section-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+    }
+    .settings-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 4px;
+        flex-wrap: wrap;
+    }
+    .settings-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .settings-hint {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 2px;
+    }
+
+    /* iOS-style toggle */
+    .settings-toggle {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+    .settings-toggle input {
+        opacity: 0; width: 0; height: 0;
+    }
+    .settings-slider {
+        position: absolute; inset: 0;
+        background: #cbd2db;
+        border-radius: 24px;
+        cursor: pointer;
+        transition: background .2s;
+    }
+    .settings-slider::before {
+        content: "";
+        position: absolute;
+        height: 18px; width: 18px;
+        left: 3px; top: 3px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform .2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .settings-toggle input:checked + .settings-slider {
+        background: linear-gradient(135deg, #198781 0%, #14706b 100%);
+    }
+    .settings-toggle input:checked + .settings-slider::before {
+        transform: translateX(20px);
+    }
+</style>
+
+@code {
+    private bool _ready;
+    private bool _darkMode;
+    private bool _pushEnabled;
+    private bool _toastEnabled = true;
+    private string _name = "User";
+    private string _role = "Viewer";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        if (!(user.Identity?.IsAuthenticated ?? false))
+        {
+            Nav.NavigateTo("/Account/Login", forceLoad: true);
+            return;
+        }
+        _name = user.FindFirst(ClaimTypes.Name)?.Value ?? user.Identity?.Name ?? "User";
+        _role = user.FindFirst(ClaimTypes.Role)?.Value ?? "Viewer";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var theme = await JS.InvokeAsync<string?>("localStorage.getItem", "dhl-theme");
+        _darkMode = theme == "dark";
+        var push = await JS.InvokeAsync<string?>("localStorage.getItem", "dhl-push");
+        _pushEnabled = push == "on";
+        var toast = await JS.InvokeAsync<string?>("localStorage.getItem", "dhl-toast");
+        _toastEnabled = toast != "off";
+        _ready = true;
+        StateHasChanged();
+    }
+
+    private async Task SetTheme(bool dark)
+    {
+        _darkMode = dark;
+        await JS.InvokeVoidAsync("localStorage.setItem", "dhl-theme", dark ? "dark" : "light");
+        Nav.NavigateTo(Nav.Uri, forceLoad: true);
+    }
+
+    private async Task TogglePush(bool on)
+    {
+        _pushEnabled = on;
+        await JS.InvokeVoidAsync("localStorage.setItem", "dhl-push", on ? "on" : "off");
+    }
+
+    private async Task ToggleToast(bool on)
+    {
+        _toastEnabled = on;
+        await JS.InvokeVoidAsync("localStorage.setItem", "dhl-toast", on ? "on" : "off");
+    }
+}

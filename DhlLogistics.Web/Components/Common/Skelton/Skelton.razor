@@ -1,0 +1,21 @@
+@namespace DhlLogistics.Web.Components.Common.Skelton
+@using Syncfusion.Blazor.Notifications
+
+<h6><span>Loading....</span></h6>
+<br /><br />
+<div id="skeletonCard" class="e-card" style="display:block;">
+    <div class="cardProfile">
+        <SfSkeleton Shape="Syncfusion.Blazor.Notifications.SkeletonType.Circle" Width="60px" Effect="ShimmerEffect.Fade"></SfSkeleton>
+    </div>
+    <div class="cardinfo">
+        <SfSkeleton CssClass="cardText1" Width="30%" Height="15px" Effect="ShimmerEffect.Fade"></SfSkeleton><br />
+        <SfSkeleton CssClass="cardText2" Width="15%" Height="15px" Effect="ShimmerEffect.Fade"></SfSkeleton>
+    </div>
+    <div class="cardContent">
+        <SfSkeleton Shape="Syncfusion.Blazor.Notifications.SkeletonType.Rectangle" Width="100%" Height="250px" Effect="ShimmerEffect.Fade"></SfSkeleton>
+    </div>
+    <div class="cardoptions">
+        <SfSkeleton CssClass="cardLeftOptn" Shape="Syncfusion.Blazor.Notifications.SkeletonType.Rectangle" Width="20%" Height="32px" Effect="ShimmerEffect.Fade"></SfSkeleton>
+        <SfSkeleton CssClass="cardRightOptn" Shape="Syncfusion.Blazor.Notifications.SkeletonType.Rectangle" Width="20%" Height="32px" Effect="ShimmerEffect.Fade"></SfSkeleton>
+    </div>
+</div>

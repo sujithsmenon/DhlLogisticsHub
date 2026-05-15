@@ -1,0 +1,112 @@
+@inject LogisticsService Service
+@inject IToastService ToastService
+
+<div class="modal-dialog modal-lg modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small">
+    <div class="modal-contentnew">
+
+        <div class="modal-header">
+            <h5 class="modal-title">@Title</h5>
+            <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+            <div class="card">
+                <div class="card-body">
+                    <EditForm Model="@client">
+                        <DataAnnotationsValidator />
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Company Name:</label>
+                                <SfTextBox @bind-Value="@client.CompanyName" CssClass="e-small" />
+                                <ValidationMessage For="@(() => client.CompanyName)" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Email:</label>
+                                <SfTextBox @bind-Value="@client.ContactEmail" Type="InputType.Email" CssClass="e-small" />
+                                <ValidationMessage For="@(() => client.ContactEmail)" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Phone:</label>
+                                <SfTextBox @bind-Value="@client.Phone" CssClass="e-small" />
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-Custom-label">Address:</label>
+                                <SfTextBox @bind-Value="@client.Address" CssClass="e-small" />
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <SfButton OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save" IsPrimary="true">
+                @(Id == 0 ? "Save" : "Update")
+            </SfButton>
+            <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+    [Parameter] public int Id { get; set; }
+    [Parameter] public string? Title { get; set; }
+
+    private DhlClient client = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id != 0)
+        {
+            var all = await Service.GetAllClientsAsync();
+            var existing = all.FirstOrDefault(c => c.Id == Id);
+            if (existing is not null)
+            {
+                client = new DhlClient
+                {
+                    Id           = existing.Id,
+                    CompanyName  = existing.CompanyName,
+                    ContactEmail = existing.ContactEmail,
+                    Phone        = existing.Phone,
+                    Address      = existing.Address,
+                };
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(client.CompanyName))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Company Name is required.", CssClass = "e-toast-danger" });
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(client.ContactEmail))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Email is required.", CssClass = "e-toast-danger" });
+            return;
+        }
+
+        try
+        {
+            if (Id == 0) await Service.AddClientAsync(client);
+            else               await Service.UpdateClientAsync(client);
+
+            ToastService.Show(new() { Title = "Success!", Content = "Record Saved Successfully.", CssClass = "e-toast-success" });
+
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}

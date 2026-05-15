@@ -1,0 +1,92 @@
+@page "/vehicles"
+@inject LogisticsService Svc
+
+<div class="page-hdr">
+    <div>
+        <h1>Vehicle Fleet</h1>
+        <div class="sub">@_total total · @_onRoute on route · @_available available</div>
+    </div>
+</div>
+
+<!-- Stat bar -->
+<div class="stat-bar mb20">
+    <div class="stat-item">
+        <div class="stat-num">@_total</div>
+        <div class="stat-lbl">Total Vehicles</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num" style="color:var(--blue);">@_onRoute</div>
+        <div class="stat-lbl">On Route</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num" style="color:var(--green);">@_available</div>
+        <div class="stat-lbl">Available</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num" style="color:var(--muted);">@_inactive</div>
+        <div class="stat-lbl">Inactive</div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-wrap">Loading vehicles…</div>
+}
+else if (!_vehicles.Any())
+{
+    <div class="empty-state">No vehicles registered</div>
+}
+else
+{
+    <div class="vehicle-grid">
+        @foreach (var v in _vehicles)
+        {
+            var cardClass = !v.IsActive ? "inactive"
+                          : v.CurrentJobCode != null ? "on-route"
+                          : "available";
+
+            <div class="vehicle-card @cardClass">
+                <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+                    <div>
+                        <div class="vehicle-plate">@v.PlateNumber</div>
+                        <div class="vehicle-type">@v.VehicleType</div>
+                    </div>
+                    <span class="pill @(v.IsActive ? (v.CurrentJobCode != null ? "pill-transit" : "pill-available") : "pill-inactive")">
+                        @(!v.IsActive ? "Inactive" : v.CurrentJobCode != null ? "On Route" : "Available")
+                    </span>
+                </div>
+
+                @if (v.CurrentJobCode != null)
+                {
+                    <div style="font-size:11px;background:var(--surface);border-radius:6px;padding:8px 10px;margin-top:6px;">
+                        <div style="font-weight:700;font-family:var(--mono);color:var(--red);font-size:12px;">@v.CurrentJobCode</div>
+                        @if (v.AssignedExecutive != null)
+                        {
+                            <div style="color:var(--muted);margin-top:3px;">👤 @v.AssignedExecutive</div>
+                        }
+                        @if (v.CurrentJobStatus != null)
+                        {
+                            <div style="color:var(--blue);margin-top:3px;">@v.CurrentJobStatus</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<VehicleStatusDto> _vehicles = [];
+    private bool _loading  = true;
+    private int  _total, _onRoute, _available, _inactive;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _vehicles  = await Svc.GetVehicleStatusesAsync();
+        _total     = _vehicles.Count;
+        _onRoute   = _vehicles.Count(v => v.IsActive && v.CurrentJobCode != null);
+        _available = _vehicles.Count(v => v.IsActive && v.CurrentJobCode == null);
+        _inactive  = _vehicles.Count(v => !v.IsActive);
+        _loading   = false;
+    }
+}

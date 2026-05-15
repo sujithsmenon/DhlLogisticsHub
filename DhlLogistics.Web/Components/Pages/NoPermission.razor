@@ -1,0 +1,44 @@
+@page "/no-permission"
+@page "/no-permission/{Page}"
+@page "/no-permission/{Page}/{Reason}"
+@inject NavigationManager Nav
+
+<HeadContent>
+    <link rel="stylesheet" href="default.css" />
+</HeadContent>
+
+<div class="main-div">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header"><b>Access Denied</b></div>
+                <div class="card-body">
+                    <div style="display:flex;flex-direction:column;gap:.75rem;padding:32px 16px;text-align:center;align-items:center;">
+                        <div style="font-size:48px;">🔒</div>
+                        <div style="font-size:18px;font-weight:600;">You don't have permission to view this page.</div>
+                        @if (!string.IsNullOrEmpty(Page))
+                        {
+                            <div class="muted">Page: <code>@Page</code></div>
+                        }
+                        @if (!string.IsNullOrEmpty(Reason))
+                        {
+                            <div class="muted">@Reason</div>
+                        }
+                        <div style="margin-top:12px;display:flex;gap:8px;">
+                            <SfButton OnClick="@(() => Nav.NavigateTo("/"))" IconCss="e-icons e-home" CssClass="e-small" IsPrimary="true">Back to Dashboard</SfButton>
+                            <SfButton OnClick="@(() => Nav.NavigateTo("/Account/Logout", true))" IconCss="e-icons e-logout" CssClass="e-small">Sign Out</SfButton>
+                        </div>
+                        <div class="muted" style="margin-top:14px;font-size:11px;">
+                            Contact your administrator to request access.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Page   { get; set; }
+    [Parameter] public string? Reason { get; set; }
+}

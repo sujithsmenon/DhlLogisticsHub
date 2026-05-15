@@ -1,0 +1,19 @@
+@namespace DhlLogistics.Web.Components.Common.ModalDialog
+
+
+@inherits ModalDialogBase
+
+@if (this.Context.Display)
+{
+    <CascadingValue Value="(IModalDialogContext)this.Context">
+        <div class="modal show-modal" tabindex="-1">
+            <DynamicComponent Type=this.Context.ModalContentType Parameters=this.Context.Options?.ControlParameters />
+        </div>
+    </CascadingValue>
+}
+
+@code {
+    private BsModalOptions modalOptions => this.Context.Options as BsModalOptions ?? new();
+
+    protected string Size => modalOptions.ModalSize;
+}

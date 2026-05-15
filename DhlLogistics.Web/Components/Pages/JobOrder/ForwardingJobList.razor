@@ -1,0 +1,353 @@
+﻿@page "/jobs/forwarding"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject JobOrderService Service
+@inject CompanyBranchService BranchService
+@inject ShipmentActivityService ActivityService
+@inject CommodityService CommodityService
+@inject PortService PortService
+@inject LogisticsService Logistics
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+<style>
+    .centered-content { display: flex; align-items: center; }
+    .e-btn.e-icon-btn, .e-css.e-btn.e-icon-btn { padding: 0px 3px !important; }
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; overflow: hidden; padding: 2px 2px; vertical-align: middle; white-space: nowrap; width: auto; }
+    .e-grid .e-headercelldiv { border: 0 none; display: block; font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-emptyrow td { line-height: 12px; padding: .7em; font-size: smaller; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+</style>
+<Syncfusion.Blazor.Popups.SfDialogProvider />
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <span><strong>Forwarding Job</strong></span>
+                    <div class="d-flex align-items-center gap-3 ms-auto flex-wrap">
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-Custom-label mb-0">Search By:</label>
+                            <SfComboBox TItem="SearchParam" TValue="string" DataSource="@searchParams"
+                                        ShowClearButton="true" Width="180px" @bind-Value="@searchByField" CssClass="e-small" Placeholder="Select Parameter">
+                                <ComboBoxFieldSettings Text="Label" Value="Value" />
+                            </SfComboBox>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-Custom-label mb-0">Value:</label>
+                            <SfTextBox @bind-Value="searchByValue" CssClass="e-small" Width="150px" />
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-Custom-label mb-0">By Date Range:</label>
+                            <SfCheckBox @bind-Checked="byDateRange" CssClass="e-small" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="row">
+                        <div class="mb-3 col-md-1">
+                            <label class="form-Custom-label">Branch:</label>
+                            <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches" CssClass="e-small" ShowClearButton="true">
+                                <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                            </SfDropDownList>
+                        </div>
+                        <div class="mb-3 col-md-1">
+                            <label class="form-Custom-label">Fin-Year:</label>
+                            <SfComboBox @bind-Value="filterFinYear" TItem="FinYearItem" TValue="int?" DataSource="@finYears" CssClass="e-small" ShowClearButton="true">
+                                <ComboBoxFieldSettings Text="DisplayName" Value="FinYear" />
+                            </SfComboBox>
+                        </div>
+                        <div class="mb-3 col-md-1">
+                            <label class="form-Custom-label">Activity:</label>
+                            <SfDropDownList @bind-Value="filterActivityId" TItem="ShipmentActivity" TValue="int?" DataSource="@activities" CssClass="e-small" ShowClearButton="true">
+                                <DropDownListFieldSettings Text="ActivityName" Value="Id" />
+                            </SfDropDownList>
+                        </div>
+                        <div class="mb-3 col-md-2">
+                            <label class="form-Custom-label">Organization:</label>
+                            <SfComboBox @bind-Value="filterClientId" TItem="DhlClient" TValue="int?" DataSource="@clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                                <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                        <div class="mb-3 col-md-1">
+                            <label class="form-Custom-label">Commodity:</label>
+                            <SfComboBox @bind-Value="filterCommodityId" TItem="Commodity" TValue="int?" DataSource="@commodities" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                                <ComboBoxFieldSettings Text="CommodityName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                        <div class="mb-3 col-md-1">
+                            <label class="form-Custom-label">Port:</label>
+                            <SfComboBox @bind-Value="filterPortId" TItem="Port" TValue="int?" DataSource="@ports" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                                <ComboBoxFieldSettings Text="PortName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                        @if (byDateRange)
+                        {
+                            <div class="mb-3 col-md-1">
+                                <label class="form-Custom-label">From Date:</label>
+                                <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                            </div>
+                            <div class="mb-3 col-md-1">
+                                <label class="form-Custom-label">To Date:</label>
+                                <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-3 col-md-2">
+                                <label class="form-Custom-label">Job Order No:</label>
+                                <SfTextBox @bind-Value="filterJobOrderNo" CssClass="e-small" Placeholder="Search JobOrder No..." />
+                            </div>
+                        }
+                        <div class="mb-3 col-md-1">
+                            <label class="form-Custom-label">Status:</label>
+                            <SfDropDownList @bind-Value="filterStatus" TItem="StatusFilter" TValue="string" DataSource="@statuses" CssClass="e-small">
+                                <DropDownListFieldSettings Text="Label" Value="Value" />
+                            </SfDropDownList>
+                        </div>
+                        <div class="mb-3 col-md-2">
+                            <br />
+                            <div class="d-flex flex-wrap gap-1">
+                                <SfButton OnClick="@Show"  style="font-size:12px;" CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                                <SfButton OnClick="@Clear" style="font-size:12px;" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="height: calc(100vh - 220px);">
+                        <SfGrid ID="Grid" TValue="JobOrder" DataSource="@filtered" @ref="Grid" AllowPaging="true" AllowReordering="true" CssClass="e-small"
+                                AllowResizing="true" AllowSelection="true" AllowExcelExport="true"
+                                AllowSorting="true" Toolbar="@(new List<string>() { "Add New", "Search" })" Height="100%" RowHeight="24" Width="100%">
+                            <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar"></GridFilterSettings>
+                            <GridEvents OnToolbarClick="ToolbarClick" CommandClicked="OnCommandClicked" TValue="JobOrder"></GridEvents>
+                            <GridPageSettings PageSize="15" PageSizes="@pagerDropdown"></GridPageSettings>
+                            <GridColumns>
+                                <GridColumn HeaderText="Manage" Width="80" TextAlign="TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
+                                    <GridCommandColumns>
+                                        <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
+                                        <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat" })" />
+                                    </GridCommandColumns>
+                                </GridColumn>
+                                <GridColumn Field="@nameof(JobOrder.Id)" HeaderText="ID" IsPrimaryKey="true" TextAlign="TextAlign.Right" Width="120" Visible="false" />
+                                <GridColumn Field="Branch.BranchName"            HeaderText="Branch"           Width="150" />
+                                <GridColumn Field="@nameof(JobOrder.ShipmentMode)" HeaderText="Mode"           Width="80"  />
+                                <GridColumn Field="@nameof(JobOrder.ShipmentType)" HeaderText="Type"           Width="80"  />
+                                <GridColumn Field="@nameof(JobOrder.JobOrderNo)" HeaderText="JobOrder No"      Width="120" />
+                                <GridColumn Field="@nameof(JobOrder.JobOrderDate)" HeaderText="JobOrder Date"  Width="100" Format="dd-MMM-yyyy" />
+                                <GridColumn Field="BillingClient.CompanyName"    HeaderText="Client"           Width="220" />
+                                <GridColumn Field="Commodity.CommodityName"      HeaderText="Commodity"        Width="120" />
+                                <GridColumn Field="LoadPort.PortName"            HeaderText="Load Port"        Width="120" />
+                                <GridColumn Field="DischargePort.PortName"       HeaderText="Discharge Port"   Width="120" />
+                                <GridColumn Field="Shipper.CompanyName"          HeaderText="Shipper"          Width="180" />
+                                <GridColumn Field="Consignee.CompanyName"        HeaderText="Consignee"        Width="180" />
+                                <GridColumn Field="@nameof(JobOrder.CargoType)"  HeaderText="CargoType"        Width="80"  />
+                                <GridColumn Field="@nameof(JobOrder.LclUnitType)" HeaderText="LCL Unit Type"   Width="100" />
+                                <GridColumn Field="@nameof(JobOrder.LclUnits)"   HeaderText="LCL Units"        Width="100" Format="N3" />
+                                <GridColumn Field="SaleStaff.FullName"           HeaderText="Staff"            Width="120" />
+                                <GridColumn Field="@nameof(JobOrder.CreatedBy)"  HeaderText="Created By"       Width="100" />
+                                <GridColumn Field="@nameof(JobOrder.VerifiedBy)" HeaderText="Verified By"      Width="100" />
+                                <GridColumn Field="@nameof(JobOrder.ApprovedBy)" HeaderText="Approved By"      Width="100" />
+                                <GridColumn Field="@nameof(JobOrder.RejectedBy)" HeaderText="Rejected By"      Width="100" />
+                                <GridColumn Field="@nameof(JobOrder.RejectionReason)" HeaderText="Rejection Reason" Width="180" />
+                            </GridColumns>
+                        </SfGrid>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+<ToastComponent />
+
+@code {
+    public record SearchParam(string Value, string Label);
+    public record StatusFilter(string Value, string Label);
+    public record FinYearItem(int? FinYear, string DisplayName);
+
+    private BsModalDialog? _modal;
+    private SfGrid<JobOrder>? Grid;
+    public EventCallback LoadOnSaveReference { get; set; }
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "5", "10", "15", "20" };
+
+    private List<JobOrder> model = new();
+    private List<JobOrder> filtered = new();
+    private List<CompanyBranch> branches = new();
+    private List<ShipmentActivity> activities = new();
+    private List<Commodity> commodities = new();
+    private List<Port> ports = new();
+    private List<DhlClient> clients = new();
+    private List<FinYearItem> finYears = new();
+
+    private string?   searchByField;
+    private string?   searchByValue;
+    private bool      byDateRange = false;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private int?      filterBranchId;
+    private int?      filterFinYear;
+    private int?      filterActivityId;
+    private int?      filterClientId;
+    private int?      filterCommodityId;
+    private int?      filterPortId;
+    private string?   filterJobOrderNo;
+    private string    filterStatus = "ACTIVE";
+
+    private static readonly List<SearchParam> searchParams = new()
+    {
+        new("JOBNO",       "JobOrder No"),
+        new("CLIENT",      "Billing Client"),
+        new("SHIPPER",     "Shipper"),
+        new("CONSIGNEE",   "Consignee"),
+        new("COMMODITY",   "Commodity"),
+        new("PORT",        "Port"),
+    };
+    private static readonly List<StatusFilter> statuses = new()
+    {
+        new("ACTIVE",    "Active"),
+        new("ALL",       "All"),
+        new("DRAFT",     "Draft"),
+        new("SUBMITTED", "Submitted"),
+        new("VERIFIED",  "Verified"),
+        new("APPROVED",  "Approved"),
+        new("REJECTED",  "Rejected"),
+        new("CLOSED",    "Closed"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadOnSaveReference = EventCallback.Factory.Create(this, LoadOnSave);
+        branches    = await BranchService.GetAllAsync();
+        activities  = await ActivityService.GetAllAsync();
+        commodities = await CommodityService.GetAllAsync();
+        ports       = await PortService.GetAllAsync();
+        clients     = await Logistics.GetAllClientsAsync();
+
+        var nowFy = JobOrderService.ComputeFinYear(DateTime.UtcNow);
+        finYears = Enumerable.Range(-2, 5)
+            .Select(d => nowFy + d)
+            .Select(y => new FinYearItem(y, $"{y % 100:D2}-{(y + 1) % 100:D2}"))
+            .ToList();
+        filterFinYear = nowFy;
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try { loader = true; model = await Service.GetByModeAsync(JobMode.Forwarding); ApplyFilters(); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<JobOrder> q = model;
+
+        q = filterStatus switch
+        {
+            "ACTIVE"    => q.Where(j => j.Status != JobOrderStatus.Closed),
+            "DRAFT"     => q.Where(j => j.Status == JobOrderStatus.Draft),
+            "SUBMITTED" => q.Where(j => j.Status == JobOrderStatus.Submitted),
+            "VERIFIED"  => q.Where(j => j.Status == JobOrderStatus.Verified),
+            "APPROVED"  => q.Where(j => j.Status == JobOrderStatus.Approved),
+            "REJECTED"  => q.Where(j => j.Status == JobOrderStatus.Rejected),
+            "CLOSED"    => q.Where(j => j.Status == JobOrderStatus.Closed),
+            _ => q,
+        };
+        if (filterBranchId.HasValue)    q = q.Where(j => j.BranchId == filterBranchId);
+        if (filterFinYear.HasValue)     q = q.Where(j => j.FinYear == filterFinYear);
+        if (filterClientId.HasValue)    q = q.Where(j => j.BillingClientId == filterClientId);
+        if (filterCommodityId.HasValue) q = q.Where(j => j.CommodityId == filterCommodityId);
+        if (filterPortId.HasValue)      q = q.Where(j => j.LoadPortId == filterPortId || j.DischargePortId == filterPortId);
+
+        if (byDateRange)
+        {
+            if (fromDate.HasValue) q = q.Where(j => j.JobOrderDate >= fromDate.Value.Date);
+            if (toDate.HasValue)   q = q.Where(j => j.JobOrderDate <= toDate.Value.Date);
+        }
+        else if (!string.IsNullOrWhiteSpace(filterJobOrderNo))
+        {
+            q = q.Where(j => j.JobOrderNo.Contains(filterJobOrderNo, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchByValue) && !string.IsNullOrWhiteSpace(searchByField))
+        {
+            var v = searchByValue.Trim();
+            q = searchByField switch
+            {
+                "JOBNO"     => q.Where(j => j.JobOrderNo.Contains(v, StringComparison.OrdinalIgnoreCase)),
+                "CLIENT"    => q.Where(j => j.BillingClient != null && j.BillingClient.CompanyName.Contains(v, StringComparison.OrdinalIgnoreCase)),
+                "SHIPPER"   => q.Where(j => j.Shipper != null       && j.Shipper.CompanyName.Contains(v, StringComparison.OrdinalIgnoreCase)),
+                "CONSIGNEE" => q.Where(j => j.Consignee != null     && j.Consignee.CompanyName.Contains(v, StringComparison.OrdinalIgnoreCase)),
+                "COMMODITY" => q.Where(j => j.Commodity != null     && j.Commodity.CommodityName.Contains(v, StringComparison.OrdinalIgnoreCase)),
+                "PORT"      => q.Where(j => (j.LoadPort != null && j.LoadPort.PortName.Contains(v, StringComparison.OrdinalIgnoreCase))
+                                          || (j.DischargePort != null && j.DischargePort.PortName.Contains(v, StringComparison.OrdinalIgnoreCase))),
+                _ => q,
+            };
+        }
+
+        filtered = q.ToList();
+    }
+
+    private async Task Show()  => await Task.Run(ApplyFilters);
+    private async Task Clear()
+    {
+        searchByField = null; searchByValue = null;
+        byDateRange = false; fromDate = null; toDate = null;
+        filterBranchId = null; filterActivityId = null; filterClientId = null;
+        filterCommodityId = null; filterPortId = null; filterJobOrderNo = null;
+        filterStatus = "ACTIVE";
+        filterFinYear = JobOrderService.ComputeFinYear(DateTime.UtcNow);
+        ApplyFilters();
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadOnSave() { await LoadData(); if (Grid is not null) await Grid.Refresh(); }
+
+    public async void ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (args.Item.Text == "Add New")
+        {
+            var o = new BsModalOptions();
+            o.ControlParameters.Add("Id", 0L);
+            o.ControlParameters.Add("Title", "New Forwarding Job");
+            o.ControlParameters.Add("Mode", JobMode.Forwarding);
+            o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+            var r = await _modal!.Context.ShowAsync<JobOrderPopup>(o);
+            if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+        }
+    }
+
+    public async Task OnCommandClicked(CommandClickEventArgs<JobOrder> args)
+    {
+        try
+        {
+            if (args.CommandColumn.Type == CommandButtonType.Edit)
+            {
+                var o = new BsModalOptions();
+                o.ControlParameters.Add("Id", args.RowData.Id);
+                o.ControlParameters.Add("Title", "Forwarding Job - " + args.RowData.JobOrderNo);
+                o.ControlParameters.Add("Mode", JobMode.Forwarding);
+                o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+                var r = await _modal!.Context.ShowAsync<JobOrderPopup>(o);
+                if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+            }
+            else if (args.CommandColumn.Type == CommandButtonType.Delete)
+            {
+                if (await DialogService.ConfirmAsync($"Delete job {args.RowData.JobOrderNo}? Only Draft jobs can be deleted.", "Confirm delete"))
+                {
+                    await Service.DeleteAsync(args.RowData.Id);
+                    ToastService.Show(new() { Title = "Success!", Content = "Record Deleted Successfully.", CssClass = "e-toast-success" });
+                    await LoadOnSave();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+}

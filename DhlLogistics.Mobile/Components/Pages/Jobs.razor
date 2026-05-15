@@ -1,0 +1,196 @@
+@page "/jobs"
+@using DhlLogistics.Shared.Models
+@inject AuthService Auth
+@inject ApiService Api
+@inject ILocationTracker Tracker
+@inject NavigationManager Nav
+
+@if (!Auth.IsLoggedIn)
+{
+    <div style="padding:32px;text-align:center;">
+        <button class="btn-dhl" @onclick='() => Nav.NavigateTo("/login")'>Sign In</button>
+    </div>
+    return;
+}
+
+<div class="mob-page">
+
+    <div class="mob-section-header">
+        <span>My Jobs</span>
+        <button class="refresh-btn" @onclick="Load" disabled="@_loading">↻</button>
+    </div>
+
+    <!-- Status filter chips -->
+    <div class="chip-row">
+        @foreach (var f in _filters)
+        {
+            <button class="chip @(_filter == f ? "active" : "")" @onclick="() => SetFilter(f)">@f</button>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="mob-loading">Loading jobs…</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="mob-error">@_error</div>
+        <div style="text-align:center;"><button class="btn-dhl" @onclick="Load">Retry</button></div>
+    }
+    else if (!_filtered.Any())
+    {
+        <div class="mob-loading">No jobs to show</div>
+    }
+    else
+    {
+        @foreach (var job in _filtered)
+        {
+            <div class="job-card">
+                <div class="job-card-head">
+                    <span class="job-code">@job.JobCode</span>
+                    <span class="status-chip @StatusChip(job.Status)">@job.Status</span>
+                </div>
+                <div class="job-client">@job.ClientName</div>
+                <div class="job-addr">📍 @job.PickupAddress, @job.PickupCity</div>
+                <div class="job-meta">
+                    <span>📦 @job.VolumeCbm CBM · @job.WeightKg kg</span>
+                    @if (job.PickupDate.HasValue)
+                    {
+                        <span>🗓 @job.PickupDate.Value.ToString("dd MMM")</span>
+                    }
+                </div>
+
+                @if (NextStatus(job.Status) is JobStatus next)
+                {
+                    <button class="advance-btn @StatusChip(next)"
+                            disabled="@_updating"
+                            @onclick="() => UpdateStatus(job, next)">
+                        Mark as @next
+                    </button>
+                }
+            </div>
+        }
+    }
+</div>
+
+<style>
+.mob-page { padding: 16px; }
+
+.mob-section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 18px; font-weight: 800; margin-bottom: 14px; color: #111;
+}
+.refresh-btn {
+    background: none; border: none; font-size: 20px; cursor: pointer; color: #D40511;
+}
+.mob-loading { text-align: center; color: #9ca3af; padding: 48px 0; font-size: 14px; }
+.mob-error   { background: #fef2f2; color: #b91c1c; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; font-size: 13px; }
+
+.chip-row { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.chip {
+    padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280;
+    cursor: pointer; text-transform: uppercase; letter-spacing: .5px;
+}
+.chip.active { background: #D40511; border-color: #D40511; color: #fff; }
+
+.job-card {
+    background: #fff; border-radius: 14px; padding: 14px;
+    margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.job-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.job-code    { font-family: monospace; font-size: 12px; font-weight: 800; color: #D40511; }
+.job-client  { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.job-addr    { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.job-meta    { font-size: 11px; color: #9ca3af; display: flex; gap: 12px; margin-bottom: 12px; }
+
+.status-chip {
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+    text-transform: uppercase; letter-spacing: .5px;
+}
+.status-chip.pending   { background: #fef9c3; color: #854d0e; }
+.status-chip.assigned  { background: #dbeafe; color: #1e40af; }
+.status-chip.transit   { background: #ede9fe; color: #5b21b6; }
+.status-chip.pickedup  { background: #dcfce7; color: #166534; }
+.status-chip.stored    { background: #f0fdf4; color: #15803d; }
+.status-chip.cancelled { background: #fee2e2; color: #991b1b; }
+
+.advance-btn {
+    width: 100%; padding: 11px; border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: .5px;
+}
+.advance-btn:disabled { opacity: .5; }
+.advance-btn.transit  { background: #ede9fe; color: #5b21b6; }
+.advance-btn.pickedup { background: #dcfce7; color: #166534; }
+.advance-btn.stored   { background: #f0fdf4; color: #15803d; }
+
+.btn-dhl { background: #D40511; color: #fff; border: none; padding: 12px 28px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; }
+</style>
+
+@code {
+    private List<PickupJob> _jobs     = [];
+    private List<PickupJob> _filtered = [];
+    private bool   _loading  = true;
+    private bool   _updating;
+    private string? _error;
+    private string  _filter  = "All";
+
+    private static readonly string[] _filters = ["All", "Pending", "Assigned", "InTransit", "PickedUp"];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            _jobs = await Api.GetJobsAsync() ?? [];
+            ApplyFilter();
+        }
+        catch { _error = "Could not reach the server."; }
+        finally { _loading = false; }
+    }
+
+    private void SetFilter(string f) { _filter = f; ApplyFilter(); }
+    private void ApplyFilter() =>
+        _filtered = _filter == "All" ? _jobs : _jobs.Where(j => j.Status.ToString() == _filter).ToList();
+
+    private async Task UpdateStatus(PickupJob job, JobStatus next)
+    {
+        _updating = true;
+
+        if (await Api.UpdateJobStatusAsync(job.Id, next))
+        {
+            job.Status = next;
+
+            // Start GPS tracking the moment the driver sets off
+            if (next == JobStatus.InTransit)
+                await Tracker.StartAsync(job.Id);
+
+            // Stop tracking once the job is delivered or stored
+            if (next is JobStatus.PickedUp or JobStatus.Stored or JobStatus.Cancelled)
+                await Tracker.StopAsync();
+        }
+
+        _updating = false;
+    }
+
+    private static string StatusChip(JobStatus s) => s switch
+    {
+        JobStatus.Pending   => "pending",
+        JobStatus.Assigned  => "assigned",
+        JobStatus.InTransit => "transit",
+        JobStatus.PickedUp  => "pickedup",
+        JobStatus.Stored    => "stored",
+        JobStatus.Cancelled => "cancelled",
+        _                   => "pending",
+    };
+
+    private static JobStatus? NextStatus(JobStatus s) => s switch
+    {
+        JobStatus.Assigned  => JobStatus.InTransit,
+        JobStatus.InTransit => JobStatus.PickedUp,
+        JobStatus.PickedUp  => JobStatus.Stored,
+        _                   => null,
+    };
+}

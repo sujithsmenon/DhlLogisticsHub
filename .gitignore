@@ -361,3 +361,15 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local-only reference material (not part of product)
+CBM_Project_Reference/
+Client Reference/
+requirement detail and error details.txt
+cbmprojectgridlook.png
+cbmprojectpopupwindowlook.png
+currentprojectgridlook.png
+currentprojectpopupwindowlook.png
+
+# Claude Code working dir
+.claude/

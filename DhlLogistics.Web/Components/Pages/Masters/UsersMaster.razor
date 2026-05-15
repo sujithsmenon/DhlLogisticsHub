@@ -1,0 +1,221 @@
+@page "/masters/users"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject LogisticsService Service
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+@inject PermissionService PermService
+@inject NavigationManager Nav
+
+<HeadContent>
+    <link rel="stylesheet" href="default.css" />
+</HeadContent>
+
+@if (!AllowAccess)
+{
+    <p>Checking permissions...</p>
+    return;
+}
+
+<style>
+    .centered-content {
+        display: flex;
+        align-items: center;
+    }
+
+    .e-btn.e-icon-btn, .e-css.e-btn.e-icon-btn {
+        padding: 0px 3px !important;
+    }
+
+    .e-grid .e-rowcell {
+        border-style: solid;
+        border-width: 1px 0 0;
+        font-size: 12px;
+        overflow: hidden;
+        padding: 2px 2px;
+        vertical-align: middle;
+        white-space: nowrap;
+        width: auto;
+    }
+
+    .e-grid .e-headercelldiv {
+        border: 0 none;
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        height: 18px;
+        line-height: 18px;
+    }
+
+    .e-grid .e-emptyrow td {
+        line-height: 12px;
+        padding: .7em;
+        font-size: smaller;
+    }
+
+    .e-grid .e-altrow {
+        background-color: #c6eefd66;
+    }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <b>User List</b>
+                </div>
+                <div class="card-body">
+                    <SfGrid ID="Grid" TValue="AppUser" @ref="Grid" DataSource="@model"
+                            AllowPaging="true" AllowReordering="true" CssClass="e-small"
+                            AllowResizing="true" AllowSelection="true" AllowExcelExport="true"
+                            AllowSorting="true" Toolbar="@Toolbaritems" Height="100%" RowHeight="25" Width="100%">
+                        <GridPageSettings PageSize="15" PageSizes="@pagerDropdown"></GridPageSettings>
+                        <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar"></GridFilterSettings>
+                        <GridEvents OnToolbarClick="ToolbarClick" CommandClicked="OnCommandClicked" TValue="AppUser"></GridEvents>
+
+                        <GridColumns>
+                            <GridColumn HeaderText="Manage" Width="80" TextAlign="Syncfusion.Blazor.Grids.TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
+                                <GridCommandColumns>
+                                    <GridCommandColumn Type="CommandButtonType.Edit" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-edit", CssClass = "e-flat" })"></GridCommandColumn>
+                                    <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })"></GridCommandColumn>
+                                </GridCommandColumns>
+                            </GridColumn>
+
+                            <GridColumn HeaderText="Status" Width="120" TextAlign="TextAlign.Center">
+                                <Template>
+                                    @{
+                                        var u = context as AppUser;
+                                        if (u?.IsActive == true)
+                                        {
+                                            <div class="statustemp e-approvedcolor">
+                                                <span class="statustxt e-approvedcolor">Active</span>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="statustemp e-rejectedcolor">
+                                                <span class="statustxt e-rejectedcolor">Inactive</span>
+                                            </div>
+                                        }
+                                    }
+                                </Template>
+                            </GridColumn>
+
+                            <GridColumn Field="@nameof(AppUser.Id)" HeaderText="Id" IsPrimaryKey="true" Visible="false"></GridColumn>
+                            <GridColumn Field="@nameof(AppUser.FullName)" HeaderText="Full Name" Width="220"></GridColumn>
+                            <GridColumn Field="@nameof(AppUser.Email)" HeaderText="Email" Width="240"></GridColumn>
+                            <GridColumn Field="@nameof(AppUser.Role)" HeaderText="Role" Width="130"></GridColumn>
+                            <GridColumn Field="@nameof(AppUser.CreatedAt)" HeaderText="Created" Width="140" Format="dd MMM yyyy"></GridColumn>
+                        </GridColumns>
+                    </SfGrid>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+<ToastComponent />
+
+@code {
+    private BsModalDialog? _modal;
+    public static List<AppUser> model { get; set; } = new();
+    SfGrid<AppUser>? Grid;
+    private List<Object> Toolbaritems = new List<Object>() {
+        new ItemModel() { Text = "Add New User", TooltipText = "Add New User", PrefixIcon = "e-add", Id = "AddNew" }
+      , "Search" };
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new string[] { "All", "5", "10", "15", "20" };
+    public EventCallback LoadOnSaveReference { get; set; }
+    private bool AllowAccess = false;
+    private bool CanCreate, CanEdit, CanDelete;
+    private const string PagePath = "masters/users";
+
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? AuthStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = AuthStateTask is null ? null : await AuthStateTask;
+        var user = auth?.User;
+        if (!await PermService.CheckPermissionAsync(user, PagePath, Permission.View))
+        {
+            Nav.NavigateTo($"/no-permission/{PagePath.Replace("/", "%2F")}/Access denied.", true);
+            return;
+        }
+        AllowAccess = true;
+        CanCreate = await PermService.CheckPermissionAsync(user, PagePath, Permission.Create);
+        CanEdit   = await PermService.CheckPermissionAsync(user, PagePath, Permission.Edit);
+        CanDelete = await PermService.CheckPermissionAsync(user, PagePath, Permission.Delete);
+
+        LoadOnSaveReference = EventCallback.Factory.Create(this, LoadOnSave);
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            loader = true;
+            model = await Service.GetAllUsersAsync();
+        }
+        finally
+        {
+            loader = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadOnSave()
+    {
+        await LoadData();
+        if (Grid is not null) await Grid.Refresh();
+    }
+
+    public async void ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (args.Item.Text != null && args.Item.Text.Equals("Add New User"))
+        {
+            var option = new BsModalOptions();
+            option.ControlParameters.Add("Id", string.Empty);
+            option.ControlParameters.Add("Title", "New User Details");
+            option.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+
+            var result = await _modal!.Context.ShowAsync<UserPopup>(option);
+            if (result.ResultType == ModalResultType.OK)
+                await LoadOnSave();
+        }
+    }
+
+    public async Task OnCommandClicked(CommandClickEventArgs<AppUser> args)
+    {
+        try
+        {
+            if (args.CommandColumn.Type == CommandButtonType.Edit)
+            {
+                var option = new BsModalOptions();
+                option.ControlParameters.Add("Id", args.RowData.Id);
+                option.ControlParameters.Add("Title", "Update User Details - " + args.RowData.FullName);
+                option.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+
+                var result = await _modal!.Context.ShowAsync<UserPopup>(option);
+                if (result.ResultType == ModalResultType.OK)
+                    await LoadOnSave();
+            }
+            else if (args.CommandColumn.Type == CommandButtonType.Delete)
+            {
+                bool confirmed = await DialogService.ConfirmAsync("Are you sure you want to delete record?", "Confirm delete");
+                if (confirmed)
+                {
+                    await Service.DeleteUserAsync(args.RowData.Id);
+                    ToastService.Show(new() { Title = "Success!", Content = "Record Deleted Successfully.", CssClass = "e-toast-success" });
+                    await LoadOnSave();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+}

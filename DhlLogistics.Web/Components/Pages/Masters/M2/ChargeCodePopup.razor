@@ -1,0 +1,57 @@
+@inject ChargeCodeService Service
+@inject SacService SacService
+@inject IToastService ToastService
+
+<div class="modal-dialog modal-lg modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small">
+    <div class="modal-contentnew">
+        <div class="modal-header"><h5 class="modal-title">@Title</h5><button type="button" class="btn-close e-small" @onclick="Close"></button></div>
+        <div class="modal-body"><div class="card"><div class="card-body">
+            <EditForm Model="@item"><DataAnnotationsValidator />
+                <div class="row">
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Short Code:</label><SfTextBox @bind-Value="@item.ShortCode" CssClass="e-small" /></div>
+                    <div class="col-md-6 mb-3"><label class="form-Custom-label">Charge Name:</label><SfTextBox @bind-Value="@item.ChargeName" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Default Amount:</label><SfNumericTextBox TValue="decimal" @bind-Value="@item.DefaultAmount" CssClass="e-small" Format="N2" /></div>
+                    <div class="col-md-6 mb-3"><label class="form-Custom-label">SAC Code:</label>
+                        <SfComboBox @bind-Value="@item.SacId" TItem="Sac" TValue="int?" DataSource="@sacs" CssClass="e-small" AllowFiltering="true" ShowClearButton="true">
+                            <ComboBoxFieldSettings Text="SacCode" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Active:</label><SfCheckBox @bind-Checked="@item.IsActive" Label="Active" /></div>
+                </div>
+            </EditForm>
+        </div></div></div>
+        <div class="modal-footer">
+            <SfButton OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save" IsPrimary="true">@(Id == 0 ? "Save" : "Update")</SfButton>
+            <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+    [Parameter] public int Id { get; set; }
+    [Parameter] public string? Title { get; set; }
+    private ChargeCode item = new() { IsActive = true };
+    private List<Sac> sacs = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        sacs = await SacService.GetAllAsync();
+        if (Id != 0) { var e = await Service.GetByIdAsync(Id); if (e is not null) item = e; }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(item.ChargeName)) { ToastService.Show(new() { Title = "Validation", Content = "Charge Name is required.", CssClass = "e-toast-danger" }); return; }
+        try
+        {
+            if (Id == 0) await Service.AddAsync(item); else await Service.UpdateAsync(item);
+            ToastService.Show(new() { Title = "Success!", Content = "Record Saved Successfully.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex) { ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" }); }
+    }
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}

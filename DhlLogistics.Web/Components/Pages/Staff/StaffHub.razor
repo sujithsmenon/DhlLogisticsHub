@@ -1,0 +1,33 @@
+﻿@page "/staff"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using DhlLogistics.Web.Components.Pages.Masters.M2
+<div class="main-div">
+    <SfTab CssClass="e-small">
+        <TabItems>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="Staff" IconCss="e-icons e-people" />
+                </ChildContent>
+                <ContentTemplate>
+                    <StaffList />
+                </ContentTemplate>
+            </TabItem>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="Departments" IconCss="e-icons e-folder" />
+                </ChildContent>
+                <ContentTemplate>
+                    <StaffDepartmentList />
+                </ContentTemplate>
+            </TabItem>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="Designations" IconCss="e-icons e-bookmark" />
+                </ChildContent>
+                <ContentTemplate>
+                    <StaffDesignationList />
+                </ContentTemplate>
+            </TabItem>
+        </TabItems>
+    </SfTab>
+</div>

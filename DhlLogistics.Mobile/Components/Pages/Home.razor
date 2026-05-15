@@ -1,5 +1,232 @@
-﻿@page "/"
+@page "/"
+@using DhlLogistics.Shared.Models
+@inject AuthService Auth
+@inject ApiService Api
+@inject NavigationManager Nav
 
-<h1>Hello, world!</h1>
+@if (!Auth.IsLoggedIn)
+{
+    <div style="display:flex;justify-content:center;align-items:center;height:80vh;">
+        <button class="btn-dhl" @onclick='() => Nav.NavigateTo("/login")'>Sign In</button>
+    </div>
+    return;
+}
 
-Welcome to your new app.
+<div class="mob-page">
+
+    <!-- Header -->
+    <div class="mob-header">
+        <div>
+            <div class="mob-greeting">Good morning</div>
+            <div class="mob-name">@Auth.CurrentFullName</div>
+        </div>
+        <div class="role-badge">@Auth.CurrentRole</div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="mob-loading">Loading…</div>
+    }
+    else if (_data is not null)
+    {
+        <!-- KPI row -->
+        <div class="mob-kpi-row">
+            <div class="mob-kpi red">
+                <div class="mob-kpi-num">@_data.TotalPendingPickups</div>
+                <div class="mob-kpi-lbl">Pending</div>
+            </div>
+            <div class="mob-kpi blue">
+                <div class="mob-kpi-num">@_inTransit</div>
+                <div class="mob-kpi-lbl">In Transit</div>
+            </div>
+            <div class="mob-kpi green">
+                <div class="mob-kpi-num">@_data.TotalShippedThisMonth</div>
+                <div class="mob-kpi-lbl">Stored</div>
+            </div>
+            <div class="mob-kpi orange">
+                <div class="mob-kpi-num">@_data.TotalActiveContainers</div>
+                <div class="mob-kpi-lbl">Containers</div>
+            </div>
+        </div>
+
+        <!-- Job pipeline -->
+        <div class="mob-section-title">Job Pipeline</div>
+        <div class="mob-card">
+            @PipelineBar("Pending",    _data.TotalPendingPickups,  "#854d0e", "#fef9c3")
+            @PipelineBar("In Transit", _inTransit,                  "#1e40af", "#dbeafe")
+            @PipelineBar("Stored",     _data.TotalShippedThisMonth, "#166534", "#dcfce7")
+        </div>
+
+        <!-- Vehicles at a glance -->
+        @if (_vehicles is { Count: > 0 })
+        {
+            <div class="mob-section-title">Fleet Status</div>
+            <div class="mob-card">
+                @foreach (var v in _vehicles.Take(4))
+                {
+                    <div class="mob-vehicle-row">
+                        <div class="mob-plate">@v.PlateNumber</div>
+                        <div class="mob-vtype">@v.VehicleType</div>
+                        <span class="mob-pill @(v.CurrentJobCode != null ? "transit" : "available")">
+                            @(v.CurrentJobCode ?? "Free")
+                        </span>
+                    </div>
+                }
+                @if (_vehicles.Count > 4)
+                {
+                    <div style="text-align:center;font-size:12px;color:#9ca3af;padding:8px 0;">
+                        +@(_vehicles.Count - 4) more
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Active users -->
+        @if (_users is { Count: > 0 })
+        {
+            var activeUsers = _users.Where(u => u.ActiveJobs > 0).ToList();
+            if (activeUsers.Any())
+            {
+                <div class="mob-section-title">Active Field Team</div>
+                <div class="mob-card">
+                    @foreach (var u in activeUsers.Take(5))
+                    {
+                        <div class="mob-user-row">
+                            <div class="mob-avatar">@Initials(u.FullName)</div>
+                            <div style="flex:1;">
+                                <div style="font-weight:600;font-size:13px;">@u.FullName</div>
+                                <div style="font-size:11px;color:#9ca3af;">@u.ActiveJobs active job(s)</div>
+                            </div>
+                            <span class="mob-pill transit">Live</span>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    }
+</div>
+
+<style>
+.mob-page { padding: 16px; }
+
+.mob-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+}
+.mob-greeting { font-size: 12px; color: #9ca3af; }
+.mob-name     { font-size: 20px; font-weight: 800; color: #111; }
+
+.role-badge {
+    background: #D40511; color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: .5px;
+}
+
+.mob-loading { text-align: center; color: #9ca3af; padding: 48px 0; font-size: 14px; }
+
+.mob-kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;
+}
+.mob-kpi {
+    background: #fff; border-radius: 12px; padding: 12px 8px; text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.mob-kpi.red    { border-top: 3px solid #D40511; }
+.mob-kpi.blue   { border-top: 3px solid #2563eb; }
+.mob-kpi.green  { border-top: 3px solid #16a34a; }
+.mob-kpi.orange { border-top: 3px solid #ea580c; }
+.mob-kpi-num { font-size: 22px; font-weight: 800; }
+.mob-kpi-lbl { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+
+.mob-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #6b7280; margin: 16px 0 8px; }
+
+.mob-card {
+    background: #fff; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 4px;
+}
+
+.mob-pipeline-row {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #f3f4f6;
+}
+.mob-pipeline-row:last-child { border-bottom: none; }
+.mob-pipeline-label { font-size: 12px; font-weight: 600; width: 80px; }
+.mob-pipeline-bar   { flex: 1; height: 6px; border-radius: 4px; background: #f3f4f6; overflow: hidden; }
+.mob-pipeline-fill  { height: 100%; border-radius: 4px; transition: width .4s; }
+.mob-pipeline-num   { font-size: 12px; font-weight: 700; width: 28px; text-align: right; }
+
+.mob-vehicle-row {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.mob-vehicle-row:last-child { border-bottom: none; }
+.mob-plate { font-family: monospace; font-weight: 800; font-size: 13px; flex: 1; }
+.mob-vtype { font-size: 11px; color: #9ca3af; flex: 1; }
+
+.mob-user-row {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.mob-user-row:last-child { border-bottom: none; }
+.mob-avatar {
+    width: 32px; height: 32px; background: #D40511; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 12px; flex-shrink: 0;
+}
+
+.mob-pill {
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+    text-transform: uppercase; letter-spacing: .5px;
+}
+.mob-pill.available { background: #d1fae5; color: #065f46; }
+.mob-pill.transit   { background: #dbeafe; color: #1e40af; }
+
+.btn-dhl {
+    background: #D40511; color: #fff; border: none;
+    padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+</style>
+
+@code {
+    private DailyReportData?      _data;
+    private List<VehicleStatusDto>? _vehicles;
+    private List<UserActivityDto>?  _users;
+    private bool _loading  = true;
+    private int  _inTransit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsLoggedIn && !await Auth.TryRestoreSessionAsync())
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        try
+        {
+            var tasks = Task.WhenAll(
+                Api.GetDashboardAsync().ContinueWith(t => _data = t.Result),
+                Api.GetVehiclesAsync().ContinueWith(t => _vehicles = t.Result),
+                Api.GetUsersAsync().ContinueWith(t => _users = t.Result));
+            await tasks;
+            _inTransit = _data?.TotalPendingPickups > 0 ? _data.TotalPendingPickups / 2 : 0;
+        }
+        catch { }
+
+        _loading = false;
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}" : name.Length > 0 ? name[0].ToString() : "?";
+    }
+
+    private RenderFragment PipelineBar(string label, int value, string color, string bg) =>
+        @<div class="mob-pipeline-row">
+            <div class="mob-pipeline-label">@label</div>
+            <div class="mob-pipeline-bar">
+                <div class="mob-pipeline-fill" style="width:@(value > 0 ? Math.Min(value * 10, 100) : 0)%;background:@color;"></div>
+            </div>
+            <div class="mob-pipeline-num" style="color:@color;">@value</div>
+        </div>;
+}

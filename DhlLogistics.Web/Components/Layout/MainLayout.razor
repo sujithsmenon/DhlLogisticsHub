@@ -1,23 +1,518 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject NotificationService NotifSvc
+@inject AuthenticationStateProvider AuthStateProvider
+@implements IAsyncDisposable
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@if (_ready)
+{
+<div class="dhl-shell @(_sidebarOpen ? "sidebar-open" : "sidebar-closed")" data-dark="@_darkMode.ToString().ToLower()">
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+    <!-- ── Syncfusion Sidebar ────────────────────────────────────────────── -->
+    <SfSidebar @ref="_sidebar"
+               Width="168px"
+               DockSize="0px"
+               MediaQuery="(min-width: 768px)"
+               IsOpen="@_sidebarOpen"
+               Type="SidebarType.Push"
+               EnableDock="false"
+               CssClass="dhl-sf-sidebar"
+               IsOpenChanged="@OnSidebarStateChanged">
 
-        <article class="content px-4">
+        <ChildContent>
+            <!-- Brand -->
+            <div class="sidebar-brand">
+                <div class="sidebar-logo-block">
+                    <img src="img/pvgt-logo.png" alt="PVGT Logistics" class="sidebar-logo-img" />
+                </div>
+                <div style="min-width:0;overflow:hidden;">
+                    <div class="sidebar-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">PVGT Logistics</div>
+                    <div class="sidebar-sub">Your Trust &amp; Satisfaction</div>
+                </div>
+            </div>
+
+            <!-- Nav links -->
+            <NavMenu />
+
+            <!-- Footer / user info -->
+            <div class="sidebar-footer">
+                <div class="avatar">@_userInitial</div>
+                <div>
+                    <div class="sidebar-user-name">@_userName</div>
+                    <div class="sidebar-user-role">@_userRole</div>
+                </div>
+            </div>
+        </ChildContent>
+    </SfSidebar>
+
+    <!-- ── Main area ─────────────────────────────────────────────────────── -->
+    <div class="dhl-main">
+
+        <!-- Top bar -->
+        <header class="dhl-topbar">
+
+            <!-- Left: hamburger + title -->
+            <div class="topbar-left">
+                <button class="hamburger-btn" @onclick="ToggleSidebar" title="Toggle menu">
+                    <span></span><span></span><span></span>
+                </button>
+                <span class="topbar-title">@_pageTitle</span>
+            </div>
+
+            <!-- Right: search · date · notifications · user -->
+            <div class="topbar-right">
+
+                <!-- Global search -->
+                <div class="topbar-search">
+                    <span class="search-icon">🔍</span>
+                    <input class="search-input" type="text" placeholder="Search shipments, jobs, customers…" />
+                </div>
+
+                <span class="tag mono">@DateTime.Now.ToString("dd MMM yyyy")</span>
+
+                <!-- Notification bell -->
+                <div class="notif-wrap">
+                    <button class="notif-btn" @onclick="TogglePanel" @onclick:stopPropagation="true">
+                        🔔
+                        @if (_unread > 0)
+                        {
+                            <span class="notif-badge">@(_unread > 9 ? "9+" : _unread.ToString())</span>
+                        }
+                    </button>
+
+                    @if (_panelOpen)
+                    {
+                        <div class="notif-panel">
+                            <div class="notif-panel-head">
+                                <span>Notifications</span>
+                                @if (_notifications.Any())
+                                {
+                                    <button class="notif-clear" @onclick="MarkAllRead">Mark all read</button>
+                                }
+                            </div>
+
+                            @if (!_notifications.Any())
+                            {
+                                <div class="notif-empty">All caught up!</div>
+                            }
+                            else
+                            {
+                                @foreach (var n in _notifications)
+                                {
+                                    <div class="notif-item @(n.IsRead ? "read" : "")"
+                                         @onclick="() => OpenNotification(n)">
+                                        <div class="notif-icon">@TypeIcon(n.Type)</div>
+                                        <div style="flex:1;min-width:0;">
+                                            <div class="notif-title">@n.Title</div>
+                                            <div class="notif-body">@n.Body</div>
+                                            <div class="notif-time">@n.CreatedAt.ToString("HH:mm · dd MMM")</div>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- User avatar dropdown -->
+                <div class="user-menu-wrap">
+                    <button class="user-avatar-btn" @onclick="ToggleUserMenu" @onclick:stopPropagation="true">
+                        <div class="avatar">@_userInitial</div>
+                        <span class="user-name-label">@_userName</span>
+                        <span class="chevron">▾</span>
+                    </button>
+
+                    @if (_userMenuOpen)
+                    {
+                        <div class="user-dropdown">
+
+                            <!-- User info header -->
+                            <div class="user-dd-info">
+                                <div class="avatar" style="width:38px;height:38px;font-size:15px;">@_userInitial</div>
+                                <div>
+                                    <div style="font-size:13px;font-weight:700;color:var(--text);">@_userName</div>
+                                    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">@_userRole</div>
+                                </div>
+                            </div>
+
+                            <div class="user-dd-divider"></div>
+
+                            <!-- Theme selector -->
+                            <div class="user-dd-theme">
+                                <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;">Display</span>
+                                <div class="theme-segmented">
+                                    <button class="theme-seg-btn @(!_darkMode ? "active" : "")"
+                                            @onclick="() => SetTheme(false)">
+                                        ☀ Light
+                                    </button>
+                                    <button class="theme-seg-btn @(_darkMode ? "active" : "")"
+                                            @onclick="() => SetTheme(true)">
+                                        ☾ Dark
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="user-dd-divider"></div>
+
+                            <a class="user-dd-item" href="/profile">
+                                <span>👤</span> Profile
+                            </a>
+                            <a class="user-dd-item" href="/settings">
+                                <span>⚙️</span> Settings
+                            </a>
+                            <div class="user-dd-divider"></div>
+                            <a class="user-dd-item user-dd-logout" href="/Account/Logout">
+                                <span>🚪</span> Logout
+                            </a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </header>
+
+        <!-- Transparent backdrop — closes open panels when user clicks outside them -->
+        @if (_panelOpen || _userMenuOpen)
+        {
+            <div class="panels-backdrop" @onclick="CloseAllPanels"></div>
+        }
+
+        <!-- Page content -->
+        <div class="dhl-page">
             @Body
-        </article>
-    </main>
+        </div>
+    </div>
 </div>
+
+<SfDialogProvider />
+}
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    An unhandled error has occurred. <a href="." class="reload">Reload</a>
+    <span class="dismiss">✕</span>
 </div>
+
+<!-- Toast notification -->
+@if (_toast is not null)
+{
+    <div class="toast-notif @(_toast.Visible ? "show" : "")">
+        <div class="toast-icon">@TypeIcon(_toast.Type)</div>
+        <div>
+            <div class="toast-title">@_toast.Title</div>
+            <div class="toast-body">@_toast.Body</div>
+        </div>
+        <button class="toast-close" @onclick="() => _toast = null">✕</button>
+    </div>
+}
+
+<style>
+/* ── Syncfusion sidebar skin ───────────────────────────────────────────────── */
+.dhl-sf-sidebar,
+.dhl-sf-sidebar .e-content-animation {
+    background: var(--sidebar) !important;
+    border-right: none !important;
+    box-shadow: 2px 0 16px rgba(0,0,0,.25) !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+.dhl-sf-sidebar .e-content-animation { width: 100% !important; }
+
+/* ── Shell layout (SfSidebar manages left column; we just handle right) ─────── */
+.dhl-shell { height: 100vh; display: flex; overflow: hidden; position: relative; }
+.dhl-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); min-width: 0; }
+
+/* ── Hamburger ──────────────────────────────────────────────────────────────── */
+.topbar-left { display: flex; align-items: center; gap: 14px; }
+.hamburger-btn {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 5px; background: none; border: none; cursor: pointer;
+    padding: 6px; border-radius: 8px; width: 36px; height: 36px;
+}
+.hamburger-btn span {
+    display: block; height: 2px; border-radius: 2px;
+    background: var(--muted); transition: background .15s;
+}
+.hamburger-btn:hover span { background: var(--red); }
+
+/* ── Search box ─────────────────────────────────────────────────────────────── */
+.topbar-search {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2); border-radius: 8px;
+    padding: 0 12px; height: 34px; min-width: 240px;
+    border: 1.5px solid transparent; transition: border-color .15s;
+}
+.topbar-search:focus-within { border-color: var(--red); background: var(--card); }
+.search-icon { font-size: 14px; flex-shrink: 0; }
+.search-input {
+    border: none; background: transparent; outline: none;
+    font-size: 13px; color: var(--text); width: 100%;
+}
+.search-input::placeholder { color: var(--muted); }
+
+/* ── Notification bell ──────────────────────────────────────────────────────── */
+.notif-wrap  { position: relative; }
+.notif-btn   { background: none; border: none; font-size: 20px; cursor: pointer; position: relative; padding: 4px; border-radius: 8px; }
+.notif-btn:hover { background: var(--surface2); }
+.notif-badge {
+    position: absolute; top: -2px; right: -4px;
+    background: var(--red); color: #fff;
+    font-size: 9px; font-weight: 800;
+    min-width: 16px; height: 16px;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    padding: 0 3px;
+}
+.notif-panel {
+    position: absolute; right: 0; top: calc(100% + 8px);
+    width: 340px; background: var(--card);
+    border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    border: 1px solid var(--border); z-index: 1000; overflow: hidden;
+}
+.notif-panel-head {
+    padding: 12px 16px; font-size: 13px; font-weight: 700;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.notif-clear { font-size: 11px; color: var(--red); font-weight: 600; background: none; border: none; cursor: pointer; }
+.notif-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+.notif-item {
+    display: flex; gap: 10px; padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer; background: rgba(212,5,17,.04); transition: background .12s;
+}
+.notif-item.read  { background: transparent; }
+.notif-item:hover { background: var(--surface2); }
+.notif-icon  { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.notif-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.notif-body  { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif-time  { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+
+/* ── User menu ──────────────────────────────────────────────────────────────── */
+.user-menu-wrap { position: relative; }
+.user-avatar-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: none; border: 1.5px solid var(--border);
+    border-radius: 24px; padding: 4px 10px 4px 4px;
+    cursor: pointer; transition: border-color .15s, background .15s;
+}
+.user-avatar-btn:hover { border-color: var(--red); background: var(--surface2); }
+.user-name-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.chevron { font-size: 10px; color: var(--muted); }
+.user-dropdown {
+    position: absolute; right: 0; top: calc(100% + 8px);
+    width: 210px; background: var(--card);
+    border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,.15);
+    border: 1px solid var(--border); z-index: 1001;
+    overflow: hidden; padding: 4px 0;
+}
+.user-dd-info {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px 10px;
+}
+.user-dd-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; font-size: 13px; color: var(--text);
+    text-decoration: none; cursor: pointer; transition: background .12s;
+}
+.user-dd-item:hover { background: var(--surface2); }
+.user-dd-logout { color: var(--red); }
+.user-dd-divider { border-top: 1px solid var(--border); margin: 4px 0; }
+
+/* Theme selector */
+.user-dd-theme {
+    padding: 8px 14px 10px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.theme-segmented {
+    display: flex; border-radius: 8px; overflow: hidden;
+    border: 1.5px solid var(--border); background: var(--surface2);
+}
+.theme-seg-btn {
+    flex: 1; padding: 6px 0; font-size: 12px; font-weight: 600;
+    border: none; background: transparent; cursor: pointer;
+    color: var(--muted); transition: background .15s, color .15s;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.theme-seg-btn.active {
+    background: var(--card); color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,.12);
+    border-radius: 6px;
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
+.toast-notif {
+    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    background: var(--dark); color: #fff;
+    border-radius: 12px; padding: 14px 16px;
+    display: flex; align-items: flex-start; gap: 12px;
+    max-width: 340px; box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    transform: translateY(120%); opacity: 0;
+    transition: transform .3s ease, opacity .3s ease;
+}
+.toast-notif.show { transform: translateY(0); opacity: 1; }
+.toast-icon  { font-size: 22px; flex-shrink: 0; }
+.toast-title { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.toast-body  { font-size: 12px; color: rgba(255,255,255,.7); }
+.toast-close { background: none; border: none; color: rgba(255,255,255,.5); cursor: pointer; font-size: 14px; margin-left: auto; flex-shrink: 0; }
+
+/* ── Panel backdrop (click-outside to close) ────────────────────────────────── */
+.panels-backdrop {
+    position: fixed; inset: 0; z-index: 999;
+    background: transparent; cursor: default;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+@@media (max-width: 767px) {
+    .topbar-search { min-width: 0; width: 140px; }
+    .user-name-label { display: none; }
+    .tag.mono { display: none; }
+}
+@@media (max-width: 480px) {
+    .topbar-search { display: none; }
+}
+</style>
+
+@code {
+    private SfSidebar _sidebar = default!;
+    private bool _sidebarOpen  = true;
+    private bool _panelOpen;
+    private bool _userMenuOpen;
+    private bool _darkMode;
+    private bool _ready;
+    private string _pageTitle   = "Operations Dashboard";
+    private string _userName    = "";
+    private string _userRole    = "";
+    private char   _userInitial = 'U';
+    private string _userId      = "";
+    private int    _unread;
+    private List<NotificationDto> _notifications = [];
+    private ToastModel?           _toast;
+    private HubConnection?        _hub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user  = state.User;
+
+        if (!(user.Identity?.IsAuthenticated ?? false))
+        {
+            Nav.NavigateTo("/Account/Login", forceLoad: true);
+            return;
+        }
+
+        _userName    = user.FindFirst(ClaimTypes.Name)?.Value
+                       ?? user.Identity?.Name
+                       ?? "User";
+        _userRole    = user.FindFirst(ClaimTypes.Role)?.Value ?? "Viewer";
+        _userId      = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        _userInitial = char.ToUpper(_userName.FirstOrDefault('U'));
+        _ready       = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_ready) return;
+
+        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "dhl-theme");
+        if (saved == "dark")
+        {
+            _darkMode = true;
+            StateHasChanged();
+        }
+
+        await ConnectNotificationHubAsync();
+        await RegisterWebPushAsync();
+    }
+
+    private void ToggleSidebar() => _sidebarOpen = !_sidebarOpen;
+
+    private void OnSidebarStateChanged(bool isOpen) => _sidebarOpen = isOpen;
+
+    private async Task ConnectNotificationHubAsync()
+    {
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/notificationhub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<NotificationDto>("Notify", async n =>
+        {
+            _notifications.Insert(0, n);
+            _unread++;
+            _toast = new ToastModel(n.Title, n.Body, n.Type);
+            await InvokeAsync(StateHasChanged);
+            await DismissToastAfterAsync(5000);
+        });
+
+        try { await _hub.StartAsync(); await _hub.SendAsync("JoinUserGroup", _userId, _userRole); }
+        catch { /* hub offline in dev */ }
+    }
+
+    private async Task RegisterWebPushAsync()
+    {
+        await JS.InvokeVoidAsync("DhlPush.init", "/notificationhub", Nav.BaseUri);
+    }
+
+    private void TogglePanel()    { _panelOpen = !_panelOpen; _userMenuOpen = false; }
+    private void ToggleUserMenu() { _userMenuOpen = !_userMenuOpen; _panelOpen = false; }
+    private void CloseAllPanels() { _panelOpen = false; _userMenuOpen = false; }
+
+    private async Task SetTheme(bool dark)
+    {
+        _darkMode = dark;
+        await JS.InvokeVoidAsync("localStorage.setItem", "dhl-theme", dark ? "dark" : "light");
+    }
+
+    private async Task MarkAllRead()
+    {
+        foreach (var n in _notifications) { n.IsRead = true; await NotifSvc.MarkReadAsync(n.Id); }
+        _unread = 0;
+        StateHasChanged();
+    }
+
+    private void OpenNotification(NotificationDto n)
+    {
+        n.IsRead   = true;
+        _unread    = Math.Max(0, _unread - 1);
+        _panelOpen = false;
+        if (n.JobCode is not null) Nav.NavigateTo("/jobs");
+    }
+
+    private async Task DismissToastAfterAsync(int ms)
+    {
+        await Task.Delay(ms);
+        _toast = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync() { if (_hub is not null) await _hub.DisposeAsync(); }
+
+    protected override void OnParametersSet()
+    {
+        _pageTitle = Nav.Uri.Split('/').LastOrDefault() switch
+        {
+            "shipments"  => "Shipments",
+            "customers"  => "Customers",
+            "hubs"       => "Hubs & Routes",
+            "tracking"   => "Live Tracking",
+            "jobs"       => "Jobs",
+            "vehicles"   => "Vehicle Fleet",
+            "users"      => "User Activity",
+            "cargo"      => "Cargo & Containers",
+            _            => "Operations Dashboard",
+        };
+    }
+
+    private static string TypeIcon(string type) => type switch
+    {
+        "NewJob"        => "📦",
+        "JobAssigned"   => "👤",
+        "StatusChanged" => "🔄",
+        "Alert"         => "⚠️",
+        _               => "🔔",
+    };
+
+    private record ToastModel(string Title, string Body, string Type)
+    {
+        public bool Visible { get; init; } = true;
+    }
+}

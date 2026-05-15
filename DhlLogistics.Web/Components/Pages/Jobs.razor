@@ -1,0 +1,150 @@
+@page "/jobs"
+@inject LogisticsService Svc
+
+<div class="page-hdr">
+    <div>
+        <h1>Jobs</h1>
+        <div class="sub">@_jobs.Count job(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
+    </div>
+</div>
+
+<!-- Filter bar -->
+<div class="filter-bar">
+    @foreach (var f in _filters)
+    {
+        <button class="filter-btn @(_activeFilter == f ? "active" : "")"
+                @onclick="() => SetFilter(f)">@f</button>
+    }
+</div>
+
+@if (_loading)
+{
+    <div class="loading-wrap">Loading jobs…</div>
+}
+else
+{
+    <div class="equal-col" style="align-items:start;">
+
+        <!-- Jobs list -->
+        <div class="card">
+            <div class="card-head">Jobs <span class="tag">@_filtered.Count</span></div>
+            <div class="scroll-y" style="max-height:calc(100vh - 260px);">
+                @foreach (var job in _filtered)
+                {
+                    <div class="data-row @(_selected?.Id == job.Id ? "selected" : "")"
+                         @onclick="() => _selected = job">
+                        <div style="width:130px;">
+                            <div class="mono" style="font-size:11px;color:var(--red);font-weight:700;">@job.JobCode</div>
+                            <div style="font-size:10px;color:var(--muted);">@job.CreatedAt.ToString("dd MMM")</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;font-size:13px;">@job.ClientName</div>
+                            <div style="font-size:11px;color:var(--muted);">@job.PickupCity</div>
+                        </div>
+                        <div>
+                            <span class="pill @StatusPill(job.Status)">
+                                <span class="dot"></span>@job.Status
+                            </span>
+                        </div>
+                    </div>
+                }
+                @if (!_filtered.Any())
+                {
+                    <div class="empty-state">No jobs match this filter</div>
+                }
+            </div>
+        </div>
+
+        <!-- Detail panel -->
+        <div>
+            @if (_selected is null)
+            {
+                <div class="card">
+                    <div class="card-body empty-state">Select a job to see details</div>
+                </div>
+            }
+            else
+            {
+                <div class="card">
+                    <div class="card-head">
+                        @_selected.JobCode
+                        <span class="pill @StatusPill(_selected.Status)">
+                            <span class="dot"></span>@_selected.Status
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <table style="width:100%;border-collapse:collapse;">
+                            @DetailRow("Client",      _selected.ClientName)
+                            @DetailRow("Address",     _selected.PickupAddress)
+                            @DetailRow("City",        _selected.PickupCity)
+                            @DetailRow("Destination", _selected.Destination)
+                            @DetailRow("DHL Ref",     _selected.DhlReference)
+                            @DetailRow("Volume",      $"{_selected.VolumeCbm} CBM")
+                            @DetailRow("Weight",      $"{_selected.WeightKg} kg")
+                            @DetailRow("Pickup Date", _selected.PickupDate?.ToString("dd MMM yyyy") ?? "—")
+                            @DetailRow("Assigned",    _selected.AssignedExecutiveId ?? "Unassigned")
+                            @DetailRow("Created",     _selected.CreatedAt.ToString("dd MMM yyyy HH:mm"))
+                        </table>
+
+                        @if (_selected.AssignedVehicle is not null)
+                        {
+                            <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+                                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:8px;">Vehicle</div>
+                                <div class="vehicle-plate">@_selected.AssignedVehicle.PlateNumber</div>
+                                <div class="vehicle-type">@_selected.AssignedVehicle.VehicleType</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<PickupJob> _jobs     = [];
+    private List<PickupJob> _filtered = [];
+    private PickupJob?      _selected;
+    private bool            _loading  = true;
+    private string          _activeFilter = "All";
+
+    private static readonly string[] _filters =
+        ["All", "Pending", "Assigned", "InTransit", "PickedUp", "Stored", "Cancelled"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _jobs = await Svc.GetAllJobsAsync();
+        ApplyFilter();
+        _loading = false;
+    }
+
+    private void SetFilter(string f)
+    {
+        _activeFilter = f;
+        _selected     = null;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _filtered = _activeFilter == "All"
+            ? _jobs
+            : _jobs.Where(j => j.Status.ToString() == _activeFilter).ToList();
+    }
+
+    private static string StatusPill(JobStatus s) => s switch
+    {
+        JobStatus.InTransit => "pill-transit",
+        JobStatus.Assigned  => "pill-assigned",
+        JobStatus.PickedUp  => "pill-pickedup",
+        JobStatus.Stored    => "pill-stored",
+        JobStatus.Cancelled => "pill-cancelled",
+        _                   => "pill-pending",
+    };
+
+    private RenderFragment DetailRow(string label, string value) =>
+        @<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 0;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:110px;">@label</td>
+            <td style="padding:8px 0;font-size:13px;">@value</td>
+        </tr>;
+}

@@ -1,0 +1,161 @@
+@page "/tracking"
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/dhlmap.js"></script>
+
+<div class="page-hdr">
+    <div>
+        <h1>Live Tracking</h1>
+        <div class="sub">Real-time executive GPS positions</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <button class="filter-btn" @onclick='() => JS.InvokeVoidAsync("DhlMap.fitAll")'>Fit all</button>
+        <span class="live-badge @(_connected ? "live" : "offline")">
+            <span class="live-dot"></span>@(_connected ? "Live" : "Connecting…")
+        </span>
+    </div>
+</div>
+
+<!-- Full map -->
+<div class="card mb20">
+    <div id="track-map" style="height:480px;width:100%;border-radius:var(--radius);"></div>
+</div>
+
+<!-- Executive status cards -->
+<div class="exec-grid mb20">
+    @foreach (var exec in _execs.Values)
+    {
+        <div class="exec-card">
+            <div class="exec-avatar">@exec.Initials</div>
+            <div>
+                <div class="exec-name">@exec.Name</div>
+                <div class="exec-job">@exec.JobCode</div>
+                <div class="exec-speed">
+                    @if (exec.Speed > 0)
+                    { <span>@exec.Speed.ToString("F1") km/h</span> }
+                    else
+                    { <span class="muted">Stationary</span> }
+                </div>
+                <div style="margin-top:4px;">
+                    <span class="pill @StatusPill(exec.Status)">
+                        <span class="dot"></span>@exec.Status
+                    </span>
+                </div>
+            </div>
+        </div>
+    }
+    @if (!_execs.Any())
+    {
+        <div class="empty-state" style="grid-column:1/-1;">No executives currently active</div>
+    }
+</div>
+
+<!-- GPS log -->
+<div class="card">
+    <div class="card-head">📡 GPS Feed &nbsp;<span class="muted" style="font-weight:400;font-size:11px;">last 20 events</span></div>
+    <div class="gps-log-row" style="font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.8px;background:var(--surface2);">
+        <span>Time</span><span>Job</span><span>Coordinates</span><span>Speed</span>
+    </div>
+    <div class="scroll-y" style="max-height:200px;">
+        @foreach (var e in _gpsLog.TakeLast(20).Reverse())
+        {
+            <div class="gps-log-row">
+                <span class="ts">@e.Time.ToString("HH:mm:ss")</span>
+                <span>@e.JobCode</span>
+                <span>@e.Lat.ToString("F5"), @e.Lng.ToString("F5")</span>
+                <span>@e.Speed.ToString("F1") km/h</span>
+            </div>
+        }
+        @if (!_gpsLog.Any())
+        {
+            <div class="empty-state">Waiting for GPS data…</div>
+        }
+    </div>
+</div>
+
+@code {
+    private HubConnection? _hub;
+    private bool _connected;
+    private readonly Dictionary<string, ExecState> _execs = [];
+    private readonly List<GpsEntry> _gpsLog = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await JS.InvokeVoidAsync("DhlMap.init", "track-map", 10.8505, 76.2711, 7);
+        await ConnectAsync();
+    }
+
+    private async Task ConnectAsync()
+    {
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/gpshub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<string, double, double, double, DateTime>("LocationUpdated",
+            async (jobId, lat, lng, speed, time) =>
+            {
+                if (!_execs.TryGetValue(jobId, out var exec))
+                {
+                    exec = new ExecState { Name = jobId, JobCode = jobId, Initials = jobId.Length > 1 ? jobId[..2] : "??" };
+                    _execs[jobId] = exec;
+                }
+                exec.Lat = lat; exec.Lng = lng; exec.Speed = speed; exec.LastSeen = time;
+
+                var popup = $"<b>{exec.Name}</b><br/>{exec.Status}<br/>{speed:F1} km/h";
+                if (exec.MarkerAdded)
+                    await JS.InvokeVoidAsync("DhlMap.moveMarker", jobId, lat, lng, popup);
+                else
+                {
+                    await JS.InvokeVoidAsync("DhlMap.addMarker", jobId, lat, lng, popup);
+                    exec.MarkerAdded = true;
+                }
+
+                _gpsLog.Add(new GpsEntry { Time = time, JobCode = exec.JobCode, Lat = lat, Lng = lng, Speed = speed });
+                if (_gpsLog.Count > 100) _gpsLog.RemoveAt(0);
+
+                await InvokeAsync(StateHasChanged);
+            });
+
+        _hub.Reconnected += async _ => { _connected = true;  await InvokeAsync(StateHasChanged); };
+        _hub.Closed      += async _ => { _connected = false; await InvokeAsync(StateHasChanged); };
+
+        try { await _hub.StartAsync(); await _hub.SendAsync("WatchJob", "all"); _connected = true; StateHasChanged(); }
+        catch { _connected = false; }
+    }
+
+    public async ValueTask DisposeAsync() { if (_hub is not null) await _hub.DisposeAsync(); }
+
+    private static string StatusPill(string s) => s switch
+    {
+        "InTransit" => "pill-transit",
+        "Assigned"  => "pill-assigned",
+        _           => "pill-pending",
+    };
+
+    private class ExecState
+    {
+        public string   Name        { get; set; } = "";
+        public string   Initials    { get; set; } = "";
+        public string   JobCode     { get; set; } = "";
+        public string   Status      { get; set; } = "Active";
+        public double   Lat         { get; set; }
+        public double   Lng         { get; set; }
+        public double   Speed       { get; set; }
+        public DateTime LastSeen    { get; set; }
+        public bool     MarkerAdded { get; set; }
+    }
+    private class GpsEntry
+    {
+        public DateTime Time  { get; set; }
+        public string JobCode { get; set; } = "";
+        public double Lat     { get; set; }
+        public double Lng     { get; set; }
+        public double Speed   { get; set; }
+    }
+}

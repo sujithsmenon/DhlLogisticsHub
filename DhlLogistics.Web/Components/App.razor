@@ -4,17 +4,25 @@
     <head>
          <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DHL Logistics Hub</title>
+    <title>PVGT Logistics LLP</title>
     <base href="/" />
 
-    <!-- Syncfusion theme -->
-    <link href="_content/Syncfusion.Blazor.Themes/material3-dark.css" rel="stylesheet" />
+    <!-- Bootstrap (required for modal/grid/cards) -->
+    <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+
+    <!-- Syncfusion theme (bootstrap5 — matches CBM look) -->
+    <link href="_content/Syncfusion.Blazor.Themes/bootstrap5.css" rel="stylesheet" />
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
+    <!-- CBM-ported modal / card / toolbar overrides -->
+    <link rel="stylesheet" href="@Assets["default.css"]" />
+
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["DhlLogistics.Web.styles.css"]" />
+    <!-- CBM-style grid overlay (PVGT blue header) -->
+    <link rel="stylesheet" href="@Assets["syncfusion-grid-pvgt.css"]" />
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />
@@ -22,6 +30,7 @@
 
 <body>
     <Routes @rendermode="InteractiveServer" />
+    <Syncfusion.Blazor.Popups.SfDialogProvider />
 
     <div id="blazor-error-ui">
         An unhandled error has occurred.
@@ -38,6 +47,9 @@
 
     <!-- DHL map interop -->
     <script src="js/dhlmap.js"></script>
+
+    <!-- DHL Web Push -->
+    <script src="js/dhlpush.js"></script>
 
 
     <script src="@Assets["_framework/blazor.web.js"]"></script>

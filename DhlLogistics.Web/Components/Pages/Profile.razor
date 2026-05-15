@@ -1,0 +1,139 @@
+@page "/profile"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<div class="main-div">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header"><b>My Profile</b></div>
+                <div class="card-body">
+                    @if (_loading)
+                    {
+                        <div class="loading-wrap">Loading profile…</div>
+                    }
+                    else
+                    {
+                        <div style="display:flex;gap:24px;align-items:flex-start;padding:8px 4px;flex-wrap:wrap;">
+
+                            <!-- Avatar block -->
+                            <div style="display:flex;flex-direction:column;align-items:center;gap:10px;min-width:160px;">
+                                <div class="profile-avatar">@_initial</div>
+                                <div style="font-size:14px;font-weight:700;color:var(--text);text-align:center;">@_name</div>
+                                <span class="pill @RolePill(_role)">
+                                    <span class="dot"></span>@_role
+                                </span>
+                            </div>
+
+                            <!-- Details block -->
+                            <div style="flex:1;min-width:280px;">
+                                <div class="profile-grid">
+                                    <div class="profile-field">
+                                        <label>Full Name</label>
+                                        <div class="profile-value">@_name</div>
+                                    </div>
+                                    <div class="profile-field">
+                                        <label>Email</label>
+                                        <div class="profile-value">@(_email ?? "—")</div>
+                                    </div>
+                                    <div class="profile-field">
+                                        <label>Role</label>
+                                        <div class="profile-value">@_role</div>
+                                    </div>
+                                    <div class="profile-field">
+                                        <label>User ID</label>
+                                        <div class="profile-value mono" style="font-size:11px;">@(_userId ?? "—")</div>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;">
+                                    <SfButton CssClass="e-small" IsPrimary="true" IconCss="e-icons e-edit"
+                                              OnClick="@(() => Nav.NavigateTo("/settings"))">Edit Settings</SfButton>
+                                    <SfButton CssClass="e-small" IconCss="e-icons e-key"
+                                              OnClick="@(() => Nav.NavigateTo("/Account/ChangePassword"))">Change Password</SfButton>
+                                    <SfButton CssClass="e-small" IconCss="e-icons e-logout"
+                                              OnClick="@(() => Nav.NavigateTo("/Account/Logout", true))">Sign Out</SfButton>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .profile-avatar {
+        width: 96px; height: 96px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #198781 0%, #14706b 100%);
+        color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 38px; font-weight: 800;
+        box-shadow: 0 4px 16px rgba(25,135,129,.35);
+    }
+    .profile-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+    }
+    .profile-field {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+    }
+    .profile-field label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        margin-bottom: 4px;
+    }
+    .profile-value {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        word-break: break-all;
+    }
+</style>
+
+@code {
+    private bool _loading = true;
+    private string _name = "";
+    private string _role = "Viewer";
+    private string? _email;
+    private string? _userId;
+    private char _initial = 'U';
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        if (!(user.Identity?.IsAuthenticated ?? false))
+        {
+            Nav.NavigateTo("/Account/Login", forceLoad: true);
+            return;
+        }
+
+        _name = user.FindFirst(ClaimTypes.Name)?.Value ?? user.Identity?.Name ?? "User";
+        _role = user.FindFirst(ClaimTypes.Role)?.Value ?? "Viewer";
+        _email = user.FindFirst(ClaimTypes.Email)?.Value;
+        _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _initial = char.ToUpper(_name.FirstOrDefault('U'));
+        _loading = false;
+    }
+
+    private static string RolePill(string role) => role switch
+    {
+        "Admin"     => "pill-admin",
+        "Manager"   => "pill-manager",
+        "Executive" => "pill-executive",
+        _           => "pill-viewer",
+    };
+}

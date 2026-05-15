@@ -1,30 +1,116 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">DhlLogistics.Web</a>
+<nav class="sidebar-nav">
+
+    <div class="sidebar-section">Main</div>
+
+    <div class="nav-item-dhl">
+        <NavLink class="nav-link-dhl" href="" Match="NavLinkMatch.All">
+            <span class="nav-icon">🏠</span> Dashboard
+        </NavLink>
     </div>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
+    <!-- ── Masters ─────────────────────────────────────────────────────── -->
+    <details class="nav-group" open>
+        <summary>
+            <span class="nav-icon">🗂</span> Masters
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/branches"><span class="nav-icon">🏬</span> Branches</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/shipment-activities"><span class="nav-icon">⚙</span> Shipment Activities</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/clients"><span class="nav-icon">🏢</span> Clients</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/transporters"><span class="nav-icon">🚚</span> Transporters</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/containers"><span class="nav-icon">📦</span> Containers</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/users"><span class="nav-icon">👤</span> Users</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/container-sizes"><span class="nav-icon">📐</span> Container Sizes</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/commodities"><span class="nav-icon">📦</span> Commodities</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/vessels"><span class="nav-icon">🚢</span> Vessels</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/countries"><span class="nav-icon">🌐</span> Countries</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/regions"><span class="nav-icon">🧭</span> Regions</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/states"><span class="nav-icon">📍</span> States</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/ports"><span class="nav-icon">⚓</span> Ports</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/sez-locations"><span class="nav-icon">🏭</span> SEZ Locations</NavLink></div>
         </div>
+    </details>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
+    <!-- ── Operations ──────────────────────────────────────────────────── -->
+    <details class="nav-group">
+        <summary>
+            <span class="nav-icon">⚙</span> Operations
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="awb"><span class="nav-icon">✈</span> AWB Shipments</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="export"><span class="nav-icon">📤</span> Export Jobs</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="jobs"><span class="nav-icon">📋</span> Jobs</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="tracking"><span class="nav-icon">🗺</span> Live Tracking</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="cargo"><span class="nav-icon">📦</span> Cargo</NavLink></div>
+            <AuthorizeView Roles="Admin">
+                <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="admin/permissions"><span class="nav-icon">🔑</span> Roles</NavLink></div>
+            </AuthorizeView>
         </div>
+    </details>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
+    <!-- ── Finance ─────────────────────────────────────────────────────── -->
+    <details class="nav-group">
+        <summary>
+            <span class="nav-icon">💼</span> Finance
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="finance/accounts"><span class="nav-icon">📒</span> Accounts</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="finance/billing"><span class="nav-icon">🧾</span> Billing</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/currencies"><span class="nav-icon">💱</span> Currencies</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/sac"><span class="nav-icon">🧾</span> SAC Codes</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/charge-codes"><span class="nav-icon">💰</span> Charge Codes</NavLink></div>
         </div>
-    </nav>
-</div>
+    </details>
 
+    <!-- ── Staff (single page, tabbed) ─────────────────────────────────── -->
+    <div class="nav-item-dhl">
+        <NavLink class="nav-link-dhl" href="staff">
+            <span class="nav-icon">👥</span> Staff
+        </NavLink>
+    </div>
+
+    <!-- ── Fleet ───────────────────────────────────────────────────────── -->
+    <details class="nav-group">
+        <summary>
+            <span class="nav-icon">🚛</span> Fleet
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/vehicles"><span class="nav-icon">🚛</span> Vehicles</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/vehicle-drivers"><span class="nav-icon">🧑‍✈️</span> Vehicle Drivers</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/vehicle-document-types"><span class="nav-icon">📑</span> Vehicle Doc Types</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/vehicle-documents"><span class="nav-icon">📄</span> Vehicle Documents</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/driver-document-types"><span class="nav-icon">📑</span> Driver Doc Types</NavLink></div>
+        </div>
+    </details>
+
+    <!-- ── Clearing ────────────────────────────────────────────────────── -->
+    <details class="nav-group">
+        <summary>
+            <span class="nav-icon">🛃</span> Clearing
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="jobs/clearance"><span class="nav-icon">📋</span> Clearance Jobs</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="jobs/verify"><span class="nav-icon">✔</span> Verification</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="jobs/approve"><span class="nav-icon">✅</span> Approval</NavLink></div>
+        </div>
+    </details>
+
+    <!-- ── Forwarding ──────────────────────────────────────────────────── -->
+    <details class="nav-group">
+        <summary>
+            <span class="nav-icon">📦</span> Forwarding
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="jobs/forwarding"><span class="nav-icon">📋</span> Forwarding Jobs</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="jobs/verify"><span class="nav-icon">✔</span> Verification</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="jobs/approve"><span class="nav-icon">✅</span> Approval</NavLink></div>
+        </div>
+    </details>
+
+</nav>

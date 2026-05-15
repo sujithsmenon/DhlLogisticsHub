@@ -1,0 +1,112 @@
+/* ======================================================
+   PVGT Grid Overlay — ported from CBM syncfusion-grid-minimal-teal.css
+   Uses PVGT Blue (#0868B2) for header instead of CBM teal.
+   ====================================================== */
+
+/* Grid container */
+.e-grid {
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 12px;
+    background: #ffffff;
+    color: #1f2937;
+    box-shadow: none;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Header */
+.e-grid .e-gridheader {
+    background-color: #0868B2; /* PVGT Blue */
+    border: none;
+}
+
+.e-grid .e-headercell,
+.e-grid .e-detailheadercell {
+    background-color: #0868B2;
+    color: #ffffff;
+    font-weight: 500;
+    font-size: 12px;
+    padding: 8px 12px;
+    text-transform: uppercase;
+    border: none;
+}
+
+.e-grid .e-headercell .e-headertext,
+.e-grid .e-headercelldiv,
+.e-grid .e-sortfilter .e-headercelldiv,
+.e-grid .e-headercell .e-sortnumber,
+.e-grid .e-headercell .e-sortfilterdiv {
+    color: #ffffff !important;
+}
+
+.e-grid .e-headercell .e-sortfilterdiv.e-icons {
+    color: #ffffff !important;
+}
+
+/* Rows */
+.e-grid .e-rowcell {
+    padding: 2px 10px;
+    background: #ffffff;
+    font-size: 12px !important;
+}
+
+.e-grid .e-altrow {
+    background: #E8F1FA; /* tinted PVGT blue */
+}
+
+/* Hover */
+.e-grid .e-row:hover .e-rowcell {
+    background-color: #f9fafb;
+}
+
+/* Selection */
+.e-grid .e-selectionbackground {
+    background-color: #d6e9f7 !important;
+    color: #0e2a47;
+}
+
+/* No left/right grid lines */
+.e-grid .e-gridcontent,
+.e-grid .e-gridheader,
+.e-grid .e-rowcell,
+.e-grid .e-headercell {
+    border-left: none !important;
+    border-right: none !important;
+}
+
+/* Pager */
+.e-grid .e-gridpager {
+    border: none;
+    background: #ffffff;
+    padding: 8px 12px;
+}
+
+/* Toolbar */
+.e-grid .e-toolbar {
+    background: #ffffff;
+    border: none;
+}
+
+/* Search box */
+.e-grid .e-search {
+    border-radius: 6px;
+}
+
+/* Compact variant */
+.e-grid.compact .e-rowcell {
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+/* Command column icons — keep edit blue, delete red */
+.e-grid .e-unboundcell .e-btn.e-icon-btn .e-icons.e-edit {
+    color: #0868B2;
+}
+.e-grid .e-unboundcell .e-btn.e-icon-btn.delete-btn .e-icons.e-delete,
+.e-grid .delete-btn .e-icons.e-delete {
+    color: #dc2626 !important;
+}
+.e-grid .delete-btn:hover {
+    background: #fee2e2 !important;
+}

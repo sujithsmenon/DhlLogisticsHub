@@ -1,0 +1,115 @@
+@inject LogisticsService Service
+@inject IToastService ToastService
+
+<div class="modal-dialog modal-lg modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small">
+    <div class="modal-contentnew">
+
+        <div class="modal-header">
+            <h5 class="modal-title">@Title</h5>
+            <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+            <div class="card">
+                <div class="card-body">
+                    <EditForm Model="@vehicle">
+                        <DataAnnotationsValidator />
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Plate Number:</label>
+                                <SfTextBox @bind-Value="@vehicle.PlateNumber"
+                                           CssClass="e-small" Placeholder="KL-07-AB-1234" />
+                                <ValidationMessage For="@(() => vehicle.PlateNumber)" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Vehicle Type:</label>
+                                <SfComboBox @bind-Value="@vehicle.VehicleType"
+                                            TItem="string" TValue="string"
+                                            DataSource="@TypeOptions"
+                                            CssClass="e-small" AllowFiltering="true"
+                                            ShowClearButton="false" />
+                                <ValidationMessage For="@(() => vehicle.VehicleType)" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Active:</label>
+                                <SfCheckBox @bind-Checked="@vehicle.IsActive" Label="Active" />
+                            </div>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <SfButton OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save" IsPrimary="true">
+                @(Id == 0 ? "Save" : "Update")
+            </SfButton>
+            <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+    [Parameter] public int Id { get; set; }
+    [Parameter] public string? Title { get; set; }
+
+    private Vehicle vehicle = new() { IsActive = true };
+
+    private readonly List<string> TypeOptions = new()
+    { "Tata Ace", "Eicher", "Ashok Leyland", "Mahindra Bolero", "Tata 407", "Container Truck" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id != 0)
+        {
+            var all = await Service.GetAllVehiclesAsync();
+            var existing = all.FirstOrDefault(v => v.Id == Id);
+            if (existing is not null)
+            {
+                vehicle = new Vehicle
+                {
+                    Id          = existing.Id,
+                    PlateNumber = existing.PlateNumber,
+                    VehicleType = existing.VehicleType,
+                    IsActive    = existing.IsActive,
+                };
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(vehicle.PlateNumber))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Plate Number is required.", CssClass = "e-toast-danger" });
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(vehicle.VehicleType))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Vehicle Type is required.", CssClass = "e-toast-danger" });
+            return;
+        }
+
+        try
+        {
+            if (Id == 0) await Service.AddVehicleAsync(vehicle);
+            else                await Service.UpdateVehicleAsync(vehicle);
+
+            ToastService.Show(new() { Title = "Success!", Content = "Record Saved Successfully.", CssClass = "e-toast-success" });
+
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}

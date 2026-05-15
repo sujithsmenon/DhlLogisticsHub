@@ -1,0 +1,144 @@
+@page "/tracking"
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div style="display:flex;flex-direction:column;height:100%;">
+
+    <!-- Header -->
+    <div class="track-header">
+        <span style="font-size:16px;font-weight:800;">Live Tracking</span>
+        <span class="live-dot-wrap @(_connected ? "live" : "off")">
+            <span class="dot"></span>@(_connected ? "Live" : "Offline")
+        </span>
+    </div>
+
+    <!-- Map -->
+    <div id="mobile-map" style="flex:1;min-height:300px;"></div>
+
+    <!-- Executive cards -->
+    @if (_execs.Any())
+    {
+        <div style="background:#fff;border-top:1px solid #e5e7eb;padding:12px;overflow-x:auto;white-space:nowrap;">
+            @foreach (var exec in _execs.Values)
+            {
+                <div class="exec-chip">
+                    <div class="exec-init">@exec.Initials</div>
+                    <div>
+                        <div style="font-size:12px;font-weight:700;">@exec.Name</div>
+                        <div style="font-size:10px;color:#9ca3af;">@exec.Speed.ToString("F1") km/h</div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (_connected)
+    {
+        <div style="background:#fff;border-top:1px solid #e5e7eb;padding:16px;text-align:center;font-size:13px;color:#9ca3af;">
+            Waiting for executive GPS signals…
+        </div>
+    }
+</div>
+
+<style>
+.track-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; background: #fff; border-bottom: 1px solid #e5e7eb;
+}
+.live-dot-wrap {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+}
+.live-dot-wrap.live { background: #d1fae5; color: #065f46; }
+.live-dot-wrap.off  { background: #fee2e2; color: #991b1b; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; }
+@@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.exec-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #f5f6fa; border-radius: 20px; padding: 6px 12px;
+    margin-right: 8px; vertical-align: top;
+}
+.exec-init {
+    width: 28px; height: 28px; background: #D40511; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 11px; flex-shrink: 0;
+}
+</style>
+
+@code {
+    private HubConnection? _hub;
+    private bool _connected;
+    private bool _mapReady;
+    private readonly Dictionary<string, ExecState> _execs = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _mapReady) return;
+        _mapReady = true;
+        await JS.InvokeVoidAsync("eval", @"
+            var mmap = L.map('mobile-map', { zoomControl: false })
+                       .setView([10.8505, 76.2711], 7);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mmap);
+            window._mobMap = mmap;
+            window._mobMarkers = {};
+        ");
+        await ConnectAsync();
+    }
+
+    private async Task ConnectAsync()
+    {
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/gpshub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<string, double, double, double, DateTime>("LocationUpdated",
+            async (jobId, lat, lng, speed, time) =>
+            {
+                if (!_execs.TryGetValue(jobId, out var exec))
+                {
+                    exec = new ExecState { Name = jobId, Initials = jobId.Length >= 2 ? jobId[..2].ToUpper() : "??" };
+                    _execs[jobId] = exec;
+                }
+                exec.Lat = lat; exec.Lng = lng; exec.Speed = speed;
+
+                // Update map marker via raw eval (no dhlmap.js dependency on mobile)
+                await JS.InvokeVoidAsync("eval", $@"
+                    (function() {{
+                        if (!window._mobMap) return;
+                        if (window._mobMarkers['{jobId}']) {{
+                            window._mobMarkers['{jobId}'].setLatLng([{lat},{lng}]);
+                        }} else {{
+                            window._mobMarkers['{jobId}'] = L.circleMarker([{lat},{lng}],
+                                {{radius:10,color:'#D40511',fillColor:'#D40511',fillOpacity:.8}})
+                                .addTo(window._mobMap)
+                                .bindPopup('<b>{jobId}</b><br/>{speed:F1} km/h');
+                        }}
+                    }})();
+                ");
+
+                await InvokeAsync(StateHasChanged);
+            });
+
+        _hub.Reconnected += async _ => { _connected = true;  await InvokeAsync(StateHasChanged); };
+        _hub.Closed      += async _ => { _connected = false; await InvokeAsync(StateHasChanged); };
+
+        try { await _hub.StartAsync(); await _hub.SendAsync("WatchJob", "all"); _connected = true; StateHasChanged(); }
+        catch { _connected = false; }
+    }
+
+    public async ValueTask DisposeAsync() { if (_hub is not null) await _hub.DisposeAsync(); }
+
+    private class ExecState
+    {
+        public string Initials { get; set; } = "";
+        public string Name     { get; set; } = "";
+        public double Lat      { get; set; }
+        public double Lng      { get; set; }
+        public double Speed    { get; set; }
+    }
+}

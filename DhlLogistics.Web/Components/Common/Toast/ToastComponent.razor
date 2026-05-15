@@ -1,0 +1,40 @@
+@namespace DhlLogistics.Web.Components.Common.Toast
+@using Syncfusion.Blazor.Notifications
+
+<style>
+    .sf-toast {
+        z-index: 20000 !important;
+    }
+</style>
+
+<SfToast @ref="Toast">
+    <ToastPosition X="Right" Y="Top" />
+</SfToast>
+
+@code
+{
+    [Inject] IToastService ToastService { get; set; } = default!;
+
+    SfToast Toast { get; set; } = default!;
+    ToastModel ToastModel { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        ToastService.ToastInstance += (model) =>
+        {
+            InvokeAsync(async () =>
+            {
+                ToastModel.Title = model.Title;
+                ToastModel.Content = model.Content;
+                ToastModel.ContentTemplate = model.ContentTemplate;
+                ToastModel.CssClass = model.CssClass;
+                ToastModel.Icon = model.Icon;
+                ToastModel.Timeout = model.Timeout;
+                ToastModel.ShowCloseButton = true;
+                ToastModel.Target = "#toast_target";
+
+                await Toast.ShowAsync(ToastModel);
+            });
+        };
+    }
+}

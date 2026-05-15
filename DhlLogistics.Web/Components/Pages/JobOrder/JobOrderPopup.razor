@@ -1,0 +1,379 @@
+@inject JobOrderService Service
+@inject LogisticsService Logistics
+@inject CompanyBranchService BranchService
+@inject PortService PortService
+@inject CommodityService CommodityService
+@inject ContainerSizeService ContainerSizeService
+@inject StaffService StaffService
+@inject CurrencyService CurrencyService
+@inject IToastService ToastService
+
+<style>
+    .custom-modal .modal-dialog { max-width: 1100px !important; }
+    .custom-scroll {
+        max-height: 425px;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.3); border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.3) transparent; }
+    .min-textarea textarea { min-height: 52px; }
+    .normal-text { font-weight: 600; color: #0E2A47; }
+    #Card { height: 165px !important; width: 100%; }
+    .e-dialog .e-dlg-header { font-size: small; }
+    .e-dialog.e-popup { max-height: fit-content !important; }
+</style>
+
+<div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
+    <div class="modal-contentnew">
+        <div class="modal-header">
+            <h5 class="modal-title">Job Order Details</h5>
+            <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <EditForm Model="@item"><DataAnnotationsValidator />
+
+                <!-- Row 1: Identity & parties -->
+                <div class="row">
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Branch:</label>
+                        <SfComboBox @bind-Value="@item.BranchId" TItem="CompanyBranch" TValue="int?"
+                                    DataSource="@_branches" CssClass="e-small" ShowClearButton="true">
+                            <ComboBoxFieldSettings Text="BranchName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Shipment Mode:</label>
+                        <SfComboBox @bind-Value="@item.ShipmentMode" TItem="EnumItem<JobShipmentMode>" TValue="JobShipmentMode"
+                                    DataSource="@_shipmentModes" CssClass="e-small" ShowClearButton="false">
+                            <ComboBoxFieldSettings Text="Label" Value="Value" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Shipment Type:</label>
+                        <SfComboBox @bind-Value="@item.ShipmentType" TItem="EnumItem<JobShipmentType>" TValue="JobShipmentType"
+                                    DataSource="@_shipmentTypes" CssClass="e-small" ShowClearButton="false">
+                            <ComboBoxFieldSettings Text="Label" Value="Value" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">JobOrder No:</label>
+                        <SfTextBox Value="@(string.IsNullOrEmpty(item.JobOrderNo) ? "(auto on save)" : item.JobOrderNo)"
+                                   CssClass="e-small" Enabled="false" />
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">JobOrder Date:</label>
+                        <SfDatePicker TValue="DateTime" @bind-Value="@item.JobOrderDate" Format="dd-MMM-yyyy" StrictMode="true" CssClass="e-small" />
+                    </div>
+                    <div class="mb-3 col-md-3">
+                        <label class="form-Custom-label">Billing Client:</label>
+                        <SfComboBox @bind-Value="@item.BillingClientId" TItem="DhlClient" TValue="int"
+                                    DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="false"
+                                    Placeholder="Select Organization..">
+                            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Status:</label>
+                        <SfTextBox Value="@item.Status.ToString()" Enabled="false" CssClass="e-small" />
+                    </div>
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Sales Staff:</label>
+                        <SfComboBox @bind-Value="@item.SaleStaffId" TItem="Staff" TValue="int?"
+                                    DataSource="@_staff" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                            <ComboBoxFieldSettings Text="FullName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                </div>
+
+                <!-- Row 2: Routing & cargo -->
+                <div class="row">
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Load @(item.ShipmentMode == JobShipmentMode.Air ? "Airport:" : "Port:")</label>
+                        <SfComboBox @bind-Value="@item.LoadPortId" TItem="Port" TValue="int?"
+                                    DataSource="@_ports" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                    Placeholder="Select Port..">
+                            <ComboBoxFieldSettings Text="PortName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-3">
+                        <label class="form-Custom-label">Discharge @(item.ShipmentMode == JobShipmentMode.Air ? "Airport:" : "Port:")</label>
+                        <SfComboBox @bind-Value="@item.DischargePortId" TItem="Port" TValue="int?"
+                                    DataSource="@_ports" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                    Placeholder="Select Port..">
+                            <ComboBoxFieldSettings Text="PortName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-3">
+                        <label class="form-Custom-label">Commodity:</label>
+                        <SfComboBox @bind-Value="@item.CommodityId" TItem="Commodity" TValue="int?"
+                                    DataSource="@_commodities" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                    Placeholder="Select Commodity..">
+                            <ComboBoxFieldSettings Text="CommodityName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Cargo Type:</label>
+                        <SfDropDownList @bind-Value="@item.CargoType" TItem="EnumItem<JobCargoType>" TValue="JobCargoType"
+                                        DataSource="@_cargoTypes" CssClass="e-small" ShowClearButton="false">
+                            <DropDownListFieldSettings Text="Label" Value="Value" />
+                        </SfDropDownList>
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">LCL Unit Type:</label>
+                        <SfTextBox @bind-Value="@item.LclUnitType" CssClass="e-small" Placeholder="CBM/Pkgs"
+                                   Enabled="@(item.CargoType == JobCargoType.LCL)" />
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Units:</label>
+                        <SfNumericTextBox TValue="decimal?" @bind-Value="@item.LclUnits" Format="N3" ShowSpinButton="false"
+                                          CssClass="e-small" Enabled="@(item.CargoType == JobCargoType.LCL)" />
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">FCL Size:</label>
+                        <SfComboBox @bind-Value="@item.ContainerSizeId" TItem="ContainerSize" TValue="int?"
+                                    DataSource="@_containerSizes" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                    Enabled="@(item.CargoType == JobCargoType.FCL)">
+                            <ComboBoxFieldSettings Text="SizeName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                </div>
+
+                <!-- Three cards: Shipment Info / Operations / Container & Charges -->
+                <div class="row">
+                    <!-- ── Card 1: Shipment Info ─────────────────────────────────────────── -->
+                    <div class="col-md-5">
+                        <div class="card">
+                            <div class="card-header">Shipment Info</div>
+                            <div class="card-body custom-scroll">
+                                <div class="row mb-3">
+                                    <div class="col-md-3"><label class="form-Custom-label">Cargo Description:</label></div>
+                                    <div class="col-md-9">
+                                        <SfTextBox CssClass="e-small min-textarea" @bind-Value="@item.CargoDescription"
+                                                   Multiline="true" HtmlAttributes="@(new Dictionary<string, object> { { "rows", "3" } })" />
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-3"><label class="form-Custom-label">Shipper:</label></div>
+                                    <div class="col-md-9">
+                                        <SfComboBox @bind-Value="@item.ShipperId" TItem="DhlClient" TValue="int"
+                                                    DataSource="@_clients" AllowFiltering="true" CssClass="e-small" Placeholder="Select Organization..">
+                                            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                                        </SfComboBox>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-3"><label class="form-Custom-label">Consignee:</label></div>
+                                    <div class="col-md-9">
+                                        <SfComboBox @bind-Value="@item.ConsigneeId" TItem="DhlClient" TValue="int"
+                                                    DataSource="@_clients" AllowFiltering="true" CssClass="e-small" Placeholder="Select Organization..">
+                                            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                                        </SfComboBox>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-3"><label class="form-Custom-label">Nominated:</label></div>
+                                    <div class="col-md-3"><SfCheckBox @bind-Checked="@item.IsNominated" Label="Yes" /></div>
+                                    <div class="col-md-3"><label class="form-Custom-label">Emergency:</label></div>
+                                    <div class="col-md-3"><SfCheckBox @bind-Checked="@item.IsEmergency" Label="Yes" /></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Card 2: Operations (placeholder) ──────────────────────────────── -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">Operations</div>
+                            <div class="card-body custom-scroll" style="height:280px;">
+                                <p class="muted" style="font-size:11px;text-align:center;padding-top:80px;">
+                                    JobOrderOperations sub-grid<br/>
+                                    <em>(deferred — coming with the next M4 slice)</em>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Card 3: Container & Charges ───────────────────────────────────── -->
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-header">Cargo Totals</div>
+                            <div class="card-body">
+                                <div class="mb-3"><label class="form-Custom-label">Gross Wt (kg):</label>
+                                    <SfNumericTextBox TValue="decimal?" @bind-Value="@item.GrossWeightKg" Format="N3" CssClass="e-small" /></div>
+                                <div class="mb-3"><label class="form-Custom-label">Volume (CBM):</label>
+                                    <SfNumericTextBox TValue="decimal?" @bind-Value="@item.VolumeCbm" Format="N3" CssClass="e-small" /></div>
+                                <div class="mb-3"><label class="form-Custom-label">Currency:</label>
+                                    <SfComboBox @bind-Value="@item.CurrencyId" TItem="Currency" TValue="int?"
+                                                DataSource="@_currencies" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                                        <ComboBoxFieldSettings Text="CurrencyCode" Value="Id" />
+                                    </SfComboBox>
+                                </div>
+                                <div class="mb-3"><label class="form-Custom-label">Est. Value:</label>
+                                    <SfNumericTextBox TValue="decimal?" @bind-Value="@item.EstimatedValue" Format="N2" CssClass="e-small" /></div>
+                                <div class="mb-3"><label class="form-Custom-label">Remarks:</label>
+                                    <SfTextBox @bind-Value="@item.Remarks" CssClass="e-small" /></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (item.Status == JobOrderStatus.Rejected && !string.IsNullOrEmpty(item.RejectionReason))
+                {
+                    <div class="alert alert-warning" style="padding:6px 10px;font-size:12px;margin-top:8px;">
+                        <strong>Rejected:</strong> @item.RejectionReason
+                        (by @item.RejectedBy on @(item.RejectedOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")))
+                    </div>
+                }
+            </EditForm>
+        </div>
+
+        <div class="modal-footer">
+            <div class="row bs" style="width:100%;">
+                <div class="col-md-12" style="text-align:center;">
+                    <div class="row" style="padding-top:5px;">
+                        <div class="mb-3 col-md-5">
+                            <div class="row text-start">
+                                <div class="mb-3 col-md-4"><label class="form-Custom-label">Created By:</label></div>
+                                <div class="mb-3 col-md-8">
+                                    <label class="form-Custom-label" title="@(item.CreatedOn.ToLocalTime().ToString("dd-MMM-yyyy HH:mm:ss"))">
+                                        <span class="normal-text">@item.CreatedBy</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2" style="text-align:center;">
+                            @if (Id != 0 && item.Status == JobOrderStatus.Draft)
+                            {
+                                <SfButton OnClick="@Submit" CssClass="e-small" IconCss="e-icons e-send-1">Submit</SfButton>
+                            }
+                            <SfButton IsPrimary="true" OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save-as">@btnText</SfButton>
+                            <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Close</SfButton>
+                        </div>
+                        <div class="mb-3 col-md-5">
+                            <div class="row text-start">
+                                <div class="mb-3 col-md-4"><label class="form-Custom-label">Modified By:</label></div>
+                                <div class="mb-3 col-md-8">
+                                    <label class="form-Custom-label" title="@(item.ModifiedOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm:ss") ?? "")">
+                                        <span class="normal-text">@item.ModifiedBy</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public record EnumItem<T>(T Value, string Label);
+
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+    [Parameter] public long Id { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public JobMode Mode { get; set; } = JobMode.Clearance;
+
+    private JobOrder item = new();
+    private string btnText => Id == 0 ? "Save" : "Update";
+
+    private List<DhlClient>      _clients         = new();
+    private List<Port>           _ports           = new();
+    private List<Commodity>      _commodities     = new();
+    private List<ContainerSize>  _containerSizes  = new();
+    private List<Staff>          _staff           = new();
+    private List<Currency>       _currencies      = new();
+    private List<CompanyBranch>  _branches        = new();
+
+    private static readonly List<EnumItem<JobShipmentMode>> _shipmentModes = new()
+    {
+        new(JobShipmentMode.Sea,  "Sea"),
+        new(JobShipmentMode.Air,  "Air"),
+        new(JobShipmentMode.Road, "Road"),
+    };
+    private static readonly List<EnumItem<JobShipmentType>> _shipmentTypes = new()
+    {
+        new(JobShipmentType.Import, "Import"),
+        new(JobShipmentType.Export, "Export"),
+    };
+    private static readonly List<EnumItem<JobCargoType>> _cargoTypes = new()
+    {
+        new(JobCargoType.FCL,   "FCL"),
+        new(JobCargoType.LCL,   "LCL"),
+        new(JobCargoType.Air,   "Air"),
+        new(JobCargoType.Bulk,  "Bulk"),
+        new(JobCargoType.Break, "Break Bulk"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _branches       = await BranchService.GetAllAsync();
+        _clients        = await Logistics.GetAllClientsAsync();
+        _ports          = await PortService.GetAllAsync();
+        _commodities    = await CommodityService.GetAllAsync();
+        _containerSizes = await ContainerSizeService.GetAllAsync();
+        _staff          = await StaffService.GetAllAsync();
+        _currencies     = await CurrencyService.GetAllAsync();
+
+        if (Id != 0)
+        {
+            var e = await Service.GetByIdAsync(Id);
+            if (e is not null) item = e;
+        }
+        else
+        {
+            item = new JobOrder { Mode = Mode, JobOrderDate = DateTime.UtcNow.Date };
+        }
+    }
+
+    private async Task Save()
+    {
+        if (item.BillingClientId == 0) { Toast("Billing Client is required."); return; }
+        if (item.ShipperId == 0)       { Toast("Shipper is required."); return; }
+        if (item.ConsigneeId == 0)     { Toast("Consignee is required."); return; }
+
+        try
+        {
+            if (Id == 0)
+            {
+                item.Mode = Mode;
+                await Service.CreateAsync(item);
+            }
+            else
+            {
+                await Service.UpdateAsync(item);
+            }
+            ToastService.Show(new() { Title = "Success!", Content = "Job Order saved.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task Submit()
+    {
+        try
+        {
+            await Service.SubmitAsync(Id);
+            ToastService.Show(new() { Title = "Submitted", Content = "Job sent for verification.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Validation", Content = msg, CssClass = "e-toast-danger" });
+
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}

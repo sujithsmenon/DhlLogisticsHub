@@ -1,0 +1,96 @@
+﻿@page "/masters/regions"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject RegionService Service
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header"><b>Region List</b></div>
+                <div class="card-body">
+                    <SfGrid ID="Grid" TValue="Region" @ref="Grid" DataSource="@model"
+                            AllowPaging="true" AllowReordering="true" CssClass="e-small"
+                            AllowResizing="true" AllowSelection="true" AllowExcelExport="true"
+                            AllowSorting="true" Toolbar="@Toolbaritems" Height="100%" RowHeight="25" Width="100%">
+                        <GridPageSettings PageSize="15" PageSizes="@pagerDropdown"></GridPageSettings>
+                        <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar"></GridFilterSettings>
+                        <GridEvents OnToolbarClick="ToolbarClick" CommandClicked="OnCommandClicked" TValue="Region"></GridEvents>
+                        <GridColumns>
+                            <GridColumn HeaderText="Manage" Width="80" TextAlign="Syncfusion.Blazor.Grids.TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
+                                <GridCommandColumns>
+                                    <GridCommandColumn Type="CommandButtonType.Edit" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-edit", CssClass = "e-flat" })"></GridCommandColumn>
+                                    <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })"></GridCommandColumn>
+                                </GridCommandColumns>
+                            </GridColumn>
+                            <GridColumn Field="@nameof(Region.Id)" HeaderText="Id" IsPrimaryKey="true" Visible="false"></GridColumn>
+                            <GridColumn Field="@nameof(Region.RegionName)" HeaderText="Region Name" Width="300"></GridColumn>
+                            <GridColumn Field="@nameof(Region.IsActive)" HeaderText="Active" Width="100" DisplayAsCheckBox="true"></GridColumn>
+                        </GridColumns>
+                    </SfGrid>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+<ToastComponent />
+
+@code {
+    private BsModalDialog? _modal;
+    public List<Region> model { get; set; } = new();
+    SfGrid<Region>? Grid;
+    private List<Object> Toolbaritems = new List<Object>() {
+        new ItemModel() { Text = "Add New Region", TooltipText = "Add New Region", PrefixIcon = "e-add", Id = "AddNew" }, "Search" };
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "5", "10", "15", "20" };
+    public EventCallback LoadOnSaveReference { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadOnSaveReference = EventCallback.Factory.Create(this, LoadOnSave);
+        await LoadData();
+    }
+    private async Task LoadData() { try { loader = true; model = await Service.GetAllAsync(); } finally { loader = false; StateHasChanged(); } }
+    private async Task LoadOnSave() { await LoadData(); if (Grid is not null) await Grid.Refresh(); }
+
+    public async void ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (args.Item.Text == "Add New Region")
+        {
+            var option = new BsModalOptions();
+            option.ControlParameters.Add("Id", 0);
+            option.ControlParameters.Add("Title", "New Region Details");
+            option.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+            var result = await _modal!.Context.ShowAsync<RegionPopup>(option);
+            if (result.ResultType == ModalResultType.OK) await LoadOnSave();
+        }
+    }
+    public async Task OnCommandClicked(CommandClickEventArgs<Region> args)
+    {
+        try
+        {
+            if (args.CommandColumn.Type == CommandButtonType.Edit)
+            {
+                var option = new BsModalOptions();
+                option.ControlParameters.Add("Id", args.RowData.Id);
+                option.ControlParameters.Add("Title", "Update Region Details - " + args.RowData.RegionName);
+                option.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+                var result = await _modal!.Context.ShowAsync<RegionPopup>(option);
+                if (result.ResultType == ModalResultType.OK) await LoadOnSave();
+            }
+            else if (args.CommandColumn.Type == CommandButtonType.Delete)
+            {
+                if (await DialogService.ConfirmAsync("Are you sure you want to delete record?", "Confirm delete"))
+                {
+                    await Service.DeleteAsync(args.RowData.Id);
+                    ToastService.Show(new() { Title = "Success!", Content = "Record Deleted Successfully.", CssClass = "e-toast-success" });
+                    await LoadOnSave();
+                }
+            }
+        }
+        catch (Exception ex) { ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" }); }
+    }
+}

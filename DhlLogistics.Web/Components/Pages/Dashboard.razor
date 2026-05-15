@@ -1,129 +1,156 @@
 @page "/"
-@using Microsoft.AspNetCore.SignalR.Client
-@using DhlLogistics.Web.Model
-@using DhlLogistics.Web.Service
-@inject logi LogisticsService
-@inject NavigationManager NavManager
+@inject LogisticsService Svc
+@inject NavigationManager Nav
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<PageTitle>Dashboard — DHL Logistics Hub</PageTitle>
-
-<!-- Leaflet CSS -->
+<!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/dhlmap.js"></script>
 
-<div class="page-header">
-    <h1>Operations Dashboard</h1>
-    <div class="header-actions">
-        <span class="live-badge @(_hubConnected ? "live" : "offline")">
-            <span class="live-dot"></span>
-            @(_hubConnected ? "Live Tracking ON" : "Connecting...")
-        </span>
-    </div>
-</div>
-
-@if (_data is null)
+@if (_loading)
 {
-    <div class="loading-wrap">Loading...</div>
+    <div class="loading-wrap">Loading dashboard…</div>
 }
 else
 {
-    <!-- KPI Cards -->
+    <!-- KPI row -->
     <div class="kpi-grid">
         <div class="kpi-card red">
-            <div class="kpi-icon">📦</div>
+            <div class="kpi-icon">🚛</div>
             <div class="kpi-body">
-                <div class="kpi-value">@_data.TotalActiveContainers</div>
-                <div class="kpi-label">Active Containers</div>
+                <div class="kpi-value">@_data!.TotalPendingPickups</div>
+                <div class="kpi-label">Pending Pickups</div>
+            </div>
+        </div>
+        <div class="kpi-card blue">
+            <div class="kpi-icon">📍</div>
+            <div class="kpi-body">
+                <div class="kpi-value">@_inTransit</div>
+                <div class="kpi-label">In Transit</div>
             </div>
         </div>
         <div class="kpi-card green">
             <div class="kpi-icon">✅</div>
             <div class="kpi-body">
                 <div class="kpi-value">@_data.TotalShippedThisMonth</div>
-                <div class="kpi-label">Shipped This Month</div>
+                <div class="kpi-label">Stored This Month</div>
+            </div>
+        </div>
+        <div class="kpi-card orange">
+            <div class="kpi-icon">📦</div>
+            <div class="kpi-body">
+                <div class="kpi-value">@_data.TotalActiveContainers</div>
+                <div class="kpi-label">Active Containers</div>
+            </div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kpi-icon">👤</div>
+            <div class="kpi-body">
+                <div class="kpi-value">@_activeExecs</div>
+                <div class="kpi-label">Active Executives</div>
             </div>
         </div>
         <div class="kpi-card yellow">
-            <div class="kpi-icon">🚛</div>
-            <div class="kpi-body">
-                <div class="kpi-value">@_data.TotalPendingPickups</div>
-                <div class="kpi-label">Pending Pickups</div>
-            </div>
-        </div>
-        <div class="kpi-card blue">
             <div class="kpi-icon">🏢</div>
             <div class="kpi-body">
                 <div class="kpi-value">@_data.TotalActiveClients</div>
-                <div class="kpi-label">Active DHL Clients</div>
+                <div class="kpi-label">DHL Clients</div>
             </div>
         </div>
     </div>
 
-    <!-- Live GPS Map + Active Jobs -->
-    <div class="map-jobs-grid">
-
-        <!-- Leaflet Map -->
+    <!-- Map + Activity feed -->
+    <div class="two-col mb20">
         <div class="card">
             <div class="card-head">
                 🗺 Live Executive Tracking
-                <span style="font-size:12px;color:var(--muted);font-family:var(--mono)">
-                    @_activeMarkers.Count executive(s) active
+                <span class="live-badge @(_hubConnected ? "live" : "offline")">
+                    <span class="live-dot"></span>
+                    @(_hubConnected ? "Live" : "Offline")
                 </span>
             </div>
-            <div id="dhl-map" style="height:380px;width:100%;border-radius:0 0 10px 10px;"></div>
+            <div id="dhl-map" style="height:340px;width:100%;"></div>
         </div>
 
-        <!-- Active Jobs Panel -->
         <div class="card">
-            <div class="card-head">🚛 Active Jobs</div>
-            <div style="overflow-y:auto;max-height:380px;">
-                @if (_activeJobs.Any())
+            <div class="card-head">⚡ Recent Activity</div>
+            <div class="scroll-y" style="max-height:340px;">
+                @if (!_recentJobs.Any())
                 {
-                    @foreach (var job in _activeJobs)
-                    {
-                        <div class="job-row @(job.JobId == _selectedJobId ? "selected" : "")"
-                             @onclick="() => SelectJob(job)">
-                            <div class="job-code">@job.JobCode</div>
-                            <div class="job-exec">@job.ExecutiveName</div>
-                            <div class="job-addr">@job.PickupAddress</div>
-                            <div class="job-meta">
-                                <span class="status-pill @GetStatusClass(job.Status)">
-                                    <span class="dot"></span>@job.Status
-                                </span>
-                                @if (job.LastLat != 0)
-                                {
-                                    <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">
-                                        @job.LastLat.ToString("F4"), @job.LastLng.ToString("F4")
-                                    </span>
-                                }
-                            </div>
-                        </div>
-                    }
+                    <div class="empty-state">No recent activity</div>
                 }
                 else
                 {
-                    <div style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">
-                        No active jobs right now
+                    <div class="timeline">
+                        @foreach (var job in _recentJobs)
+                        {
+                            <div class="timeline-item">
+                                <div class="timeline-dot @TimelineDotColor(job.Status)"></div>
+                                <div>
+                                    <div class="timeline-text">
+                                        <span class="bold">@job.JobCode</span> — @job.ClientName
+                                    </div>
+                                    <div class="timeline-time">
+                                        @job.Status &nbsp;·&nbsp; @job.CreatedAt.ToString("dd MMM HH:mm")
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     </div>
                 }
             </div>
         </div>
     </div>
 
-    <!-- GPS Update Log -->
+    <!-- Active jobs table -->
+    <div class="card mb20">
+        <div class="card-head">
+            📋 Active Jobs
+            <a href="/jobs" style="font-size:12px;font-weight:500;color:var(--red);text-decoration:none;">View all →</a>
+        </div>
+        <div class="scroll-y" style="max-height:280px;">
+            @foreach (var job in _activeJobs)
+            {
+                <div class="data-row @(job.JobId == _selectedJob ? "selected" : "")"
+                     @onclick="() => SelectJob(job)">
+                    <div class="mono" style="width:120px;color:var(--red);font-size:11px;">@job.JobCode</div>
+                    <div style="flex:1;font-weight:600;">@job.ExecutiveName</div>
+                    <div style="flex:2;color:var(--muted);font-size:12px;">@job.PickupAddress</div>
+                    <div style="width:110px;">
+                        <span class="pill @StatusPill(job.Status)">
+                            <span class="dot"></span>@job.Status
+                        </span>
+                    </div>
+                    @if (job.LastLat != 0)
+                    {
+                        <div style="width:150px;font-family:var(--mono);font-size:10px;color:var(--muted);">
+                            @job.LastLat.ToString("F4"), @job.LastLng.ToString("F4")
+                        </div>
+                    }
+                </div>
+            }
+            @if (!_activeJobs.Any())
+            {
+                <div class="empty-state">No active jobs</div>
+            }
+        </div>
+    </div>
+
+    <!-- GPS feed -->
     @if (_gpsLog.Any())
     {
-        <div class="card" style="margin-bottom:20px">
-            <div class="card-head">📡 Live GPS Feed</div>
-            <div style="padding:12px 16px;max-height:140px;overflow-y:auto;">
-                @foreach (var entry in _gpsLog.TakeLast(8).Reverse())
+        <div class="card">
+            <div class="card-head">📡 GPS Feed</div>
+            <div class="scroll-y" style="max-height:160px;">
+                @foreach (var e in _gpsLog.TakeLast(10).Reverse())
                 {
-                    <div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:2px 0;border-bottom:1px solid var(--border);">
-                        <span style="color:var(--green)">@entry.Time.ToString("HH:mm:ss")</span>
-                        &nbsp;@entry.JobCode
-                        &nbsp;→ @entry.Lat.ToString("F5"), @entry.Lng.ToString("F5")
-                        &nbsp;@entry.Speed.ToString("F1") km/h
+                    <div class="gps-log-row">
+                        <span class="ts">@e.Time.ToString("HH:mm:ss")</span>
+                        <span>@e.JobCode</span>
+                        <span>@e.Lat.ToString("F5"), @e.Lng.ToString("F5")</span>
+                        <span>@e.Speed.ToString("F1") km/h</span>
                     </div>
                 }
             </div>
@@ -131,245 +158,134 @@ else
     }
 }
 
-<style>
-.live-badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 12px; border-radius: 20px; font-size: 12px;
-    font-family: var(--mono); font-weight: 600;
-}
-.live-badge.live {
-    background: rgba(34,197,94,.15);
-    border: 1px solid rgba(34,197,94,.3);
-    color: var(--green);
-}
-.live-badge.offline {
-    background: rgba(212,5,17,.1);
-    border: 1px solid rgba(212,5,17,.25);
-    color: var(--red);
-}
-.live-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: currentColor;
-    animation: pulse 1.5s infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-
-.map-jobs-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
-}
-
-.job-row {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    transition: background .15s;
-}
-.job-row:hover { background: var(--surface2); }
-.job-row.selected { background: rgba(212,5,17,.08); border-left: 3px solid var(--red); }
-.job-code { font-family: var(--mono); font-size: 11px; color: var(--red); }
-.job-exec { font-size: 13px; font-weight: 600; margin: 2px 0; }
-.job-addr { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.job-meta { display: flex; align-items: center; gap: 10px; }
-
-@@media (max-width: 900px) {
-    .map-jobs-grid { grid-template-columns: 1fr; }
-}
-</style>
-
 @code {
-    // ── State ────────────────────────────────────────────────────────────────
-    private DailyReportData? _data;
-    private HubConnection? _hub;
-    private bool _hubConnected = false;
-    private string? _selectedJobId;
+    private DailyReportData?  _data;
+    private List<PickupJob>   _recentJobs  = [];
+    private List<JobRow>      _activeJobs  = [];
+    private List<GpsEntry>    _gpsLog      = [];
+    private Dictionary<string,bool> _markers = [];
+    private HubConnection?    _hub;
+    private bool  _loading      = true;
+    private bool  _hubConnected = false;
+    private string? _selectedJob;
+    private int   _inTransit;
+    private int   _activeExecs;
 
-    // Active jobs with GPS state
-    private List<ActiveJobViewModel> _activeJobs = new();
-
-    // Markers currently on the map  (jobId → marker exists)
-    private Dictionary<string, bool> _activeMarkers = new();
-
-    // GPS log for the feed panel
-    private List<GpsLogEntry> _gpsLog = new();
-
-    // ── Lifecycle ────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
-        _data = await LogisticsService.get();
+        _data       = await Svc.get();
+        _recentJobs = await Svc.GetRecentJobsAsync(12);
+        _inTransit  = _recentJobs.Count(j => j.Status == JobStatus.InTransit);
+        _activeExecs= _recentJobs
+            .Where(j => j.Status == JobStatus.InTransit || j.Status == JobStatus.Assigned)
+            .Select(j => j.AssignedExecutiveId).Distinct().Count(x => x != null);
 
-        // Seed some demo active jobs
-        _activeJobs = new List<ActiveJobViewModel>
-        {
-            new() { JobId="JOB-001", JobCode="JOB-2024-001", ExecutiveName="Rajan Kumar",
-                    PickupAddress="Coimbatore Textile Mills", Status="InTransit",
-                    LastLat=10.9095, LastLng=76.9798 },
-            new() { JobId="JOB-002", JobCode="JOB-2024-002", ExecutiveName="Suresh Nair",
-                    PickupAddress="Chennai AutoParts Warehouse", Status="Assigned",
-                    LastLat=13.0827, LastLng=80.2707 },
-        };
+        _activeJobs = _recentJobs
+            .Where(j => j.Status != JobStatus.Stored && j.Status != JobStatus.Cancelled)
+            .Select(j => new JobRow
+            {
+                JobId         = j.Id.ToString(),
+                JobCode       = j.JobCode,
+                ExecutiveName = j.AssignedExecutiveId ?? "Unassigned",
+                PickupAddress = j.PickupAddress,
+                Status        = j.Status.ToString(),
+            }).ToList();
+
+        _loading = false;
     }
 
-    // Map must initialise AFTER the DOM element exists
+    private bool _mapInitialized;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
-        {
-            // Initialise Leaflet map centered on Kerala/South India
-            await JS.InvokeVoidAsync("DhlMap.init", "dhl-map", 10.8505, 76.2711, 7);
+        if (_loading || _mapInitialized) return;
+        _mapInitialized = true;
 
-            // Add initial markers for seeded jobs
-            foreach (var job in _activeJobs.Where(j => j.LastLat != 0))
-            {
-                await AddOrUpdateMarkerAsync(job.JobId, job.LastLat, job.LastLng,
-                    job.ExecutiveName, job.Status, 0);
-            }
+        await JS.InvokeVoidAsync("DhlMap.init", "dhl-map", 10.8505, 76.2711, 7);
 
-            // Connect SignalR hub
-            await ConnectHubAsync();
-        }
+        // Seed demo markers
+        foreach (var job in _activeJobs.Where(j => j.LastLat != 0))
+            await AddOrUpdateMarkerAsync(job.JobId, job.LastLat, job.LastLng, job.ExecutiveName, job.Status, 0);
+
+        await ConnectHubAsync();
     }
 
-    // ── SignalR ──────────────────────────────────────────────────────────────
     private async Task ConnectHubAsync()
     {
         _hub = new HubConnectionBuilder()
-            .WithUrl(NavManager.ToAbsoluteUri("/gpshub"))
+            .WithUrl(Nav.ToAbsoluteUri("/gpshub"))
             .WithAutomaticReconnect()
             .Build();
 
-        // This is the handler for incoming GPS updates from mobile executives
-        _hub.On<string, double, double, double, DateTime>(
-            "LocationUpdated",
+        _hub.On<string, double, double, double, DateTime>("LocationUpdated",
             async (jobId, lat, lng, speed, time) =>
             {
-                // 1. Update the job record in our list
                 var job = _activeJobs.FirstOrDefault(j => j.JobId == jobId);
-                if (job is not null)
-                {
-                    job.LastLat = lat;
-                    job.LastLng = lng;
-                    job.LastUpdate = time;
-                }
+                if (job is not null) { job.LastLat = lat; job.LastLng = lng; }
 
-                // 2. Add/move the map marker via JS interop
-                await AddOrUpdateMarkerAsync(jobId, lat, lng,
-                    job?.ExecutiveName ?? jobId, job?.Status ?? "InTransit", speed);
+                await AddOrUpdateMarkerAsync(jobId, lat, lng, job?.ExecutiveName ?? jobId, job?.Status ?? "InTransit", speed);
 
-                // 3. Log the GPS entry
-                _gpsLog.Add(new GpsLogEntry
-                {
-                    Time = time,
-                    JobCode = job?.JobCode ?? jobId,
-                    Lat = lat,
-                    Lng = lng,
-                    Speed = speed
-                });
-
-                // Keep log to last 50 entries
+                _gpsLog.Add(new GpsEntry { Time = time, JobCode = job?.JobCode ?? jobId, Lat = lat, Lng = lng, Speed = speed });
                 if (_gpsLog.Count > 50) _gpsLog.RemoveAt(0);
 
-                // 4. If this job is selected, pan the map to it
-                if (_selectedJobId == jobId)
-                    await JS.InvokeVoidAsync("DhlMap.panTo", lat, lng);
-
+                if (_selectedJob == jobId) await JS.InvokeVoidAsync("DhlMap.panTo", lat, lng);
                 await InvokeAsync(StateHasChanged);
             });
 
-        _hub.Reconnected += async _ =>
-        {
-            _hubConnected = true;
-            await InvokeAsync(StateHasChanged);
-        };
+        _hub.Reconnected += async _ => { _hubConnected = true;  await InvokeAsync(StateHasChanged); };
+        _hub.Closed      += async _ => { _hubConnected = false; await InvokeAsync(StateHasChanged); };
 
-        _hub.Closed += async _ =>
-        {
-            _hubConnected = false;
-            await InvokeAsync(StateHasChanged);
-        };
-
-        try
-        {
-            await _hub.StartAsync();
-            // Subscribe to all active jobs
-            await _hub.SendAsync("WatchJob", "all");
-            _hubConnected = true;
-            StateHasChanged();
-        }
-        catch
-        {
-            // Hub not available in dev without the server running
-            _hubConnected = false;
-        }
+        try { await _hub.StartAsync(); await _hub.SendAsync("WatchJob", "all"); _hubConnected = true; StateHasChanged(); }
+        catch { _hubConnected = false; }
     }
 
-    // ── Map interop helpers ──────────────────────────────────────────────────
-
-    /// <summary>
-    /// Add a new marker or move an existing one on the Leaflet map.
-    /// This is the replacement for the missing UpdateMapMarker function.
-    /// </summary>
-    private async Task AddOrUpdateMarkerAsync(
-        string jobId, double lat, double lng,
-        string label, string status, double speed)
+    private async Task AddOrUpdateMarkerAsync(string jobId, double lat, double lng, string label, string status, double speed)
     {
         var popup = $"<b>{label}</b><br/>{status}<br/>{speed:F1} km/h";
-
-        if (_activeMarkers.ContainsKey(jobId))
-        {
-            // Move existing marker
+        if (_markers.ContainsKey(jobId))
             await JS.InvokeVoidAsync("DhlMap.moveMarker", jobId, lat, lng, popup);
-        }
-        else
-        {
-            // Add new marker
-            await JS.InvokeVoidAsync("DhlMap.addMarker", jobId, lat, lng, popup);
-            _activeMarkers[jobId] = true;
-        }
+        else { await JS.InvokeVoidAsync("DhlMap.addMarker", jobId, lat, lng, popup); _markers[jobId] = true; }
     }
 
-    private async Task SelectJob(ActiveJobViewModel job)
+    private async Task SelectJob(JobRow job)
     {
-        _selectedJobId = job.JobId;
-        if (job.LastLat != 0)
-            await JS.InvokeVoidAsync("DhlMap.panTo", job.LastLat, job.LastLng);
+        _selectedJob = job.JobId;
+        if (job.LastLat != 0) await JS.InvokeVoidAsync("DhlMap.panTo", job.LastLat, job.LastLng);
     }
 
-    private string GetStatusClass(string status) => status switch
+    public async ValueTask DisposeAsync() { if (_hub is not null) await _hub.DisposeAsync(); }
+
+    private static string StatusPill(string s) => s switch
     {
-        "InTransit"  => "pill-blue",
-        "Assigned"   => "pill-yellow",
-        "PickedUp"   => "pill-green",
-        "Stored"     => "pill-green",
-        "Cancelled"  => "pill-red",
-        _            => "pill-default"
+        "InTransit" => "pill-transit",
+        "Assigned"  => "pill-assigned",
+        "PickedUp"  => "pill-pickedup",
+        "Stored"    => "pill-stored",
+        "Cancelled" => "pill-cancelled",
+        _           => "pill-pending",
+    };
+    private static string TimelineDotColor(JobStatus s) => s switch
+    {
+        JobStatus.InTransit => "blue",
+        JobStatus.PickedUp  => "green",
+        JobStatus.Stored    => "green",
+        _                   => "",
     };
 
-    public async ValueTask DisposeAsync()
+    private class JobRow
     {
-        if (_hub is not null)
-            await _hub.DisposeAsync();
+        public string JobId        { get; set; } = "";
+        public string JobCode      { get; set; } = "";
+        public string ExecutiveName{ get; set; } = "";
+        public string PickupAddress{ get; set; } = "";
+        public string Status       { get; set; } = "";
+        public double LastLat      { get; set; }
+        public double LastLng      { get; set; }
     }
-
-    // ── View Models ──────────────────────────────────────────────────────────
-    private class ActiveJobViewModel
-    {
-        public string JobId       { get; set; } = string.Empty;
-        public string JobCode     { get; set; } = string.Empty;
-        public string ExecutiveName { get; set; } = string.Empty;
-        public string PickupAddress { get; set; } = string.Empty;
-        public string Status      { get; set; } = string.Empty;
-        public double LastLat     { get; set; }
-        public double LastLng     { get; set; }
-        public DateTime LastUpdate { get; set; }
-    }
-
-    private class GpsLogEntry
+    private class GpsEntry
     {
         public DateTime Time  { get; set; }
-        public string JobCode { get; set; } = string.Empty;
+        public string JobCode { get; set; } = "";
         public double Lat     { get; set; }
         public double Lng     { get; set; }
         public double Speed   { get; set; }

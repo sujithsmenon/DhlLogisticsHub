@@ -1,0 +1,1078 @@
+@page "/export"
+@inject ExportJobService Svc
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<div class="page-hdr">
+    <div>
+        <h1>Export Jobs</h1>
+        <div class="sub">@_all.Count job(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
+    </div>
+    <button class="btn-dhl-outline" @onclick="ShowNewForm">+ New Export Job</button>
+</div>
+
+<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
+<div class="filter-bar">
+    @foreach (var f in _filters)
+    {
+        <button class="filter-btn @(_activeFilter == f ? "active" : "")"
+                @onclick="() => SetFilter(f)">@f</button>
+    }
+</div>
+
+@if (_loading)
+{
+    <div class="loading-wrap">Loading export jobs…</div>
+}
+else
+{
+    <div class="equal-col" style="align-items:start;">
+
+        <!-- ── List panel ──────────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-head">Job List <span class="tag">@_filtered.Count</span></div>
+            <div class="scroll-y" style="max-height:calc(100vh - 260px);">
+                @foreach (var job in _filtered)
+                {
+                    <div class="data-row @(_sel?.Id == job.Id ? "selected" : "")"
+                         @onclick="() => Select(job)">
+                        <div style="width:140px;">
+                            <div class="mono" style="font-size:11px;color:var(--red);font-weight:700;">@job.JobReference</div>
+                            <div style="font-size:10px;color:var(--muted);">@job.ReceivedAt.ToString("dd MMM yyyy")</div>
+                            @if (job.IsEmergency)
+                            {
+                                <span style="font-size:9px;font-weight:700;color:#e67e22;text-transform:uppercase;letter-spacing:.5px;">Emergency</span>
+                            }
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;font-size:13px;">@job.CustomerName</div>
+                            <div style="font-size:11px;color:var(--muted);">@job.CargoDescription</div>
+                        </div>
+                        <div>
+                            <span class="pill @StatusPill(job.Status)">
+                                <span class="dot"></span>@StatusLabel(job.Status)
+                            </span>
+                        </div>
+                    </div>
+                }
+                @if (!_filtered.Any())
+                {
+                    <div class="empty-state">No export jobs match this filter</div>
+                }
+            </div>
+        </div>
+
+        <!-- ── Detail / workflow panel ────────────────────────────────────── -->
+        <div>
+            @if (_sel is null && !_showNewForm)
+            {
+                <div class="card">
+                    <div class="card-body empty-state">Select a job to see details</div>
+                </div>
+            }
+
+            @if (_showNewForm)
+            {
+                <div class="card">
+                    <div class="card-head">New Export Job</div>
+                    <div class="card-body">
+                        <div class="form-grid">
+                            <label>DHL Pick Confirmation No.<input class="dhl-input" @bind="_form.JobReference" placeholder="DHL-2026-XXXXX" /></label>
+                            <label>Customer Name<input class="dhl-input" @bind="_form.CustomerName" /></label>
+                            <label>Cargo Description<input class="dhl-input" @bind="_form.CargoDescription" /></label>
+                            <label>HS Code<input class="dhl-input" @bind="_form.HsCode" /></label>
+                            <label>Pieces<input type="number" class="dhl-input" @bind="_form.Pieces" /></label>
+                            <label>Gross Weight (kg)<input type="number" class="dhl-input" @bind="_form.GrossWeightKg" step="0.01" /></label>
+                            <label style="grid-column:1/-1;">
+                                Notes
+                                <textarea class="dhl-input" rows="2" @bind="_form.Notes"></textarea>
+                            </label>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;margin:12px 0;">
+                            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                                <input type="checkbox" @bind="_form.IsEmergency" />
+                                <span style="color:#e67e22;font-weight:700;">Mark as Emergency</span>
+                            </label>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn-dhl" @onclick="SaveNew">Save</button>
+                            <button class="btn-dhl-outline" @onclick="() => _showNewForm = false">Cancel</button>
+                        </div>
+                        @if (_formError is not null)
+                        {
+                            <div class="master-alert" style="margin-top:8px;">@_formError</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_sel is not null && !_showNewForm)
+            {
+                <!-- Job summary card -->
+                <div class="card" style="margin-bottom:12px;">
+                    <div class="card-head">
+                        <span class="mono" style="color:var(--red);font-weight:700;">@_sel.JobReference</span>
+                        @if (_sel.IsEmergency)
+                        {
+                            <span style="font-size:11px;font-weight:700;color:#e67e22;padding:2px 8px;background:rgba(230,126,34,.12);border-radius:4px;">EMERGENCY</span>
+                        }
+                        <span class="pill @StatusPill(_sel.Status)" style="margin-left:auto;">
+                            <span class="dot"></span>@StatusLabel(_sel.Status)
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="awb-two-col">
+                            <div>
+                                <div class="section-lbl">Customer</div>
+                                <div class="awb-name">@_sel.CustomerName</div>
+                                @if (!string.IsNullOrWhiteSpace(_sel.Notes))
+                                {
+                                    <div class="awb-sub">@_sel.Notes</div>
+                                }
+                            </div>
+                            <div>
+                                <div class="section-lbl">Cargo</div>
+                                <div style="font-size:13px;font-weight:600;">@_sel.CargoDescription</div>
+                                <div class="awb-sub">HS Code: @(string.IsNullOrWhiteSpace(_sel.HsCode) ? "—" : _sel.HsCode)</div>
+                                <div class="awb-sub">@_sel.Pieces pcs &nbsp;·&nbsp; @_sel.GrossWeightKg kg</div>
+                            </div>
+                        </div>
+                        <div class="awb-divider"></div>
+                        <div class="awb-sub" style="font-size:11px;">Received: @_sel.ReceivedAt.ToString("dd MMM yyyy HH:mm")</div>
+                    </div>
+                </div>
+
+                <!-- Workflow card -->
+                <div class="card" style="margin-bottom:12px;">
+                    <div class="card-head">Workflow — @PhaseLabel(_sel.Status)</div>
+                    <div class="card-body">
+
+                        <!-- Step 1: Pickup Initiated -->
+                        <div class="wf-step @StepClass(ExportJobStatus.PickupInitiated)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.PickupInitiated) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">1. Initiate Pick-Up</span>
+                                <span class="wf-hint">Phase 1 · Mobilization &amp; Transport</span>
+                                @if (StepDone(ExportJobStatus.PickupInitiated))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.PickupInitiatedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.PickupInitiated))
+                            {
+                                <div class="wf-info">
+                                    Pick-up initiated with <strong>@(_sel.IsEmergency ? "Emergency" : "Standard")</strong> priority.
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.Received)
+                            {
+                                <div class="wf-form">
+                                    <div class="awb-sub" style="font-size:12px;">
+                                        Formally initiate the pick-up based on @(_sel.IsEmergency ? "Emergency" : "Standard") status.
+                                    </div>
+                                    <button class="btn-dhl" @onclick="DoInitiatePickup">Initiate Pick-Up</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 2: Transporter Booked -->
+                        <div class="wf-step @StepClass(ExportJobStatus.TransporterBooked)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.TransporterBooked) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">2. Book Transporter</span>
+                                @if (StepDone(ExportJobStatus.TransporterBooked))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.TransporterBookedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.TransporterBooked))
+                            {
+                                <div class="wf-info">
+                                    Transporter: <strong>@_sel.Transporter?.CompanyName</strong>
+                                    <div class="awb-sub">@_sel.Transporter?.Phone</div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.PickupInitiated)
+                            {
+                                <div class="wf-form">
+                                    <label>Transporter
+                                        <select class="dhl-input" @bind="_bookTransporterId">
+                                            <option value="0">-- Select --</option>
+                                            @foreach (var t in _transporters)
+                                            {
+                                                <option value="@t.Id">@t.CompanyName (@t.Phone)</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <button class="btn-dhl" @onclick="DoBookTransporter">Confirm Booking</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 3: Vehicle Details -->
+                        <div class="wf-step @StepClass(ExportJobStatus.VehicleAssigned)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.VehicleAssigned) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">3. Vehicle Details</span>
+                                <span class="wf-hint">Received from transporter</span>
+                                @if (StepDone(ExportJobStatus.VehicleAssigned))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.VehicleAssignedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.VehicleAssigned))
+                            {
+                                <div class="wf-info">
+                                    <div class="vehicle-plate" style="margin:0 0 4px;">@_sel.VehicleNumber</div>
+                                    <div class="awb-sub">Driver: @_sel.DriverName &nbsp;·&nbsp; @_sel.DriverMobile</div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.TransporterBooked)
+                            {
+                                <div class="wf-form">
+                                    <label>Vehicle Number<input class="dhl-input" @bind="_vehicleNo" placeholder="KL 01 AB 1234" /></label>
+                                    <label>Driver Name<input class="dhl-input" @bind="_driverName" /></label>
+                                    <label>Driver Mobile<input class="dhl-input" @bind="_driverMobile" placeholder="+91 99999 00000" /></label>
+                                    <button class="btn-dhl" @onclick="DoRecordVehicle">Save Vehicle Details</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 4: Cargo Collected + RI -->
+                        <div class="wf-step @StepClass(ExportJobStatus.CargoCollected)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.CargoCollected) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">4. Cargo Collected &amp; RI Submitted</span>
+                                <span class="wf-hint">Phase 2 · Documentation &amp; Port Entry</span>
+                                @if (StepDone(ExportJobStatus.CargoCollected))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.CargoCollectedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.CargoCollected))
+                            {
+                                <div class="wf-info">
+                                    Cargo collected by transporter. RI submitted to Cochin Port Authority.
+                                    <div class="awb-sub">RI No: <strong>@_sel.RiNumber</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.VehicleAssigned)
+                            {
+                                <div class="wf-form">
+                                    <label>Release Intimation (RI) Number<input class="dhl-input" @bind="_riNumber" placeholder="RI/2026/XXXXX" /></label>
+                                    <button class="btn-dhl" @onclick="DoCargoCollected">Record Collection &amp; Submit RI</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 5a: Generate Checklist -->
+                        <div class="wf-step @StepClass(ExportJobStatus.ChecklistPending)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.ChecklistPending) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">5. Generate Cargo Checklist</span>
+                                <span class="wf-hint">via Focus Software</span>
+                                @if (StepDone(ExportJobStatus.ChecklistPending))
+                                {
+                                    <span class="wf-done-lbl">Sent @_sel.ChecklistSentAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.ChecklistPending))
+                            {
+                                <div class="wf-info">
+                                    Checklist generated and shared with customer.
+                                    <div class="awb-sub">Focus Ref: <strong>@_sel.ChecklistRef</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.CargoCollected)
+                            {
+                                <div class="wf-form">
+                                    <label>Focus Software Reference<input class="dhl-input" @bind="_checklistRef" placeholder="FOCUS-XXXX" /></label>
+                                    <button class="btn-dhl" @onclick="DoGenerateChecklist">Checklist Generated &amp; Shared</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 5b: Customer Confirmation (pause) -->
+                        <div class="wf-step @(_sel.Status >= ExportJobStatus.ChecklistConfirmed ? "wf-done" : (_sel.Status == ExportJobStatus.ChecklistPending ? "wf-active" : "wf-locked"))">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(_sel.Status >= ExportJobStatus.ChecklistConfirmed ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">6. Customer Confirms Checklist</span>
+                                <span class="wf-hint">Process pauses here</span>
+                                @if (_sel.Status >= ExportJobStatus.ChecklistConfirmed)
+                                {
+                                    <span class="wf-done-lbl">Confirmed @_sel.CustomerConfirmedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (_sel.Status >= ExportJobStatus.ChecklistConfirmed)
+                            {
+                                <div class="wf-info">Customer has formally confirmed the checklist.</div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.ChecklistPending)
+                            {
+                                <div class="wf-form">
+                                    <div class="awb-sub" style="font-size:12px;padding:6px 10px;background:rgba(230,126,34,.08);border-radius:6px;color:#e67e22;">
+                                        Waiting for customer to confirm the checklist before proceeding.
+                                    </div>
+                                    <button class="btn-dhl" @onclick="DoConfirmChecklist">Record Customer Confirmation</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 6: ICEGATE + Shipping Bill -->
+                        <div class="wf-step @StepClass(ExportJobStatus.IcegateSubmitted)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.IcegateSubmitted) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">7. ICEGATE Submission &amp; Shipping Bill</span>
+                                @if (StepDone(ExportJobStatus.IcegateSubmitted))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.ShippingBillAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.IcegateSubmitted))
+                            {
+                                <div class="wf-info">
+                                    Job submitted to ICEGATE with all supporting documents.
+                                    <div class="awb-sub">ICEGATE Ref: <strong>@_sel.IcegateRef</strong></div>
+                                    <div class="awb-sub">Shipping Bill No: <strong>@_sel.ShippingBillNumber</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.ChecklistConfirmed)
+                            {
+                                <div class="wf-form">
+                                    <label>ICEGATE Reference<input class="dhl-input" @bind="_icegateRef" placeholder="ICG/2026/XXXXX" /></label>
+                                    <label>Shipping Bill Number<input class="dhl-input" @bind="_shippingBillNo" placeholder="SB/2026/XXXXX" /></label>
+                                    <button class="btn-dhl" @onclick="DoSubmitIcegate">Submit to ICEGATE</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 7: Handover to Ops -->
+                        <div class="wf-step @StepClass(ExportJobStatus.HandedToOps)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.HandedToOps) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">8. Hand Over to Operation Staff</span>
+                                <span class="wf-hint">Phase 3 · Port Operations &amp; Final Export</span>
+                                @if (StepDone(ExportJobStatus.HandedToOps))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.HandedOverAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.HandedToOps))
+                            {
+                                <div class="wf-info">
+                                    Checklist and SB No. <strong>@_sel.ShippingBillNumber</strong> handed to <strong>@_sel.OperationStaffName</strong>.
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.IcegateSubmitted)
+                            {
+                                <div class="wf-form">
+                                    <label>Operation Staff Name<input class="dhl-input" @bind="_opsStaffName" /></label>
+                                    <button class="btn-dhl" @onclick="DoHandOverToOps">Record Handover</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 8: Port Clearance -->
+                        <div class="wf-step @StepClass(ExportJobStatus.PortCleared)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.PortCleared) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">9. Port Arrival &amp; Clearance</span>
+                                @if (StepDone(ExportJobStatus.PortCleared))
+                                {
+                                    <span class="wf-done-lbl">Cleared @_sel.PortClearedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.PortCleared))
+                            {
+                                <div class="wf-info">
+                                    All customs &amp; terminal clearances completed at Cochin Port.
+                                    @if (_sel.PortArrivedAt.HasValue)
+                                    {
+                                        <div class="awb-sub">Arrived: @_sel.PortArrivedAt?.ToString("dd MMM HH:mm")</div>
+                                    }
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.HandedToOps)
+                            {
+                                <div class="wf-form">
+                                    <label>Port Arrival Date &amp; Time (optional)
+                                        <input type="datetime-local" class="dhl-input" @bind="_portArrivalDate" />
+                                    </label>
+                                    <button class="btn-dhl" @onclick="DoPortCleared">Record Port Clearance</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 10: Export Ready -->
+                        <div class="wf-step @StepClass(ExportJobStatus.ExportReady)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.ExportReady) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">10. Export Clearance</span>
+                                @if (StepDone(ExportJobStatus.ExportReady))
+                                {
+                                    <span class="wf-done-lbl">@_sel.ExportReadyAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.ExportReady))
+                            {
+                                <div class="wf-info">Export clearance received. Cargo is ready for vessel loading.</div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.PortCleared)
+                            {
+                                <div class="wf-form">
+                                    <button class="btn-dhl" @onclick="DoMarkExportReady">Mark Export Ready</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 11: Booking Receipt -->
+                        <div class="wf-step @StepClass(ExportJobStatus.BookingReceived)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.BookingReceived) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">11. Booking Receipt</span>
+                                <span class="wf-hint">Phase 4 · Containerization &amp; Survey</span>
+                                @if (StepDone(ExportJobStatus.BookingReceived))
+                                {
+                                    <span class="wf-done-lbl">@_sel.BookingReceivedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.BookingReceived))
+                            {
+                                <div class="wf-info">
+                                    Official booking confirmation received.
+                                    <div class="awb-sub">Booking Ref: <strong>@_sel.BookingReference</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.ExportReady)
+                            {
+                                <div class="wf-form">
+                                    <label>Booking Reference<input class="dhl-input" @bind="_bookingRef" placeholder="BKG/2026/XXXXX" /></label>
+                                    <button class="btn-dhl" @onclick="DoRecordBooking">Record Booking</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 12: Container Survey -->
+                        @{
+                            var survey12Class = _sel.Status >= ExportJobStatus.LoadingAuthorized ? "wf-done"
+                                              : _sel.Status >= ExportJobStatus.BookingReceived   ? "wf-active"
+                                              : "wf-locked";
+                            var survey12DotClass = _sel.Status >= ExportJobStatus.LoadingAuthorized ? "wf-dot-done" : "";
+                        }
+                        <div class="wf-step @survey12Class">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @survey12DotClass"></span>
+                                <span class="wf-step-title">12. Container Inspection</span>
+                                <span class="wf-hint">Survey Team</span>
+                                @if (_sel.Status >= ExportJobStatus.LoadingAuthorized)
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.SurveyForwardedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (_sel.Status >= ExportJobStatus.LoadingAuthorized)
+                            {
+                                <div class="wf-info">
+                                    Container surveyed and confirmed seaworthy by <strong>@_sel.SurveyTeamName</strong>.
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.BookingReceived)
+                            {
+                                <div class="wf-form">
+                                    <label>Survey Team<input class="dhl-input" @bind="_surveyTeamName" /></label>
+                                    <button class="btn-dhl" @onclick="DoForwardToSurvey">Forward to Survey Team</button>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.SurveyInProgress)
+                            {
+                                <div class="wf-info">
+                                    Forwarded to <strong>@_sel.SurveyTeamName</strong> on @_sel.SurveyForwardedAt?.ToString("dd MMM HH:mm").
+                                    <div class="awb-sub" style="margin-top:4px;color:#e67e22;">Awaiting survey completion and loading authorization.</div>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 13: Loading Authorization -->
+                        @{
+                            var auth13Class = _sel.Status >= ExportJobStatus.CargoLoaded ? "wf-done"
+                                           : _sel.Status == ExportJobStatus.SurveyInProgress ? "wf-active"
+                                           : "wf-locked";
+                            var auth13DotClass = _sel.Status >= ExportJobStatus.CargoLoaded ? "wf-dot-done" : "";
+                        }
+                        <div class="wf-step @auth13Class">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @auth13DotClass"></span>
+                                <span class="wf-step-title">13. Loading Authorization</span>
+                                <span class="wf-hint">Customs &amp; Cochin Port Authority</span>
+                                @if (_sel.Status >= ExportJobStatus.CargoLoaded)
+                                {
+                                    <span class="wf-done-lbl">@_sel.LoadingAuthAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (_sel.Status >= ExportJobStatus.CargoLoaded)
+                            {
+                                <div class="wf-info">
+                                    Permission granted to begin stuffing.
+                                    <div class="awb-sub">Auth Ref: <strong>@_sel.LoadingAuthReference</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.SurveyInProgress)
+                            {
+                                <div class="wf-form">
+                                    <label>Authorization Reference<input class="dhl-input" @bind="_loadingAuthRef" placeholder="AUTH/2026/XXXXX" /></label>
+                                    <button class="btn-dhl" @onclick="DoRecordLoadingAuth">Record Loading Authorization</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 14: Cargo Loading -->
+                        <div class="wf-step @StepClass(ExportJobStatus.CargoLoaded)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.CargoLoaded) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">14. Cargo Loading</span>
+                                @if (StepDone(ExportJobStatus.CargoLoaded))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.CargoLoadedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.CargoLoaded))
+                            {
+                                <div class="wf-info">
+                                    Cargo loaded and secured.
+                                    <div class="awb-sub">Container: <strong>@_sel.ContainerNumber</strong> &nbsp;·&nbsp; Seal: <strong>@_sel.SealNumber</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.LoadingAuthorized)
+                            {
+                                <div class="wf-form">
+                                    <label>Container Number<input class="dhl-input" @bind="_containerNo" placeholder="XXXX 000000 0" /></label>
+                                    <label>Seal Number<input class="dhl-input" @bind="_sealNo" /></label>
+                                    <button class="btn-dhl" @onclick="DoRecordCargoLoaded">Mark Loading Complete</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 15: SI and DO Distribution -->
+                        <div class="wf-step @StepClass(ExportJobStatus.SiDoReceived)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.SiDoReceived) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">15. SI and DO Distribution</span>
+                                <span class="wf-hint">Phase 5 · Documentation &amp; Terminal Transfer</span>
+                                @if (StepDone(ExportJobStatus.SiDoReceived))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.SiDoReceivedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.SiDoReceived))
+                            {
+                                <div class="wf-info">
+                                    SI and DO received from DHL and shared with third party for SEZ-4.
+                                    <div class="awb-sub">SI Ref: <strong>@_sel.ShippingInstruction</strong> &nbsp;·&nbsp; DO Ref: <strong>@_sel.DeliveryOrderRef</strong></div>
+                                    <div class="awb-sub">Third Party: <strong>@_sel.ThirdPartyName</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.CargoLoaded)
+                            {
+                                <div class="wf-form">
+                                    <label>Shipping Instruction (SI) Ref<input class="dhl-input" @bind="_siRef" placeholder="SI/2026/XXXXX" /></label>
+                                    <label>Delivery Order (DO) Ref<input class="dhl-input" @bind="_doRef" placeholder="DO/2026/XXXXX" /></label>
+                                    <label>Third Party (SEZ-4 Handler)<input class="dhl-input" @bind="_thirdPartyName" /></label>
+                                    <button class="btn-dhl" @onclick="DoRecordSiDo">Record SI &amp; DO</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 16: Transport to ICTT -->
+                        <div class="wf-step @StepClass(ExportJobStatus.InTransitToIctt)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.InTransitToIctt) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">16. Transport to ICTT Vallarpadam</span>
+                                @if (StepDone(ExportJobStatus.InTransitToIctt))
+                                {
+                                    <span class="wf-done-lbl">@_sel.InTransitToIcttAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.InTransitToIctt))
+                            {
+                                <div class="wf-info">Container dispatched to ICTT Vallarpadam for terminal gate-in.</div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.SiDoReceived)
+                            {
+                                <div class="wf-form">
+                                    <button class="btn-dhl" @onclick="DoMarkInTransitToIctt">Mark In Transit to ICTT</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 17: Terminal Gate-In -->
+                        <div class="wf-step @StepClass(ExportJobStatus.TerminalGateIn)">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(ExportJobStatus.TerminalGateIn) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">17. Terminal Gate-In at ICTT</span>
+                                @if (StepDone(ExportJobStatus.TerminalGateIn))
+                                {
+                                    <span class="wf-done-lbl">@_sel.TerminalGateInAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(ExportJobStatus.TerminalGateIn))
+                            {
+                                <div class="wf-info" style="color:#27ae60;font-weight:600;">
+                                    Container gated in at ICTT. Awaiting vessel loading.
+                                    <div class="awb-sub" style="color:var(--muted);">SEZ-4 Ref: <strong>@_sel.Sez4Reference</strong></div>
+                                    <div class="awb-sub" style="color:var(--muted);">Vessel: <strong>@_sel.VesselName</strong> &nbsp;·&nbsp; Voyage: <strong>@_sel.VoyageNumber</strong></div>
+                                </div>
+                            }
+                            else if (_sel.Status == ExportJobStatus.InTransitToIctt)
+                            {
+                                <div class="wf-form">
+                                    <label>SEZ-4 Reference<input class="dhl-input" @bind="_sez4Ref" placeholder="SEZ4/2026/XXXXX" /></label>
+                                    <label>Vessel Name<input class="dhl-input" @bind="_vesselName" /></label>
+                                    <label>Voyage Number<input class="dhl-input" @bind="_voyageNo" placeholder="V.001E" /></label>
+                                    <button class="btn-dhl" @onclick="DoTerminalGateIn">Record Terminal Gate-In</button>
+                                </div>
+                            }
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Event timeline -->
+                @if (_sel.Events.Any())
+                {
+                    <div class="card">
+                        <div class="card-head">Timeline</div>
+                        <div class="card-body">
+                            @foreach (var ev in _sel.Events.OrderBy(e => e.CreatedAt))
+                            {
+                                <div class="timeline-event">
+                                    <div class="timeline-dot"></div>
+                                    <div>
+                                        <div class="timeline-type">@ev.EventType</div>
+                                        <div class="timeline-desc">@ev.Description</div>
+                                        <div class="timeline-time">@ev.CreatedAt.ToString("dd MMM yyyy HH:mm")</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@if (_actionError is not null)
+{
+    <div class="toast-error">@_actionError <button @onclick="() => _actionError = null">✕</button></div>
+}
+
+<style>
+    .awb-two-col  { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .awb-name     { font-size:14px; font-weight:700; margin-bottom:2px; }
+    .awb-sub      { font-size:11px; color:var(--muted); }
+    .awb-divider  { border-top:1px solid var(--border); margin:12px 0; }
+    .section-lbl  { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:4px; }
+
+    .wf-step { border-left:3px solid var(--border); padding:10px 0 10px 16px; margin-bottom:8px; }
+    .wf-done   { border-color:var(--green,#27ae60); }
+    .wf-active { border-color:var(--red); }
+    .wf-locked { opacity:.45; }
+    .wf-step-hdr { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+    .wf-step-title { font-size:13px; font-weight:700; }
+    .wf-hint { font-size:10px; color:var(--muted); }
+    .wf-done-lbl { font-size:10px; color:var(--green,#27ae60); margin-left:auto; }
+    .wf-dot { width:10px; height:10px; border-radius:50%; background:var(--border); flex-shrink:0; }
+    .wf-dot-done { background:var(--green,#27ae60); }
+    .wf-info { font-size:13px; padding:4px 0; }
+    .wf-form { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+    .wf-form label { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+    .wf-form select.dhl-input { padding:6px 8px; }
+
+    .timeline-event { display:flex; gap:12px; margin-bottom:16px; }
+    .timeline-dot   { width:10px; height:10px; border-radius:50%; background:var(--red); flex-shrink:0; margin-top:4px; }
+    .timeline-type  { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--red); }
+    .timeline-desc  { font-size:13px; margin:2px 0; }
+    .timeline-time  { font-size:10px; color:var(--muted); }
+
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .form-grid label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+
+    .toast-error { position:fixed; bottom:20px; right:20px; background:#c0392b; color:#fff; padding:12px 16px; border-radius:8px; display:flex; gap:12px; align-items:center; z-index:9999; }
+    .toast-error button { background:none; border:none; color:#fff; cursor:pointer; font-size:16px; }
+    .master-alert { background:rgba(192,57,43,.18); border:1px solid #c0392b; border-radius:6px; padding:.65rem 1rem; font-size:.9rem; }
+
+    .btn-dhl-outline { background:transparent; border:1.5px solid var(--red); color:var(--red); padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; }
+    .btn-dhl-outline:hover { background:rgba(215,0,0,.06); }
+
+    .vehicle-plate { font-size:15px; font-weight:800; letter-spacing:1px; font-family:monospace; }
+</style>
+
+@code {
+    // ── State ─────────────────────────────────────────────────────────────────
+    private List<ExportJob>   _all          = [];
+    private List<ExportJob>   _filtered     = [];
+    private List<Transporter> _transporters = [];
+    private ExportJob?        _sel;
+    private bool              _loading      = true;
+    private string            _activeFilter = "All";
+    private bool              _showNewForm;
+    private ExportJob         _form         = new();
+    private string?           _formError;
+    private string?           _actionError;
+
+    // Workflow form fields
+    private int       _bookTransporterId;
+    private string    _vehicleNo       = "";
+    private string    _driverName      = "";
+    private string    _driverMobile    = "";
+    private string    _riNumber        = "";
+    private string    _checklistRef    = "";
+    private string    _icegateRef      = "";
+    private string    _shippingBillNo  = "";
+    private string    _opsStaffName    = "";
+    private DateTime? _portArrivalDate;
+    // Phase 4-5 fields
+    private string    _bookingRef      = "";
+    private string    _surveyTeamName  = "";
+    private string    _loadingAuthRef  = "";
+    private string    _containerNo     = "";
+    private string    _sealNo          = "";
+    private string    _siRef           = "";
+    private string    _doRef           = "";
+    private string    _thirdPartyName  = "";
+    private string    _sez4Ref         = "";
+    private string    _vesselName      = "";
+    private string    _voyageNo        = "";
+
+    private static readonly string[] _filters =
+        ["All", "Received", "PickupInitiated", "TransporterBooked", "VehicleAssigned",
+         "CargoCollected", "ChecklistPending", "ChecklistConfirmed", "IcegateSubmitted",
+         "HandedToOps", "PortCleared", "ExportReady", "BookingReceived", "SurveyInProgress",
+         "LoadingAuthorized", "CargoLoaded", "SiDoReceived", "InTransitToIctt", "TerminalGateIn"];
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        _transporters = await Svc.GetTransportersAsync();
+        await Reload();
+        _loading = false;
+    }
+
+    private async Task Reload()
+    {
+        _all = await Svc.GetAllAsync();
+        ApplyFilter();
+        if (_sel is not null)
+            _sel = _all.FirstOrDefault(j => j.Id == _sel.Id);
+    }
+
+    // ── Filtering ─────────────────────────────────────────────────────────────
+    private void SetFilter(string f)
+    {
+        _activeFilter = f;
+        _sel = null;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _filtered = _activeFilter == "All"
+            ? _all
+            : _all.Where(j => j.Status.ToString() == _activeFilter).ToList();
+    }
+
+    private void Select(ExportJob job)
+    {
+        _sel = job;
+        _showNewForm = false;
+        ResetFields();
+    }
+
+    // ── New job form ──────────────────────────────────────────────────────────
+    private void ShowNewForm()
+    {
+        _form = new ExportJob();
+        _formError = null;
+        _showNewForm = true;
+        _sel = null;
+    }
+
+    private async Task SaveNew()
+    {
+        if (string.IsNullOrWhiteSpace(_form.JobReference))
+        {
+            _formError = "DHL Pick Confirmation No. is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_form.CustomerName))
+        {
+            _formError = "Customer name is required.";
+            return;
+        }
+        try
+        {
+            var created = await Svc.CreateAsync(_form);
+            await Reload();
+            _showNewForm = false;
+            _sel = _all.FirstOrDefault(j => j.Id == created.Id);
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+    }
+
+    // ── Workflow actions ──────────────────────────────────────────────────────
+    private async Task DoInitiatePickup()
+    {
+        if (_sel is null) return;
+        try { await Svc.InitiatePickupAsync(_sel.Id); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoBookTransporter()
+    {
+        if (_sel is null || _bookTransporterId == 0)
+        {
+            _actionError = "Select a transporter.";
+            return;
+        }
+        try { await Svc.BookTransporterAsync(_sel.Id, _bookTransporterId); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoRecordVehicle()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_vehicleNo))
+        {
+            _actionError = "Enter vehicle number.";
+            return;
+        }
+        try { await Svc.RecordVehicleAsync(_sel.Id, _vehicleNo, _driverName, _driverMobile); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoCargoCollected()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_riNumber))
+        {
+            _actionError = "Enter RI number.";
+            return;
+        }
+        try { await Svc.RecordCargoCollectedAsync(_sel.Id, _riNumber); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoGenerateChecklist()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_checklistRef))
+        {
+            _actionError = "Enter Focus Software reference.";
+            return;
+        }
+        try { await Svc.GenerateChecklistAsync(_sel.Id, _checklistRef); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoConfirmChecklist()
+    {
+        if (_sel is null) return;
+        try { await Svc.ConfirmChecklistAsync(_sel.Id); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoSubmitIcegate()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_shippingBillNo))
+        {
+            _actionError = "Enter Shipping Bill number.";
+            return;
+        }
+        try { await Svc.SubmitIcegateAsync(_sel.Id, _icegateRef, _shippingBillNo); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoHandOverToOps()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_opsStaffName))
+        {
+            _actionError = "Enter operation staff name.";
+            return;
+        }
+        try { await Svc.HandOverToOpsAsync(_sel.Id, _opsStaffName); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoPortCleared()
+    {
+        if (_sel is null) return;
+        try { await Svc.RecordPortClearedAsync(_sel.Id, _portArrivalDate); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoMarkExportReady()
+    {
+        if (_sel is null) return;
+        try { await Svc.MarkExportReadyAsync(_sel.Id); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoRecordBooking()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_bookingRef))
+        {
+            _actionError = "Enter booking reference.";
+            return;
+        }
+        try { await Svc.RecordBookingAsync(_sel.Id, _bookingRef); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoForwardToSurvey()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_surveyTeamName))
+        {
+            _actionError = "Enter survey team name.";
+            return;
+        }
+        try { await Svc.ForwardToSurveyAsync(_sel.Id, _surveyTeamName); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoRecordLoadingAuth()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_loadingAuthRef))
+        {
+            _actionError = "Enter authorization reference.";
+            return;
+        }
+        try { await Svc.RecordLoadingAuthAsync(_sel.Id, _loadingAuthRef); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoRecordCargoLoaded()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_containerNo))
+        {
+            _actionError = "Enter container number.";
+            return;
+        }
+        try { await Svc.RecordCargoLoadedAsync(_sel.Id, _containerNo, _sealNo); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoRecordSiDo()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_siRef))
+        {
+            _actionError = "Enter SI reference.";
+            return;
+        }
+        try { await Svc.RecordSiDoAsync(_sel.Id, _siRef, _doRef, _thirdPartyName); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoMarkInTransitToIctt()
+    {
+        if (_sel is null) return;
+        try { await Svc.MarkInTransitToIcttAsync(_sel.Id); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoTerminalGateIn()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_sez4Ref))
+        {
+            _actionError = "Enter SEZ-4 reference.";
+            return;
+        }
+        try { await Svc.RecordTerminalGateInAsync(_sel.Id, _sez4Ref, _vesselName, _voyageNo); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    private void ResetFields()
+    {
+        _bookTransporterId = 0;
+        _vehicleNo = _driverName = _driverMobile = "";
+        _riNumber = _checklistRef = _icegateRef = _shippingBillNo = _opsStaffName = "";
+        _portArrivalDate = null;
+        _bookingRef = _surveyTeamName = _loadingAuthRef = "";
+        _containerNo = _sealNo = _siRef = _doRef = _thirdPartyName = "";
+        _sez4Ref = _vesselName = _voyageNo = "";
+    }
+
+    private bool StepDone(ExportJobStatus threshold) =>
+        _sel is not null && (int)_sel.Status >= (int)threshold;
+
+    private string StepClass(ExportJobStatus threshold)
+    {
+        if (_sel is null) return "wf-locked";
+        int cur = (int)_sel.Status;
+        int th  = (int)threshold;
+        if (cur >= th) return "wf-done";
+        if (cur == th - 1) return "wf-active";
+        return "wf-locked";
+    }
+
+    private static string PhaseLabel(ExportJobStatus s) => s switch
+    {
+        ExportJobStatus.Received or
+        ExportJobStatus.PickupInitiated or
+        ExportJobStatus.TransporterBooked or
+        ExportJobStatus.VehicleAssigned        => "Phase 1 — Mobilization & Transport",
+        ExportJobStatus.CargoCollected or
+        ExportJobStatus.ChecklistPending or
+        ExportJobStatus.ChecklistConfirmed or
+        ExportJobStatus.IcegateSubmitted       => "Phase 2 — Documentation & Port Entry",
+        ExportJobStatus.HandedToOps or
+        ExportJobStatus.PortCleared or
+        ExportJobStatus.ExportReady            => "Phase 3 — Port Operations & Final Export",
+        ExportJobStatus.BookingReceived or
+        ExportJobStatus.SurveyInProgress or
+        ExportJobStatus.LoadingAuthorized or
+        ExportJobStatus.CargoLoaded            => "Phase 4 — Containerization & Survey",
+        _                                      => "Phase 5 — Documentation & Terminal Transfer"
+    };
+
+    private static string StatusLabel(ExportJobStatus s) => s switch
+    {
+        ExportJobStatus.Received           => "Received",
+        ExportJobStatus.PickupInitiated    => "Pickup Initiated",
+        ExportJobStatus.TransporterBooked  => "Transporter Booked",
+        ExportJobStatus.VehicleAssigned    => "Vehicle Assigned",
+        ExportJobStatus.CargoCollected     => "Cargo Collected",
+        ExportJobStatus.ChecklistPending   => "Checklist Pending",
+        ExportJobStatus.ChecklistConfirmed => "Checklist Confirmed",
+        ExportJobStatus.IcegateSubmitted   => "ICEGATE Submitted",
+        ExportJobStatus.HandedToOps        => "Handed to Ops",
+        ExportJobStatus.PortCleared        => "Port Cleared",
+        ExportJobStatus.ExportReady        => "Export Ready",
+        ExportJobStatus.BookingReceived    => "Booking Received",
+        ExportJobStatus.SurveyInProgress   => "Survey In Progress",
+        ExportJobStatus.LoadingAuthorized  => "Loading Authorized",
+        ExportJobStatus.CargoLoaded        => "Cargo Loaded",
+        ExportJobStatus.SiDoReceived       => "SI/DO Received",
+        ExportJobStatus.InTransitToIctt    => "In Transit to ICTT",
+        ExportJobStatus.TerminalGateIn     => "Terminal Gate-In",
+        _ => s.ToString()
+    };
+
+    private static string StatusPill(ExportJobStatus s) => s switch
+    {
+        ExportJobStatus.Received           => "pill-pending",
+        ExportJobStatus.PickupInitiated    => "pill-assigned",
+        ExportJobStatus.TransporterBooked  => "pill-assigned",
+        ExportJobStatus.VehicleAssigned    => "pill-transit",
+        ExportJobStatus.CargoCollected     => "pill-transit",
+        ExportJobStatus.ChecklistPending   => "pill-transit",
+        ExportJobStatus.ChecklistConfirmed => "pill-pickedup",
+        ExportJobStatus.IcegateSubmitted   => "pill-pickedup",
+        ExportJobStatus.HandedToOps        => "pill-stored",
+        ExportJobStatus.PortCleared        => "pill-stored",
+        ExportJobStatus.ExportReady        => "pill-stored",
+        ExportJobStatus.BookingReceived    => "pill-assigned",
+        ExportJobStatus.SurveyInProgress   => "pill-transit",
+        ExportJobStatus.LoadingAuthorized  => "pill-pickedup",
+        ExportJobStatus.CargoLoaded        => "pill-pickedup",
+        ExportJobStatus.SiDoReceived       => "pill-stored",
+        ExportJobStatus.InTransitToIctt    => "pill-transit",
+        ExportJobStatus.TerminalGateIn     => "pill-stored",
+        _ => "pill-pending"
+    };
+}

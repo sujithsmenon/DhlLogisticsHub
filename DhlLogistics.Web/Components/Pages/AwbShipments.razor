@@ -1,0 +1,765 @@
+@page "/awb"
+@inject AwbShipmentService Svc
+@inject IJSRuntime JS
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<div class="page-hdr">
+    <div>
+        <h1>AWB Shipments</h1>
+        <div class="sub">@_all.Count shipment(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-dhl-outline" @onclick="ShowNewForm">+ Manual Entry</button>
+    </div>
+</div>
+
+<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
+<div class="filter-bar">
+    @foreach (var f in _filters)
+    {
+        <button class="filter-btn @(_activeFilter == f ? "active" : "")"
+                @onclick="() => SetFilter(f)">@f</button>
+    }
+</div>
+
+@if (_loading)
+{
+    <div class="loading-wrap">Loading shipments…</div>
+}
+else
+{
+    <div class="equal-col" style="align-items:start;">
+
+        <!-- ── List panel ──────────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-head">AWB List <span class="tag">@_filtered.Count</span></div>
+            <div class="scroll-y" style="max-height:calc(100vh - 260px);">
+                @foreach (var awb in _filtered)
+                {
+                    <div class="data-row @(_sel?.Id == awb.Id ? "selected" : "")"
+                         @onclick="() => Select(awb)">
+                        <div style="width:130px;">
+                            <div class="mono" style="font-size:11px;color:var(--red);font-weight:700;">@awb.HawbNo</div>
+                            <div style="font-size:10px;color:var(--muted);">@awb.ReceivedAt.ToString("dd MMM yyyy")</div>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600;font-size:13px;">@awb.ConsigneeName</div>
+                            <div style="font-size:11px;color:var(--muted);">@awb.OriginStation → @awb.DestinationStation</div>
+                        </div>
+                        <div>
+                            <span class="pill @StatusPill(awb.Status)">
+                                <span class="dot"></span>@StatusLabel(awb.Status)
+                            </span>
+                        </div>
+                    </div>
+                }
+                @if (!_filtered.Any())
+                {
+                    <div class="empty-state">No shipments match this filter</div>
+                }
+            </div>
+        </div>
+
+        <!-- ── Detail / workflow panel ────────────────────────────────────── -->
+        <div>
+            @if (_sel is null && !_showNewForm)
+            {
+                <div class="card">
+                    <div class="card-body empty-state">Select a shipment to see details</div>
+                </div>
+            }
+
+            @if (_showNewForm)
+            {
+                <div class="card">
+                    <div class="card-head">New AWB Entry</div>
+                    <div class="card-body">
+                        <div class="form-grid">
+                            <label>HAWB No.<input class="dhl-input" @bind="_form.HawbNo" /></label>
+                            <label>Issued Date<input type="date" class="dhl-input" @bind="_form.IssuedDate" /></label>
+                            <label>Shipper Account<input class="dhl-input" @bind="_form.ShipperAccount" /></label>
+                            <label>Station Code<input class="dhl-input" @bind="_form.StationCode" /></label>
+                            <label>Shipper Name<input class="dhl-input" @bind="_form.ShipperName" /></label>
+                            <label>Shipper Phone<input class="dhl-input" @bind="_form.ShipperPhone" /></label>
+                            <label>Shipper Contact<input class="dhl-input" @bind="_form.ShipperContact" /></label>
+                            <label>Shipper Address
+                                <textarea class="dhl-input" rows="2" @bind="_form.ShipperAddress"></textarea>
+                            </label>
+                            <label>Consignee Account<input class="dhl-input" @bind="_form.ConsigneeAccount" /></label>
+                            <label>Consignee Name<input class="dhl-input" @bind="_form.ConsigneeName" /></label>
+                            <label>Consignee Phone<input class="dhl-input" @bind="_form.ConsigneePhone" /></label>
+                            <label>Consignee Contact<input class="dhl-input" @bind="_form.ConsigneeContact" /></label>
+                            <label>Consignee Address
+                                <textarea class="dhl-input" rows="2" @bind="_form.ConsigneeAddress"></textarea>
+                            </label>
+                            <label>Origin Station<input class="dhl-input" @bind="_form.OriginStation" /></label>
+                            <label>Destination Station<input class="dhl-input" @bind="_form.DestinationStation" /></label>
+                            <label>Reference Numbers<input class="dhl-input" @bind="_form.ReferenceNumbers" /></label>
+                            <label>Goods Description<input class="dhl-input" @bind="_form.GoodsDescription" /></label>
+                            <label>HS Code<input class="dhl-input" @bind="_form.HsCode" /></label>
+                            <label>Pieces<input type="number" class="dhl-input" @bind="_form.Pieces" /></label>
+                            <label>Gross Weight (kg)<input type="number" class="dhl-input" @bind="_form.GrossWeightKg" step="0.01" /></label>
+                            <label>Chargeable Weight<input type="number" class="dhl-input" @bind="_form.ChargeableWeight" step="0.01" /></label>
+                            <label>Rate Class<input class="dhl-input" @bind="_form.RateClass" /></label>
+                            <label>Volume (CBM)<input type="number" class="dhl-input" @bind="_form.VolumeCbm" step="0.001" /></label>
+                            <label>SLAC<input type="number" class="dhl-input" @bind="_form.Slac" /></label>
+                            <label>Dimensions<input class="dhl-input" @bind="_form.Dimensions" /></label>
+                            <label>Currency<input class="dhl-input" @bind="_form.Currency" /></label>
+                            <label>Declared Value (Carriage)<input class="dhl-input" @bind="_form.DeclaredValueCarriage" /></label>
+                            <label>Declared Value (Customs)<input class="dhl-input" @bind="_form.DeclaredValueCustoms" /></label>
+                            <label>Handling Info
+                                <textarea class="dhl-input" rows="2" @bind="_form.HandlingInfo"></textarea>
+                            </label>
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:16px;">
+                            <button class="btn-dhl" @onclick="SaveNewAwb">Save</button>
+                            <button class="btn-dhl-outline" @onclick="() => _showNewForm = false">Cancel</button>
+                        </div>
+                        @if (_formError is not null)
+                        {
+                            <div class="master-alert" style="margin-top:8px;">@_formError</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_sel is not null && !_showNewForm)
+            {
+                <!-- AWB Details card -->
+                <div class="card" style="margin-bottom:12px;">
+                    <div class="card-head">
+                        <span class="mono" style="color:var(--red);font-weight:700;">@_sel.HawbNo</span>
+                        <span class="pill @StatusPill(_sel.Status)">
+                            <span class="dot"></span>@StatusLabel(_sel.Status)
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="awb-two-col">
+                            <div>
+                                <div class="section-lbl">Shipper</div>
+                                <div class="awb-name">@_sel.ShipperName</div>
+                                <div class="awb-sub">Acct: @_sel.ShipperAccount</div>
+                                <div class="awb-sub">@_sel.ShipperAddress</div>
+                                <div class="awb-sub">@_sel.ShipperPhone &nbsp;·&nbsp; @_sel.ShipperContact</div>
+                            </div>
+                            <div>
+                                <div class="section-lbl">Consignee</div>
+                                <div class="awb-name">@_sel.ConsigneeName</div>
+                                <div class="awb-sub">Acct: @_sel.ConsigneeAccount</div>
+                                <div class="awb-sub">@_sel.ConsigneeAddress</div>
+                                <div class="awb-sub">@_sel.ConsigneePhone &nbsp;·&nbsp; @_sel.ConsigneeContact</div>
+                            </div>
+                        </div>
+                        <div class="awb-divider"></div>
+                        <div class="awb-route">
+                            <div class="awb-station">
+                                <div class="awb-station-code">@_sel.OriginStation</div>
+                                <div class="awb-station-lbl">Origin</div>
+                            </div>
+                            <div class="awb-arrow">→</div>
+                            <div class="awb-station">
+                                <div class="awb-station-code">@_sel.DestinationStation</div>
+                                <div class="awb-station-lbl">Destination</div>
+                            </div>
+                            <div style="margin-left:auto;text-align:right;">
+                                <div class="awb-sub">Station: <strong>@_sel.StationCode</strong></div>
+                                <div class="awb-sub">Issued: <strong>@(_sel.IssuedDate?.ToString("dd MMM yyyy") ?? "—")</strong></div>
+                            </div>
+                        </div>
+                        <div class="awb-divider"></div>
+                        <div class="cargo-grid">
+                            @CargoCell("Goods", _sel.GoodsDescription)
+                            @CargoCell("HS Code", _sel.HsCode)
+                            @CargoCell("Pieces", _sel.Pieces.ToString())
+                            @CargoCell("Gross Wt", $"{_sel.GrossWeightKg} kg")
+                            @CargoCell("Chargeable", $"{_sel.ChargeableWeight} kg")
+                            @CargoCell("Rate Class", _sel.RateClass)
+                            @CargoCell("Volume", $"{_sel.VolumeCbm} M³")
+                            @CargoCell("SLAC", _sel.Slac.ToString())
+                            @CargoCell("Dimensions", _sel.Dimensions)
+                            @CargoCell("Currency", _sel.Currency)
+                            @CargoCell("Decl. Carriage", _sel.DeclaredValueCarriage)
+                            @CargoCell("Decl. Customs", _sel.DeclaredValueCustoms)
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(_sel.ReferenceNumbers))
+                        {
+                            <div class="awb-divider"></div>
+                            <div class="awb-sub" style="font-size:11px;">
+                                <strong>Ref:</strong> @_sel.ReferenceNumbers
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_sel.HandlingInfo))
+                        {
+                            <div class="awb-sub" style="font-size:11px;margin-top:4px;">
+                                <strong>Handling:</strong> @_sel.HandlingInfo
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Workflow Steps card -->
+                <div class="card" style="margin-bottom:12px;">
+                    <div class="card-head">Workflow</div>
+                    <div class="card-body">
+
+                        <!-- Step 1: Assign Transporter -->
+                        <div class="wf-step @(StepDone(AwbStatus.TransporterAssigned) ? "wf-done" : "wf-active")">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(AwbStatus.TransporterAssigned) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">1. Assign Transporter</span>
+                                @if (StepDone(AwbStatus.TransporterAssigned))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.TransporterAssignedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(AwbStatus.TransporterAssigned))
+                            {
+                                <div class="wf-info">
+                                    <strong>@_sel.Transporter?.CompanyName</strong>
+                                    <div class="awb-sub">Pickup: @_sel.PickupLocation</div>
+                                    <div class="awb-sub">Drop: @_sel.DropLocation</div>
+                                </div>
+                            }
+                            else if (_sel.Status == AwbStatus.Received)
+                            {
+                                <div class="wf-form">
+                                    <label>Transporter
+                                        <select class="dhl-input" @bind="_assignTransporterId">
+                                            <option value="0">-- Select --</option>
+                                            @foreach (var t in _transporters)
+                                            {
+                                                <option value="@t.Id">@t.CompanyName (@t.Phone)</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <label>Pickup Location<input class="dhl-input" @bind="_assignPickup" placeholder="Cochin Airport / Port" /></label>
+                                    <label>Drop Location<input class="dhl-input" @bind="_assignDrop" placeholder="Customs Godown / Warehouse" /></label>
+                                    <button class="btn-dhl" @onclick="DoAssignTransporter">Assign</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 2: Vehicle Details -->
+                        <div class="wf-step @(StepDone(AwbStatus.VehicleAssigned) ? "wf-done" : (_sel.Status == AwbStatus.TransporterAssigned ? "wf-active" : "wf-locked"))">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(AwbStatus.VehicleAssigned) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">2. Vehicle Details</span>
+                                <span class="wf-hint">Received from transporter via WhatsApp</span>
+                                @if (StepDone(AwbStatus.VehicleAssigned))
+                                {
+                                    <span class="wf-done-lbl">Done @_sel.VehicleDetailsAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(AwbStatus.VehicleAssigned))
+                            {
+                                <div class="wf-info">
+                                    <div class="vehicle-plate" style="margin:0 0 4px;">@_sel.VehicleNumber</div>
+                                    <div class="awb-sub">Driver: @_sel.DriverName &nbsp;·&nbsp; @_sel.DriverMobile</div>
+                                </div>
+                            }
+                            else if (_sel.Status == AwbStatus.TransporterAssigned)
+                            {
+                                <div class="wf-form">
+                                    <label>Vehicle Number<input class="dhl-input" @bind="_vehicleNo" placeholder="KL 01 AB 1234" /></label>
+                                    <label>Driver Name<input class="dhl-input" @bind="_driverName" /></label>
+                                    <label>Driver Mobile<input class="dhl-input" @bind="_driverMobile" placeholder="+91 99999 00000" /></label>
+                                    <button class="btn-dhl" @onclick="DoRecordVehicle">Save Vehicle Details</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 2b: Mark In Transit -->
+                        @if (_sel.Status == AwbStatus.VehicleAssigned)
+                        {
+                            <div class="wf-step wf-active">
+                                <div class="wf-step-hdr">
+                                    <span class="wf-dot"></span>
+                                    <span class="wf-step-title">Mark In Transit</span>
+                                </div>
+                                <div class="wf-form">
+                                    <button class="btn-dhl" @onclick="DoMarkInTransit">Mark as In Transit</button>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Step 3: Port Delivery -->
+                        <div class="wf-step @(StepDone(AwbStatus.DeliveredAtPort) ? "wf-done" : (_sel.Status == AwbStatus.InTransit ? "wf-active" : "wf-locked"))">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(AwbStatus.DeliveredAtPort) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">3. Delivered at Cochin Customs Port</span>
+                                @if (StepDone(AwbStatus.DeliveredAtPort))
+                                {
+                                    <span class="wf-done-lbl">@_sel.DeliveredAtPortAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(AwbStatus.DeliveredAtPort))
+                            {
+                                <div class="wf-info">
+                                    @if (_sel.DeliveryPhotoPath is not null)
+                                    {
+                                        <a class="file-link" href="@_sel.DeliveryPhotoPath" target="_blank">Package Photo</a>
+                                    }
+                                    @if (_sel.GodownReceiptPath is not null)
+                                    {
+                                        <a class="file-link" href="@_sel.GodownReceiptPath" target="_blank">Godown Receipt</a>
+                                    }
+                                </div>
+                            }
+                            else if (_sel.Status == AwbStatus.InTransit)
+                            {
+                                <div class="wf-form">
+                                    <label>
+                                        Package Photo (from executive)
+                                        <InputFile OnChange="e => OnFileChange(e, ref _deliveryPhotoFile)" accept="image/*,.pdf" class="dhl-input-file" />
+                                    </label>
+                                    <label>
+                                        Customs Godown Received Copy
+                                        <InputFile OnChange="e => OnFileChange(e, ref _godownReceiptFile)" accept="image/*,.pdf" class="dhl-input-file" />
+                                    </label>
+                                    <button class="btn-dhl" @onclick="DoPortDelivery">Record Delivery &amp; Upload</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 4: Customs Papers -->
+                        <div class="wf-step @(StepDone(AwbStatus.CustomsCleared) ? "wf-done" : (_sel.Status == AwbStatus.CustomsPending ? "wf-active" : "wf-locked"))">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(AwbStatus.CustomsCleared) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">4. Customs Papers Received</span>
+                                <span class="wf-hint">Expected within 2 days of port delivery</span>
+                                @if (StepDone(AwbStatus.CustomsCleared))
+                                {
+                                    <span class="wf-done-lbl">@_sel.CustomsDocsReceivedAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(AwbStatus.CustomsCleared))
+                            {
+                                <div class="wf-info">
+                                    @if (_sel.CustomsDocPath is not null)
+                                    {
+                                        <a class="file-link" href="@_sel.CustomsDocPath" target="_blank">Customs Document</a>
+                                    }
+                                </div>
+                            }
+                            else if (_sel.Status == AwbStatus.CustomsPending)
+                            {
+                                @if (_sel.DeliveredAtPortAt.HasValue)
+                                {
+                                    var deadline = _sel.DeliveredAtPortAt.Value.AddDays(2);
+                                    var hoursLeft = (deadline - DateTime.UtcNow).TotalHours;
+                                    <div class="customs-deadline @(hoursLeft < 6 ? "deadline-warn" : "")">
+                                        Customs deadline: @deadline.ToString("dd MMM yyyy HH:mm")
+                                        @if (hoursLeft > 0)
+                                        {
+                                            <span> (@((int)hoursLeft)h remaining)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="deadline-over"> OVERDUE</span>
+                                        }
+                                    </div>
+                                }
+                                <div class="wf-form">
+                                    <label>
+                                        Customs Papers (upload scan/photo)
+                                        <InputFile OnChange="e => OnFileChange(e, ref _customsDocFile)" accept="image/*,.pdf" class="dhl-input-file" />
+                                    </label>
+                                    <button class="btn-dhl" @onclick="DoCustomsDocs">Mark Customs Cleared</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Step 5: Invoice to DHL -->
+                        <div class="wf-step @(StepDone(AwbStatus.InvoiceSent) ? "wf-done" : (_sel.Status == AwbStatus.CustomsCleared ? "wf-active" : "wf-locked"))">
+                            <div class="wf-step-hdr">
+                                <span class="wf-dot @(StepDone(AwbStatus.InvoiceSent) ? "wf-dot-done" : "")"></span>
+                                <span class="wf-step-title">5. Invoice Sent to DHL</span>
+                                @if (StepDone(AwbStatus.InvoiceSent))
+                                {
+                                    <span class="wf-done-lbl">@_sel.InvoiceSentAt?.ToString("dd MMM HH:mm")</span>
+                                }
+                            </div>
+                            @if (StepDone(AwbStatus.InvoiceSent))
+                            {
+                                <div class="wf-info">
+                                    Invoice #<strong>@_sel.InvoiceNumber</strong>
+                                    @if (_sel.InvoiceFilePath is not null)
+                                    {
+                                        <a class="file-link" href="@_sel.InvoiceFilePath" target="_blank">Invoice File</a>
+                                    }
+                                </div>
+                            }
+                            else if (_sel.Status == AwbStatus.CustomsCleared)
+                            {
+                                <div class="wf-form">
+                                    <label>Invoice Number<input class="dhl-input" @bind="_invoiceNumber" /></label>
+                                    <label>
+                                        Invoice File (optional)
+                                        <InputFile OnChange="e => OnFileChange(e, ref _invoiceFile)" accept="image/*,.pdf" class="dhl-input-file" />
+                                    </label>
+                                    <button class="btn-dhl" @onclick="DoInvoiceSent">Record Invoice Sent</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Complete -->
+                        @if (_sel.Status == AwbStatus.InvoiceSent)
+                        {
+                            <div class="wf-step wf-active">
+                                <div class="wf-step-hdr">
+                                    <span class="wf-dot"></span>
+                                    <span class="wf-step-title">Mark Complete</span>
+                                </div>
+                                <div class="wf-form">
+                                    <button class="btn-dhl" @onclick="DoComplete">Mark as Completed</button>
+                                </div>
+                            </div>
+                        }
+
+                    </div>
+                </div>
+
+                <!-- Event timeline -->
+                @if (_sel.Events.Any())
+                {
+                    <div class="card">
+                        <div class="card-head">Timeline</div>
+                        <div class="card-body">
+                            @foreach (var ev in _sel.Events.OrderBy(e => e.CreatedAt))
+                            {
+                                <div class="timeline-event">
+                                    <div class="timeline-dot"></div>
+                                    <div>
+                                        <div class="timeline-type">@ev.EventType</div>
+                                        <div class="timeline-desc">@ev.Description</div>
+                                        <div class="timeline-time">@ev.CreatedAt.ToString("dd MMM yyyy HH:mm")</div>
+                                        @if (ev.FilePath is not null)
+                                        {
+                                            <a class="file-link" href="@ev.FilePath" target="_blank">View File</a>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@if (_actionError is not null)
+{
+    <div class="toast-error">@_actionError <button @onclick="() => _actionError = null">✕</button></div>
+}
+
+<style>
+    .awb-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .awb-name { font-size:14px; font-weight:700; margin-bottom:2px; }
+    .awb-sub  { font-size:11px; color:var(--muted); }
+    .awb-divider { border-top:1px solid var(--border); margin:12px 0; }
+    .awb-route { display:flex; align-items:center; gap:12px; }
+    .awb-station-code { font-size:22px; font-weight:800; letter-spacing:1px; color:var(--red); }
+    .awb-station-lbl  { font-size:10px; color:var(--muted); text-transform:uppercase; }
+    .awb-arrow { font-size:20px; color:var(--muted); }
+    .section-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:4px; }
+    .cargo-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .cargo-cell { background:var(--surface); border-radius:6px; padding:8px 10px; }
+    .cargo-cell-lbl { font-size:9px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
+    .cargo-cell-val { font-size:13px; font-weight:600; margin-top:2px; }
+
+    /* Workflow steps */
+    .wf-step { border-left:3px solid var(--border); padding:10px 0 10px 16px; margin-bottom:8px; }
+    .wf-done   { border-color:var(--green,#27ae60); }
+    .wf-active { border-color:var(--red); }
+    .wf-locked { opacity:.45; }
+    .wf-step-hdr { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+    .wf-step-title { font-size:13px; font-weight:700; }
+    .wf-hint { font-size:10px; color:var(--muted); }
+    .wf-done-lbl { font-size:10px; color:var(--green,#27ae60); margin-left:auto; }
+    .wf-dot { width:10px; height:10px; border-radius:50%; background:var(--border); flex-shrink:0; }
+    .wf-dot-done { background:var(--green,#27ae60); }
+    .wf-info { font-size:13px; padding:4px 0; }
+    .wf-form { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+    .wf-form label { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+    .wf-form select.dhl-input { padding:6px 8px; }
+
+    /* Deadline */
+    .customs-deadline { font-size:12px; padding:6px 10px; background:rgba(39,174,96,.1); border-radius:6px; margin-bottom:8px; color:#27ae60; }
+    .deadline-warn { background:rgba(230,126,34,.12); color:#e67e22; }
+    .deadline-over { color:#c0392b; font-weight:700; }
+
+    /* Timeline */
+    .timeline-event { display:flex; gap:12px; margin-bottom:16px; }
+    .timeline-dot { width:10px; height:10px; border-radius:50%; background:var(--red); flex-shrink:0; margin-top:4px; }
+    .timeline-type { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--red); }
+    .timeline-desc { font-size:13px; margin:2px 0; }
+    .timeline-time { font-size:10px; color:var(--muted); }
+    .file-link { font-size:11px; color:var(--red); text-decoration:underline; display:inline-block; margin-top:4px; }
+
+    /* New form */
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .form-grid label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+    .dhl-input-file { font-size:12px; }
+
+    /* Toast */
+    .toast-error { position:fixed; bottom:20px; right:20px; background:#c0392b; color:#fff; padding:12px 16px; border-radius:8px; display:flex; gap:12px; align-items:center; z-index:9999; }
+    .toast-error button { background:none; border:none; color:#fff; cursor:pointer; font-size:16px; }
+    .master-alert { background:rgba(192,57,43,.18); border:1px solid #c0392b; border-radius:6px; padding:.65rem 1rem; font-size:.9rem; }
+
+    .btn-dhl-outline { background:transparent; border:1.5px solid var(--red); color:var(--red); padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; }
+    .btn-dhl-outline:hover { background:rgba(215,0,0,.06); }
+</style>
+
+@code {
+    // ── State ─────────────────────────────────────────────────────────────────
+    private List<AwbShipment>  _all          = [];
+    private List<AwbShipment>  _filtered     = [];
+    private List<Transporter>  _transporters = [];
+    private AwbShipment?       _sel;
+    private bool               _loading      = true;
+    private string             _activeFilter = "All";
+    private bool               _showNewForm;
+    private AwbShipment        _form         = new();
+    private string?            _formError;
+    private string?            _actionError;
+
+    // Workflow form fields
+    private int    _assignTransporterId;
+    private string _assignPickup = "";
+    private string _assignDrop   = "";
+    private string _vehicleNo    = "";
+    private string _driverName   = "";
+    private string _driverMobile = "";
+    private string _invoiceNumber = "";
+
+    // File upload holders
+    private IBrowserFile? _deliveryPhotoFile;
+    private IBrowserFile? _godownReceiptFile;
+    private IBrowserFile? _customsDocFile;
+    private IBrowserFile? _invoiceFile;
+
+    private static readonly string[] _filters =
+        ["All", "Received", "TransporterAssigned", "VehicleAssigned", "InTransit",
+         "DeliveredAtPort", "CustomsPending", "CustomsCleared", "InvoiceSent", "Completed"];
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+        _transporters = await Svc.GetTransportersAsync();
+        _loading = false;
+    }
+
+    private async Task Reload()
+    {
+        _all = await Svc.GetAllAsync();
+        ApplyFilter();
+        if (_sel is not null)
+            _sel = _all.FirstOrDefault(a => a.Id == _sel.Id);
+    }
+
+    // ── Filtering ─────────────────────────────────────────────────────────────
+    private void SetFilter(string f)
+    {
+        _activeFilter = f;
+        _sel = null;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _filtered = _activeFilter == "All"
+            ? _all
+            : _all.Where(a => a.Status.ToString() == _activeFilter).ToList();
+    }
+
+    private void Select(AwbShipment awb)
+    {
+        _sel = awb;
+        _showNewForm = false;
+        ResetWorkflowFields();
+    }
+
+    // ── New AWB form ──────────────────────────────────────────────────────────
+    private void ShowNewForm()
+    {
+        _form = new AwbShipment { Currency = "USD" };
+        _formError = null;
+        _showNewForm = true;
+        _sel = null;
+    }
+
+    private async Task SaveNewAwb()
+    {
+        if (string.IsNullOrWhiteSpace(_form.HawbNo))
+        {
+            _formError = "HAWB No. is required.";
+            return;
+        }
+        try
+        {
+            var created = await Svc.CreateManualAsync(_form);
+            await Reload();
+            _showNewForm = false;
+            _sel = _all.FirstOrDefault(a => a.Id == created.Id);
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+    }
+
+    // ── Workflow actions ──────────────────────────────────────────────────────
+    private async Task DoAssignTransporter()
+    {
+        if (_sel is null || _assignTransporterId == 0)
+        {
+            _actionError = "Select a transporter.";
+            return;
+        }
+        try
+        {
+            await Svc.AssignTransporterAsync(_sel.Id, _assignTransporterId, _assignPickup, _assignDrop);
+            await Reload();
+        }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoRecordVehicle()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_vehicleNo))
+        {
+            _actionError = "Enter vehicle number.";
+            return;
+        }
+        try
+        {
+            await Svc.RecordVehicleDetailsAsync(_sel.Id, _vehicleNo, _driverName, _driverMobile);
+            await Reload();
+        }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoMarkInTransit()
+    {
+        if (_sel is null) return;
+        try { await Svc.MarkInTransitAsync(_sel.Id); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoPortDelivery()
+    {
+        if (_sel is null) return;
+        try
+        {
+            var photoPath   = await SaveUploadAsync(_deliveryPhotoFile, "photo");
+            var receiptPath = await SaveUploadAsync(_godownReceiptFile, "godown");
+            await Svc.RecordPortDeliveryAsync(_sel.Id, photoPath, receiptPath);
+            await Reload();
+        }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoCustomsDocs()
+    {
+        if (_sel is null) return;
+        try
+        {
+            var docPath = await SaveUploadAsync(_customsDocFile, "customs");
+            await Svc.RecordCustomsDocsAsync(_sel.Id, docPath);
+            await Reload();
+        }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoInvoiceSent()
+    {
+        if (_sel is null || string.IsNullOrWhiteSpace(_invoiceNumber))
+        {
+            _actionError = "Enter invoice number.";
+            return;
+        }
+        try
+        {
+            var filePath = await SaveUploadAsync(_invoiceFile, "invoice");
+            await Svc.RecordInvoiceSentAsync(_sel.Id, _invoiceNumber, filePath);
+            await Reload();
+        }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    private async Task DoComplete()
+    {
+        if (_sel is null) return;
+        try { await Svc.MarkCompletedAsync(_sel.Id); await Reload(); }
+        catch (Exception ex) { _actionError = ex.Message; }
+    }
+
+    // ── File upload ───────────────────────────────────────────────────────────
+    private void OnFileChange(InputFileChangeEventArgs e, ref IBrowserFile? holder) =>
+        holder = e.File;
+
+    private async Task<string?> SaveUploadAsync(IBrowserFile? file, string prefix)
+    {
+        if (file is null) return null;
+        if (_sel is null) return null;
+
+        var dir = Path.Combine("wwwroot", "uploads", "shipments", _sel.Id.ToString());
+        Directory.CreateDirectory(dir);
+
+        var ext      = Path.GetExtension(file.Name);
+        var fileName = $"{prefix}-{DateTime.UtcNow:yyyyMMdd-HHmmss}{ext}";
+        var fullPath = Path.Combine(dir, fileName);
+
+        await using var fs = File.Create(fullPath);
+        await using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+        await stream.CopyToAsync(fs);
+
+        return $"/uploads/shipments/{_sel.Id}/{fileName}";
+    }
+
+    private void ResetWorkflowFields()
+    {
+        _assignTransporterId = 0;
+        _assignPickup = _assignDrop = "";
+        _vehicleNo = _driverName = _driverMobile = "";
+        _invoiceNumber = "";
+        _deliveryPhotoFile = _godownReceiptFile = _customsDocFile = _invoiceFile = null;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    private bool StepDone(AwbStatus threshold) =>
+        _sel is not null && (int)_sel.Status >= (int)threshold;
+
+    private static string StatusLabel(AwbStatus s) => s switch
+    {
+        AwbStatus.Received           => "Received",
+        AwbStatus.TransporterAssigned => "Transporter Assigned",
+        AwbStatus.VehicleAssigned    => "Vehicle Assigned",
+        AwbStatus.InTransit          => "In Transit",
+        AwbStatus.DeliveredAtPort    => "At Port",
+        AwbStatus.CustomsPending     => "Customs Pending",
+        AwbStatus.CustomsCleared     => "Customs Cleared",
+        AwbStatus.InvoiceSent        => "Invoice Sent",
+        AwbStatus.Completed          => "Completed",
+        _ => s.ToString()
+    };
+
+    private static string StatusPill(AwbStatus s) => s switch
+    {
+        AwbStatus.Received           => "pill-pending",
+        AwbStatus.TransporterAssigned => "pill-assigned",
+        AwbStatus.VehicleAssigned    => "pill-assigned",
+        AwbStatus.InTransit          => "pill-transit",
+        AwbStatus.DeliveredAtPort    => "pill-pickedup",
+        AwbStatus.CustomsPending     => "pill-transit",
+        AwbStatus.CustomsCleared     => "pill-stored",
+        AwbStatus.InvoiceSent        => "pill-stored",
+        AwbStatus.Completed          => "pill-stored",
+        _ => "pill-pending"
+    };
+
+    private RenderFragment CargoCell(string label, string value) =>
+        @<div class="cargo-cell">
+            <div class="cargo-cell-lbl">@label</div>
+            <div class="cargo-cell-val">@(string.IsNullOrWhiteSpace(value) ? "—" : value)</div>
+        </div>;
+}

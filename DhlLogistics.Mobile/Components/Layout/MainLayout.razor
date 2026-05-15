@@ -1,17 +1,165 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject AuthService Auth
+@inject PushService Push
+@implements IAsyncDisposable
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+<div class="mobile-shell">
+    <div class="mobile-content">
+        @Body
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
+    <nav class="tab-bar">
+        <NavLink class="tab-item" href="/" Match="NavLinkMatch.All">
+            <span class="tab-icon">📊</span>
+            <span class="tab-label">Overview</span>
+        </NavLink>
+        <NavLink class="tab-item" href="/jobs">
+            <span class="tab-icon">📋</span>
+            <span class="tab-label">Jobs</span>
+        </NavLink>
+        <NavLink class="tab-item" href="/tracking">
+            <span class="tab-icon">🗺</span>
+            <span class="tab-label">Track</span>
+        </NavLink>
+        <NavLink class="tab-item" href="/profile">
+            <span class="tab-icon">👤</span>
+            <span class="tab-label">Profile</span>
+        </NavLink>
+    </nav>
 </div>
+
+@* In-app notification banner (slides down from top) *@
+@if (_banner is not null)
+{
+    <div class="notif-banner @(_banner.Visible ? "show" : "")">
+        <div class="banner-icon">@TypeIcon(_banner.Type)</div>
+        <div class="banner-text">
+            <div class="banner-title">@_banner.Title</div>
+            <div class="banner-body">@_banner.Body</div>
+        </div>
+        <button class="banner-close" @onclick="DismissBanner">✕</button>
+    </div>
+}
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: #f5f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+.mobile-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 480px;
+    margin: 0 auto;
+    background: #f5f6fa;
+}
+
+.mobile-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.tab-bar {
+    display: flex;
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+    padding-bottom: env(safe-area-inset-bottom);
+    flex-shrink: 0;
+}
+
+.tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 4px;
+    text-decoration: none;
+    color: #9ca3af;
+    transition: color .15s;
+    gap: 2px;
+}
+.tab-item:hover  { color: #6b7280; }
+.tab-item.active { color: #D40511; }
+
+.tab-icon  { font-size: 20px; line-height: 1; }
+.tab-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+/* ── Notification banner ─────────────────────────────────────────────────── */
+.notif-banner {
+    position: fixed;
+    top: 0; left: 50%;
+    transform: translateX(-50%) translateY(-110%);
+    width: min(440px, 96vw);
+    background: #1a1a2e;
+    color: #fff;
+    border-radius: 0 0 16px 16px;
+    padding: 14px 16px 14px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    z-index: 9999;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    transition: transform .35s cubic-bezier(.22,1,.36,1);
+    padding-top: max(14px, env(safe-area-inset-top));
+}
+.notif-banner.show { transform: translateX(-50%) translateY(0); }
+
+.banner-icon  { font-size: 22px; flex-shrink: 0; }
+.banner-text  { flex: 1; min-width: 0; }
+.banner-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.banner-body  { font-size: 12px; color: rgba(255,255,255,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.banner-close { background: none; border: none; color: rgba(255,255,255,.4); cursor: pointer; font-size: 14px; flex-shrink: 0; padding: 2px 4px; }
+</style>
+
+@code {
+    private BannerModel? _banner;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        Push.NotificationReceived += OnNotificationReceived;
+
+        if (Auth.IsLoggedIn)
+        {
+            await Push.ConnectAsync();
+            await Push.RegisterDeviceAsync();
+        }
+    }
+
+    private void OnNotificationReceived(NotificationDto n)
+    {
+        _banner = new BannerModel(n.Title, n.Body, n.Type);
+        InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await Task.Delay(5000);
+            _banner = null;
+            StateHasChanged();
+        });
+    }
+
+    private void DismissBanner() => _banner = null;
+
+    public async ValueTask DisposeAsync()
+    {
+        Push.NotificationReceived -= OnNotificationReceived;
+        await Push.DisconnectAsync();
+    }
+
+    private static string TypeIcon(string type) => type switch
+    {
+        "NewJob"        => "📦",
+        "JobAssigned"   => "👤",
+        "StatusChanged" => "🔄",
+        "Alert"         => "⚠️",
+        _               => "🔔",
+    };
+
+    private record BannerModel(string Title, string Body, string Type)
+    {
+        public bool Visible { get; init; } = true;
+    }
+}
