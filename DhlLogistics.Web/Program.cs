@@ -214,6 +214,12 @@ app.UseWebSockets();
 if (!app.Environment.IsProduction() || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")))
     app.UseHttpsRedirection();
 
+// Serve wwwroot/* AND _framework/* (Blazor runtime) AND _content/* (RCL assets).
+// MapStaticAssets below adds fingerprinting on top; UseStaticFiles is the
+// belt-and-suspenders fallback so framework files load even when the
+// fingerprint manifest doesn't match (which we hit on Render).
+app.UseStaticFiles();
+
 app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
