@@ -7,6 +7,7 @@ using DhlLogistics.Web.Service;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -185,7 +186,23 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.UseHttpsRedirection();
+// Behind Render / any reverse proxy, honour X-Forwarded-* so Identity cookies,
+// HTTPS redirects, and Request.Scheme see the original public scheme.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    // Render's load balancer is the only proxy in front of us — clear the
+    // default empty allow-lists so it gets trusted.
+    KnownNetworks = { },
+    KnownProxies  = { },
+});
+
+// Render terminates TLS at the edge and forwards plain HTTP to the container,
+// so UseHttpsRedirection() inside the container would loop. Only enable it
+// outside containers (i.e. local dev).
+if (!app.Environment.IsProduction() || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")))
+    app.UseHttpsRedirection();
+
 app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();

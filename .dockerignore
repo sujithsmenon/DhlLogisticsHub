@@ -1,0 +1,45 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Git / CI
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Tooling / scratch
+.claude/
+.fleet/
+
+# Mobile project (MAUI workloads aren't available in the .NET SDK image
+# and aren't needed to run the Web service)
+DhlLogistics.Mobile/
+
+# Local-only reference material (also gitignored)
+CBM_Project_Reference/
+Client Reference/
+*.png
+requirement detail and error details.txt
+
+# Secrets — these live in env vars on Render, not the image
+**/secrets.json
+**/firebase-adminsdk*.json
+**/*.pfx
+
+# Docs / readme
+README.md
+*.md
+
+# Docker itself
+Dockerfile
+.dockerignore

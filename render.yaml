@@ -1,0 +1,57 @@
+# Render Blueprint — declarative config for the DHL Logistics Hub web service.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# To use:
+#   1. Push this file to GitHub (already done).
+#   2. In Render dashboard → New + → Blueprint → pick this repo → Apply.
+#   3. Render reads this file and creates the service; you only need to paste
+#      secret values (any envVar with sync:false) when prompted.
+services:
+  - type: web
+    name: dhl-logistics-hub
+    runtime: docker
+    plan: free                  # starter ($7/mo) or standard if you outgrow free's 512 MB
+    region: singapore           # closest Render region to your Supabase project (Mumbai)
+    branch: master
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /Account/Login   # public page that returns 200 without auth
+
+    envVars:
+      # ── Runtime ─────────────────────────────────────────────────────────
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: DOTNET_RUNNING_IN_CONTAINER
+        value: "true"
+
+      # ── Supabase Postgres ───────────────────────────────────────────────
+      # Use the *Transaction pooler* connection string from your Supabase
+      # dashboard (Project Settings → Database → Connection pooling → "Transaction").
+      # Format: Host=aws-0-<region>.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.<projectref>;Password=<your-pw>;SSL Mode=Require;Trust Server Certificate=true
+      # The "direct" connection (db.<ref>.supabase.co) works locally over IPv6
+      # but Render's containers are IPv4-only, so the pooler is required here.
+      - key: ConnectionStrings__DefaultConnection
+        sync: false              # entered by hand in dashboard; never committed
+
+      # ── JWT — used by /api/auth/login for the mobile app ────────────────
+      - key: Jwt__Key            # at least 32 chars; can be auto-generated
+        generateValue: true
+      - key: Jwt__Issuer
+        value: DhlLogisticsHub
+      - key: Jwt__Audience
+        value: DhlLogisticsApp
+
+      # ── Optional integrations (leave blank if unused) ──────────────────
+      - key: EmailSettings__Username
+        sync: false
+      - key: EmailSettings__Password
+        sync: false
+      - key: Syncfusion__LicenseKey
+        sync: false
+      - key: WebPush__Subject
+        sync: false
+      - key: WebPush__PublicKey
+        sync: false
+      - key: WebPush__PrivateKey
+        sync: false
