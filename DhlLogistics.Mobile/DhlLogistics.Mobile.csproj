@@ -32,10 +32,13 @@
         <!-- Display name (shown on home screen + iOS app switcher) -->
         <ApplicationTitle>PVGT Logistics</ApplicationTitle>
 
-        <!-- App Identifier -->
-        <ApplicationId>com.companyname.dhllogistics.mobile</ApplicationId>
+        <!-- App Identifier — immutable after first Play Store publish. -->
+        <ApplicationId>com.pvgtlogistics.logisticshub</ApplicationId>
 
-        <!-- Versions -->
+        <!-- Versions. ApplicationDisplayVersion is the user-visible "1.0".
+             ApplicationVersion is an integer (versionCode on Android, CFBundleVersion
+             on iOS) that MUST increment with every Play Store upload, even for
+             internal track. Bump this before each `dotnet publish`. -->
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
         <ApplicationVersion>1</ApplicationVersion>
 
@@ -82,5 +85,24 @@
     <ItemGroup>
       <ProjectReference Include="..\DhlLogistics.Shared\DhlLogistics.Shared.csproj" />
     </ItemGroup>
+
+    <!-- ── Android Release signing (Play Store) ────────────────────────────────
+         Build with the AAB target Play Store wants:
+           dotnet publish DhlLogistics.Mobile -f net10.0-android -c Release \
+             -p:AndroidKeyStore=true \
+             -p:AndroidSigningKeyStore=$env:KEYSTORE_PATH \
+             -p:AndroidSigningKeyAlias=$env:KEYSTORE_ALIAS \
+             -p:AndroidSigningKeyPass=$env:KEYSTORE_PASS \
+             -p:AndroidSigningStorePass=$env:KEYSTORE_PASS
+
+         The properties below default for Release so you only need to pass the
+         four signing values. Never commit the keystore file or passwords.
+    -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release' AND $(TargetFramework.Contains('-android'))">
+        <AndroidPackageFormat>aab</AndroidPackageFormat>
+        <AndroidUseAapt2>true</AndroidUseAapt2>
+        <AndroidLinkMode>SdkOnly</AndroidLinkMode>
+        <AndroidEnableProfiledAot>true</AndroidEnableProfiledAot>
+    </PropertyGroup>
 
 </Project>
