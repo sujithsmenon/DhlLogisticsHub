@@ -70,9 +70,19 @@ builder.Services.AddAuthentication()
     });
 
 builder.Services.AddAuthorization(options =>
+{
     options.AddPolicy("MobileApi", policy =>
         policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-              .RequireAuthenticatedUser()));
+              .RequireAuthenticatedUser());
+
+    // Mirrors the web dashboard's read-only views to the mobile app.
+    // Restricted to Admin/Manager because those screens show every master,
+    // job order, AWB and export across the whole business.
+    options.AddPolicy("MobileAdminApi", policy =>
+        policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+              .RequireAuthenticatedUser()
+              .RequireRole("Admin", "Manager"));
+});
 
 // ── Razor Pages (login / logout form handlers) ────────────────────────────────
 builder.Services.AddRazorPages();
@@ -147,6 +157,9 @@ builder.Services.AddScoped<PermissionService>();
 
 // ── M4 Job Order service ─────────────────────────────────────────────────────
 builder.Services.AddScoped<JobOrderService>();
+
+// ── Admin Activity Report service ────────────────────────────────────────────
+builder.Services.AddScoped<ReportService>();
 
 var app = builder.Build();
 
@@ -283,6 +296,13 @@ app.MapJobEndpoints();
 app.MapGpsEndpoints();
 app.MapDashboardEndpoints();
 app.MapNotificationEndpoints();
+
+// Mirror the web dashboard to the mobile app (Admin/Manager only).
+app.MapMasterEndpoints();
+app.MapJobOrderEndpoints();
+app.MapShipmentEndpoints();
+app.MapAdminEndpoints();
+app.MapReportEndpoints();
 
 // ── SignalR hubs ──────────────────────────────────────────────────────────────
 app.MapHub<GpsHub>("/gpshub");

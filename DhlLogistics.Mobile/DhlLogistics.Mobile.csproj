@@ -3,7 +3,8 @@
     <PropertyGroup>
         <TargetFrameworks>net10.0-android</TargetFrameworks>
         <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
-        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+        <!-- Windows MAUI TFM intentionally omitted — needs the MSVC C++ workload (VS "Desktop development with C++").
+             Re-add net10.0-windows10.0.19041.0 here if you want a Windows desktop build of the app. -->
 
         <!-- Note for MacCatalyst:
             The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -28,8 +29,8 @@
                <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
         <MauiXamlInflator>SourceGen</MauiXamlInflator>
 
-        <!-- Display name -->
-        <ApplicationTitle>DhlLogistics.Mobile</ApplicationTitle>
+        <!-- Display name (shown on home screen + iOS app switcher) -->
+        <ApplicationTitle>PVGT Logistics</ApplicationTitle>
 
         <!-- App Identifier -->
         <ApplicationId>com.companyname.dhllogistics.mobile</ApplicationId>
@@ -49,11 +50,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+        <!-- App Icon — PVGT navy background, white PVGT monogram foreground -->
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0E2A47" />
 
-        <!-- Splash Screen -->
-        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+        <!-- Splash Screen — PVGT navy background -->
+        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0E2A47" BaseSize="128,128" />
 
         <!-- Images -->
         <MauiImage Include="Resources\Images\*" />
@@ -75,7 +76,7 @@
 
     <!-- Firebase Cloud Messaging — Android only -->
     <ItemGroup Condition="$(TargetFramework.Contains('-android'))">
-        <PackageReference Include="Xamarin.Firebase.Messaging" Version="124.0.0.6" />
+        <PackageReference Include="Xamarin.Firebase.Messaging" Version="124.1.2" />
     </ItemGroup>
 
     <ItemGroup>

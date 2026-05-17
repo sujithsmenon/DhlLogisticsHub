@@ -1,0 +1,269 @@
+@page "/admin/reports"
+@using DhlLogistics.Shared.Models
+@using DhlLogistics.Web.Service
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject ReportService Reports
+
+<PageTitle>Activity Report — PVGT Logistics</PageTitle>
+
+<div class="main-div">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <b>Activity Report</b>
+                    @if (_report is not null)
+                    {
+                        <span class="period-chip">@_report.Period.Label · @_report.Period.From.ToString("dd MMM") → @_report.Period.To.ToString("dd MMM")</span>
+                    }
+                </div>
+                <div class="card-body">
+
+                    <!-- Tabs ────────────────────────────────────────────── -->
+                    <div class="rpt-tabs">
+                        <button class="rpt-tab @(_active == "daily" ? "active" : "")"   @onclick='() => Switch("daily")'>Daily</button>
+                        <button class="rpt-tab @(_active == "weekly" ? "active" : "")"  @onclick='() => Switch("weekly")'>Weekly</button>
+                        <button class="rpt-tab @(_active == "monthly" ? "active" : "")" @onclick='() => Switch("monthly")'>Monthly</button>
+                    </div>
+
+                    @if (_loading)
+                    {
+                        <div class="loading-wrap">Loading report…</div>
+                    }
+                    else if (_report is not null)
+                    {
+                        <!-- Headline KPIs ───────────────────────────────── -->
+                        <div class="kpi-grid">
+                            @Kpi("Total",      _report.GrandTotal,     "kpi-total")
+                            @Kpi("Received",   _report.TotalReceived,  "kpi-recv")
+                            @Kpi("In Transit", _report.TotalInTransit, "kpi-trans")
+                            @Kpi("At Port",    _report.TotalAtPort,    "kpi-port")
+                            @Kpi("Cleared",    _report.TotalCleared,   "kpi-clr")
+                            @Kpi("Completed",  _report.TotalCompleted, "kpi-done")
+                        </div>
+
+                        <!-- 4-quadrant grid ────────────────────────────── -->
+                        <div class="quad-table-wrap">
+                            <table class="quad-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mode / Direction</th>
+                                        <th>Received</th>
+                                        <th>In Transit</th>
+                                        <th>At Port</th>
+                                        <th>Cleared</th>
+                                        <th>Completed</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var q in _report.Quadrants)
+                                    {
+                                        <tr class="@(q == _selected ? "row-selected" : "")"
+                                            @onclick="() => Select(q)">
+                                            <td>
+                                                <span class="mode-chip @(q.Mode == ReportMode.Sea ? "sea" : "air")">@q.Mode</span>
+                                                <span class="dir-chip @(q.Direction == ReportDirection.Import ? "imp" : "exp")">@q.Direction</span>
+                                            </td>
+                                            <td>@q.Received</td>
+                                            <td>@q.InTransit</td>
+                                            <td>@q.AtPort</td>
+                                            <td>@q.Cleared</td>
+                                            <td>@q.Completed</td>
+                                            <td><b>@q.Total</b></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Drill-down item list ───────────────────────── -->
+                        @if (_selected is not null && _selected.Items.Count > 0)
+                        {
+                            <div class="drill-title">
+                                @_selected.Mode @_selected.Direction · @_selected.Items.Count item(s)
+                            </div>
+                            <div class="drill-table-wrap">
+                                <table class="drill-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Source</th>
+                                            <th>Reference</th>
+                                            <th>Client</th>
+                                            <th>Stage</th>
+                                            <th>Status</th>
+                                            <th>Location / Route</th>
+                                            <th>Vessel / Voyage</th>
+                                            <th>Received</th>
+                                            <th>Last Event</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var i in _selected.Items)
+                                        {
+                                            <tr>
+                                                <td><span class="src-chip @i.Source.ToLower()">@i.Source</span></td>
+                                                <td><code>@i.Reference</code></td>
+                                                <td>@i.ClientName</td>
+                                                <td><span class="stg-chip stg-@((int)i.Stage)">@i.Stage</span></td>
+                                                <td><span class="status-text">@i.CurrentStatus</span></td>
+                                                <td>@(i.Location ?? "—")</td>
+                                                <td>@FormatVessel(i)</td>
+                                                <td>@i.ReceivedAt.ToString("dd MMM HH:mm")</td>
+                                                <td>@(i.LastEventAt?.ToString("dd MMM HH:mm") ?? "—")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else if (_selected is not null)
+                        {
+                            <div class="empty-wrap">No items for @_selected.Mode @_selected.Direction in this period.</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.period-chip {
+    font-size: 12px; font-weight: 600; color: #fff;
+    background: rgba(255,255,255,.18); padding: 4px 12px; border-radius: 14px;
+}
+
+/* Tabs */
+.rpt-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; margin-bottom: 18px; }
+.rpt-tab {
+    background: none; border: none; padding: 10px 22px; font-size: 14px; font-weight: 600;
+    color: #6b7280; cursor: pointer; border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+}
+.rpt-tab:hover { color: #0868B2; }
+.rpt-tab.active { color: #0868B2; border-bottom-color: #0868B2; }
+
+/* KPI strip */
+.kpi-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 18px;
+}
+.kpi-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px;
+    border-top: 3px solid var(--c);
+}
+.kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; }
+.kpi-value { font-size: 26px; font-weight: 800; color: #111; line-height: 1.1; }
+.kpi-total { --c: #0E2A47; }
+.kpi-recv  { --c: #6b7280; }
+.kpi-trans { --c: #2563eb; }
+.kpi-port  { --c: #b45309; }
+.kpi-clr   { --c: #15803d; }
+.kpi-done  { --c: #0868B2; }
+
+/* Quadrant table */
+.quad-table-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.quad-table { width: 100%; border-collapse: collapse; }
+.quad-table th { background: #f3f4f6; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; }
+.quad-table td { padding: 12px 14px; border-top: 1px solid #f3f4f6; font-size: 13px; cursor: pointer; }
+.quad-table tbody tr:hover { background: #f9fafb; }
+.quad-table tbody tr.row-selected { background: #eff6ff; }
+.quad-table tbody tr.row-selected td { font-weight: 600; }
+
+/* Mode / direction chips */
+.mode-chip, .dir-chip {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 12px; margin-right: 4px;
+    text-transform: uppercase; letter-spacing: .3px;
+}
+.mode-chip.sea { background: #dbeafe; color: #1e40af; }
+.mode-chip.air { background: #fef3c7; color: #92400e; }
+.dir-chip.imp  { background: #ede9fe; color: #5b21b6; }
+.dir-chip.exp  { background: #dcfce7; color: #166534; }
+
+/* Drill-down */
+.drill-title { font-size: 13px; font-weight: 700; color: #374151; margin: 18px 0 10px; }
+.drill-table-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: auto; }
+.drill-table { width: 100%; border-collapse: collapse; }
+.drill-table th { background: #f3f4f6; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+.drill-table td { padding: 10px 12px; border-top: 1px solid #f3f4f6; font-size: 12.5px; }
+.drill-table code { font-family: monospace; font-size: 12px; color: #0868B2; font-weight: 600; }
+
+.src-chip {
+    display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: .3px;
+}
+.src-chip.awb       { background: #fee2e2; color: #991b1b; }
+.src-chip.export    { background: #dcfce7; color: #166534; }
+.src-chip.joborder  { background: #dbeafe; color: #1e40af; }
+
+.stg-chip {
+    display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: .3px;
+}
+.stg-chip.stg-0 { background: #f3f4f6; color: #374151; }
+.stg-chip.stg-1 { background: #dbeafe; color: #1e40af; }
+.stg-chip.stg-2 { background: #fef3c7; color: #92400e; }
+.stg-chip.stg-3 { background: #d1fae5; color: #065f46; }
+.stg-chip.stg-4 { background: #c7d2fe; color: #3730a3; }
+
+.status-text { font-size: 11px; color: #6b7280; font-family: monospace; }
+
+.loading-wrap, .empty-wrap { padding: 40px; text-align: center; color: #9ca3af; font-size: 14px; }
+
+@@media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .quad-table-wrap, .drill-table-wrap { font-size: 12px; }
+}
+</style>
+
+@code {
+    private string _active = "daily";
+    private bool   _loading;
+    private ActivityReport? _report;
+    private QuadrantReport? _selected;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Switch(string period)
+    {
+        if (_active == period) return;
+        _active = period;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading  = true;
+        _selected = null;
+        StateHasChanged();
+
+        _report = _active switch
+        {
+            "weekly"  => await Reports.GetWeeklyAsync(),
+            "monthly" => await Reports.GetMonthlyAsync(),
+            _         => await Reports.GetDailyAsync(),
+        };
+
+        // Auto-select the first quadrant with rows so the drill-down isn't blank
+        _selected = _report.Quadrants.FirstOrDefault(q => q.Total > 0) ?? _report.Quadrants.FirstOrDefault();
+        _loading  = false;
+    }
+
+    private void Select(QuadrantReport q) => _selected = q;
+
+    private RenderFragment Kpi(string label, int value, string css) =>
+        @<div class="kpi-card @css">
+            <div class="kpi-label">@label</div>
+            <div class="kpi-value">@value</div>
+        </div>;
+
+    private static string FormatVessel(ActivityItem i)
+    {
+        if (string.IsNullOrEmpty(i.VesselName) && string.IsNullOrEmpty(i.VoyageNumber)) return "—";
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(i.VesselName))   parts.Add(i.VesselName);
+        if (!string.IsNullOrEmpty(i.VoyageNumber)) parts.Add($"V.{i.VoyageNumber}");
+        return string.Join(" / ", parts);
+    }
+}

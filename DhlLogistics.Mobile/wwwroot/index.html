@@ -9,6 +9,13 @@
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="DhlLogistics.Mobile.styles.css" />
     <link rel="icon" href="data:,">
+
+    <!-- Leaflet (for /tracking map). Loaded here at app startup so `L` is
+         defined by the time any Razor page's OnAfterRenderAsync fires.
+         A <script> tag inside a .razor body is NOT guaranteed to execute
+         before the component's first render in BlazorWebView. -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 
 <body>

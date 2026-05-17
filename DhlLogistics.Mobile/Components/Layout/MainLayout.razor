@@ -21,6 +21,13 @@
             <span class="tab-icon">🗺</span>
             <span class="tab-label">Track</span>
         </NavLink>
+        @if (Auth.CurrentRole is "Admin" or "Manager")
+        {
+            <NavLink class="tab-item" href="/reports">
+                <span class="tab-icon">📈</span>
+                <span class="tab-label">Reports</span>
+            </NavLink>
+        }
         <NavLink class="tab-item" href="/profile">
             <span class="tab-icon">👤</span>
             <span class="tab-label">Profile</span>
@@ -81,7 +88,7 @@ html, body { height: 100%; overflow: hidden; background: #f5f6fa; font-family: -
     gap: 2px;
 }
 .tab-item:hover  { color: #6b7280; }
-.tab-item.active { color: #D40511; }
+.tab-item.active { color: #0868B2; }
 
 .tab-icon  { font-size: 20px; line-height: 1; }
 .tab-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }

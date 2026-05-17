@@ -34,4 +34,14 @@ public class ApiService
 
     public Task<List<Container>?> GetCargoAsync() =>
         _http.GetFromJsonAsync<List<Container>>("/api/dashboard/cargo");
+
+    // Activity reports (admin/manager only — returns 403 for other roles)
+    public Task<ActivityReport?> GetReportDailyAsync() =>
+        _http.GetFromJsonAsync<ActivityReport>("/api/admin/reports/daily");
+
+    public Task<ActivityReport?> GetReportWeeklyAsync() =>
+        _http.GetFromJsonAsync<ActivityReport>("/api/admin/reports/weekly");
+
+    public Task<ActivityReport?> GetReportMonthlyAsync() =>
+        _http.GetFromJsonAsync<ActivityReport>("/api/admin/reports/monthly");
 }

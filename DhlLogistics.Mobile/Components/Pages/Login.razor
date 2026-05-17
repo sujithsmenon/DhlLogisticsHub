@@ -2,268 +2,351 @@
 @inject AuthService Auth
 @inject NavigationManager Nav
 
-<div class="mob-auth-bg">
+<PageTitle>Sign In — PVGT Logistics LLP</PageTitle>
 
-    <!-- Top brand block -->
-    <div class="mob-brand">
-        <div class="mob-dhl-mark">
-            <span class="mob-dhl-txt">DHL</span>
-            <div class="mob-dhl-bar"></div>
+<div class="auth-bg">
+
+    <!-- ── Brand header (navy/blue gradient — matches web's left panel) ── -->
+    <div class="auth-hero">
+        <div class="auth-brand">
+            <div class="auth-pvgt-mark">
+                <img src="img/pvgt-logo.png" alt="PVGT Logistics" class="auth-pvgt-logo" />
+            </div>
+            <div class="auth-brand-words">
+                <span class="auth-brand-name">PVGT Logistics LLP</span>
+                <span class="auth-brand-sub">Your Trust &amp; Satisfaction</span>
+            </div>
         </div>
-        <div class="mob-brand-words">
-            <span class="mob-brand-name">Logistics Hub</span>
-            <span class="mob-brand-sub">Field Executive App</span>
-        </div>
+
+        <h1 class="auth-hero-h1">Manage<br />logistics<br />smarter.</h1>
+        <p class="auth-hero-p">
+            Real-time GPS tracking, automated job parsing, and
+            container oversight — all from one secure platform.
+        </p>
     </div>
 
-    <!-- Card -->
-    <div class="mob-card @(_shaking ? "mob-shake" : "")">
+    <!-- ── Form card ────────────────────────────────────────────────── -->
+    <div class="auth-card @(_shaking ? "auth-shake" : "")">
 
-        <div class="mob-card-head">
-            <h2 class="mob-card-title">Sign in</h2>
-            <p class="mob-card-sub">Use your DHL credentials to continue</p>
+        <div class="auth-card-head">
+            <div class="auth-card-mark">
+                <img src="img/pvgt-logo.png" alt="PVGT Logistics" class="auth-card-logo" />
+            </div>
+            <h2 class="auth-card-title">Welcome back</h2>
+            <p class="auth-card-sub">Sign in to your account to continue</p>
         </div>
 
         @if (_error is not null)
         {
-            <div class="mob-alert" role="alert">
-                <span>⚠</span> @_error
+            <div class="auth-alert" role="alert">
+                <span class="auth-alert-icon">⚠</span> @_error
             </div>
         }
 
-        <div class="mob-field">
-            <label for="mob-email">Email address</label>
-            <div class="mob-input-wrap @(_error != null ? "input-err" : "")">
-                <span class="mob-icon">✉</span>
-                <input id="mob-email"
+        <div class="auth-field">
+            <label for="auth-email">Email address</label>
+            <div class="auth-input-wrap @(_error != null ? "input-error" : "")">
+                <span class="auth-icon">✉</span>
+                <input id="auth-email"
                        type="email"
                        @bind="_email"
                        @bind:event="oninput"
-                       placeholder="you@dhl.com"
+                       placeholder="you@pvgtlogistics.com"
                        autocomplete="email" />
             </div>
         </div>
 
-        <div class="mob-field">
-            <label for="mob-pw">Password</label>
-            <div class="mob-input-wrap @(_error != null ? "input-err" : "")">
-                <span class="mob-icon">🔒</span>
-                <input id="mob-pw"
+        <div class="auth-field">
+            <label for="auth-pw">Password</label>
+            <div class="auth-input-wrap @(_error != null ? "input-error" : "")">
+                <span class="auth-icon">🔒</span>
+                <input id="auth-pw"
                        type="@(_showPw ? "text" : "password")"
                        @bind="_password"
                        @bind:event="oninput"
                        placeholder="Enter your password"
                        autocomplete="current-password" />
-                <button class="mob-eye-btn" type="button" @onclick="() => _showPw = !_showPw"
+                <button class="auth-eye-btn" type="button" @onclick="() => _showPw = !_showPw"
                         title="@(_showPw ? "Hide password" : "Show password")">
                     @(_showPw ? "🙈" : "👁")
                 </button>
             </div>
         </div>
 
-        <button class="mob-submit @(_busy ? "mob-loading" : "")"
+        <button class="auth-submit @(_busy ? "auth-loading" : "")"
                 @onclick="DoLogin"
                 disabled="@(_busy || string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))">
             @if (_busy)
             {
-                <span class="mob-spinner"></span>
+                <span class="auth-spinner"></span>
                 <span>Signing in…</span>
             }
             else
             {
                 <span>Sign In</span>
-                <span class="mob-arrow">→</span>
+                <span class="auth-arrow">→</span>
             }
         </button>
 
-        <p class="mob-hint">Authorized DHL personnel only</p>
+        <div class="auth-help">
+            <span>Need access?</span>
+            <a href="mailto:admin@pvgtlogistics.com">Contact support</a>
+        </div>
     </div>
 
-    <p class="mob-footer">&copy; @DateTime.Now.Year DHL Logistics Hub</p>
+    <p class="auth-copy">&copy; @DateTime.Now.Year PVGT Logistics LLP. Authorized use only.</p>
 </div>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-body, html {
+html, body {
     height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #1C1C1E;
+    background: #F5F6FA;
 }
 
-.mob-auth-bg {
+.auth-bg {
     min-height: 100vh;
-    background: linear-gradient(160deg, #1C1C1E 0%, #2A1010 60%, #1C1C1E 100%);
+    background: #F5F6FA;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 48px 20px 32px;
+    padding: 0 0 28px;
 }
 
-/* ── Brand ──────────────────────────────────────────── */
-.mob-brand {
+/* ── Hero header (navy → blue gradient, matches web left panel) ── */
+.auth-hero {
+    width: 100%;
+    background: linear-gradient(160deg, #0E2A47 0%, #0868B2 100%);
+    padding: 40px 28px 56px;
+    position: relative;
+    overflow: hidden;
+}
+
+.auth-hero::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(8,104,178,.18) 0%, transparent 70%);
+    pointer-events: none;
+}
+.auth-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; left: -40px;
+    width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(8,104,178,.10) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.auth-brand {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 36px;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
 }
 
-.mob-dhl-mark { display: flex; flex-direction: column; }
-.mob-dhl-txt {
-    background: #D40511;
-    color: #fff;
-    font-weight: 900;
-    font-size: 18px;
-    padding: 7px 12px;
-    border-radius: 7px 7px 0 0;
-    letter-spacing: 2px;
-    line-height: 1;
+.auth-pvgt-mark {
+    background: #FFFFFF;
+    border-radius: 8px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.mob-dhl-bar {
-    height: 5px;
-    background: #FFCC00;
-    border-radius: 0 0 5px 5px;
+.auth-pvgt-logo {
+    display: block;
+    height: 28px;
+    width: auto;
+    max-width: 100px;
 }
 
-.mob-brand-words { display: flex; flex-direction: column; }
-.mob-brand-name {
+.auth-brand-words { display: flex; flex-direction: column; }
+.auth-brand-name {
     color: #fff;
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.3;
 }
-.mob-brand-sub {
-    color: rgba(255,255,255,.38);
-    font-size: 11px;
+.auth-brand-sub {
+    color: rgba(255,255,255,.55);
+    font-size: 10.5px;
     text-transform: uppercase;
     letter-spacing: .5px;
 }
 
-/* ── Card ───────────────────────────────────────────── */
-.mob-card {
-    background: #fff;
-    border-radius: 20px;
-    padding: 32px 28px 28px;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+.auth-hero-h1 {
+    color: #fff;
+    font-size: 34px;
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -.5px;
+    margin-top: 32px;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
 }
 
-.mob-card-head { margin-bottom: 24px; }
-.mob-card-title {
-    font-size: 22px;
+.auth-hero-p {
+    color: rgba(255,255,255,.62);
+    font-size: 13.5px;
+    line-height: 1.65;
+    max-width: 320px;
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Form card ───────────────────────────────────────────────────── */
+.auth-card {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 32px rgba(0,0,0,.09);
+    padding: 34px 26px 28px;
+    width: calc(100% - 32px);
+    max-width: 424px;
+    margin-top: -28px;
+    z-index: 2;
+    position: relative;
+}
+
+.auth-card-head { margin-bottom: 26px; }
+
+.auth-card-mark {
+    display: flex;
+    width: fit-content;
+    margin-bottom: 18px;
+}
+.auth-card-logo {
+    display: block;
+    height: 32px;
+    width: auto;
+    max-width: 120px;
+}
+
+.auth-card-title {
+    font-size: 24px;
     font-weight: 800;
     color: #111827;
+    letter-spacing: -.3px;
     margin-bottom: 4px;
 }
-.mob-card-sub { font-size: 13px; color: #6B7280; }
+.auth-card-sub {
+    color: #6B7280;
+    font-size: 13px;
+}
 
-/* Alert */
-.mob-alert {
+/* ── Alert ───────────────────────────────────────────────────────── */
+.auth-alert {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     background: #FEF2F2;
     border: 1px solid #FECACA;
     color: #B91C1C;
     border-radius: 10px;
     padding: 11px 14px;
     font-size: 13px;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
 }
+.auth-alert-icon { font-size: 15px; flex-shrink: 0; }
 
-/* Fields */
-.mob-field {
+/* ── Fields ──────────────────────────────────────────────────────── */
+.auth-field {
     display: flex;
     flex-direction: column;
     gap: 7px;
     margin-bottom: 16px;
 }
 
-.mob-field label {
+.auth-field label {
     font-size: 13px;
     font-weight: 600;
     color: #374151;
 }
 
-.mob-input-wrap {
+.auth-input-wrap {
     display: flex;
     align-items: center;
     border: 1.5px solid #E5E7EB;
-    border-radius: 12px;
+    border-radius: 10px;
     background: #F9FAFB;
     transition: border-color .15s, box-shadow .15s, background .15s;
     overflow: hidden;
-    min-height: 50px;
+    min-height: 48px;
 }
 
-.mob-input-wrap:focus-within {
-    border-color: #D40511;
+.auth-input-wrap:focus-within {
+    border-color: #0868B2;
     background: #fff;
-    box-shadow: 0 0 0 3px rgba(212,5,17,.1);
+    box-shadow: 0 0 0 3px rgba(8,104,178,.09);
 }
 
-.mob-input-wrap.input-err { border-color: #FCA5A5; background: #FFF5F5; }
+.auth-input-wrap.input-error { border-color: #FCA5A5; background: #FFF5F5; }
 
-.mob-icon {
+.auth-icon {
     flex-shrink: 0;
-    padding: 0 14px;
-    font-size: 16px;
+    padding: 0 12px;
+    font-size: 14px;
     color: #9CA3AF;
     user-select: none;
 }
 
-.mob-input-wrap input {
+.auth-input-wrap input {
     flex: 1;
     border: none;
     background: transparent;
     outline: none;
-    padding: 14px 0;
-    font-size: 15px;
+    padding: 12px 14px 12px 0;
+    font-size: 14px;
     color: #111827;
 }
-.mob-input-wrap input::placeholder { color: #9CA3AF; }
+.auth-input-wrap input::placeholder { color: #9CA3AF; }
 
-.mob-eye-btn {
+.auth-eye-btn {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0 14px;
-    font-size: 18px;
+    padding: 0 12px;
+    font-size: 16px;
     color: #9CA3AF;
     flex-shrink: 0;
     line-height: 1;
 }
 
-/* Submit */
-.mob-submit {
+/* ── Submit ──────────────────────────────────────────────────────── */
+.auth-submit {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-    padding: 15px;
-    background: #D40511;
+    padding: 14px;
+    background: #0868B2;
     color: #fff;
     border: none;
-    border-radius: 12px;
-    font-size: 16px;
+    border-radius: 10px;
+    font-size: 15px;
     font-weight: 700;
     cursor: pointer;
     letter-spacing: .2px;
-    transition: background .15s, opacity .15s, transform .1s;
-    box-shadow: 0 4px 18px rgba(212,5,17,.35);
-    margin-top: 8px;
+    transition: background .15s, transform .1s, box-shadow .15s, opacity .15s;
+    margin-top: 6px;
+    box-shadow: 0 4px 14px rgba(8,104,178,.3);
 }
+.auth-submit:hover:not(:disabled) {
+    background: #055891;
+    box-shadow: 0 6px 20px rgba(8,104,178,.4);
+}
+.auth-submit:active:not(:disabled) { transform: scale(.985); }
+.auth-submit:disabled { opacity: .6; cursor: not-allowed; box-shadow: none; }
 
-.mob-submit:hover:not(:disabled) { background: #A8040D; }
-.mob-submit:active:not(:disabled) { transform: scale(.98); }
-.mob-submit:disabled { opacity: .6; cursor: not-allowed; box-shadow: none; }
-
-.mob-arrow { font-size: 18px; }
+.auth-arrow { font-size: 17px; }
 
 /* Loading spinner */
-.mob-spinner {
+.auth-spinner {
     width: 18px;
     height: 18px;
     border: 2px solid rgba(255,255,255,.3);
@@ -272,33 +355,42 @@ body, html {
     animation: spin .7s linear infinite;
     flex-shrink: 0;
 }
-
 @@keyframes spin { to { transform: rotate(360deg); } }
 
-.mob-hint {
+/* ── Help / footer ───────────────────────────────────────────────── */
+.auth-help {
+    margin-top: 22px;
     text-align: center;
-    font-size: 11.5px;
+    font-size: 12.5px;
     color: #9CA3AF;
-    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
-
-/* Shake animation */
-@@keyframes mobShake {
-    0%, 100% { transform: translateX(0); }
-    15%       { transform: translateX(-8px); }
-    35%       { transform: translateX(8px); }
-    55%       { transform: translateX(-5px); }
-    75%       { transform: translateX(5px); }
+.auth-help a {
+    color: #0868B2;
+    text-decoration: none;
+    font-weight: 600;
 }
-.mob-shake { animation: mobShake .45s ease; }
+.auth-help a:hover { text-decoration: underline; }
 
-/* Footer */
-.mob-footer {
-    color: rgba(255,255,255,.25);
-    font-size: 11px;
+.auth-copy {
+    margin-top: 22px;
+    color: #B0B7C3;
+    font-size: 11.5px;
     text-align: center;
-    margin-top: 28px;
 }
+
+/* Shake on error */
+@@keyframes authShake {
+    0%, 100% { transform: translateX(0); }
+    20%       { transform: translateX(-6px); }
+    40%       { transform: translateX(6px); }
+    60%       { transform: translateX(-4px); }
+    80%       { transform: translateX(4px); }
+}
+.auth-shake { animation: authShake .4s ease; }
 </style>
 
 @code {

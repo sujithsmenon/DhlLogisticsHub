@@ -3,8 +3,8 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+@* Leaflet CSS + JS are loaded once in wwwroot/index.html so `L` is defined
+   before this page's OnAfterRenderAsync runs. *@
 
 <div style="display:flex;flex-direction:column;height:100%;">
 
@@ -63,7 +63,7 @@
     margin-right: 8px; vertical-align: top;
 }
 .exec-init {
-    width: 28px; height: 28px; background: #D40511; border-radius: 50%;
+    width: 28px; height: 28px; background: #0868B2; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     color: #fff; font-weight: 700; font-size: 11px; flex-shrink: 0;
 }
@@ -79,12 +79,24 @@
     {
         if (!firstRender || _mapReady) return;
         _mapReady = true;
+
+        // Wait up to 3 s for Leaflet's <script> to finish loading. In BlazorWebView
+        // on Android the CDN fetch occasionally races OnAfterRenderAsync.
         await JS.InvokeVoidAsync("eval", @"
-            var mmap = L.map('mobile-map', { zoomControl: false })
-                       .setView([10.8505, 76.2711], 7);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mmap);
-            window._mobMap = mmap;
-            window._mobMarkers = {};
+            (async function waitForLeaflet() {
+                for (var i = 0; i < 30 && typeof L === 'undefined'; i++)
+                    await new Promise(r => setTimeout(r, 100));
+                if (typeof L === 'undefined') {
+                    document.getElementById('mobile-map').innerHTML =
+                      '<div style=\""padding:32px;text-align:center;color:#9ca3af;\"">Map library unavailable</div>';
+                    return;
+                }
+                var mmap = L.map('mobile-map', { zoomControl: false })
+                           .setView([10.8505, 76.2711], 7);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mmap);
+                window._mobMap = mmap;
+                window._mobMarkers = {};
+            })();
         ");
         await ConnectAsync();
     }
@@ -114,7 +126,7 @@
                             window._mobMarkers['{jobId}'].setLatLng([{lat},{lng}]);
                         }} else {{
                             window._mobMarkers['{jobId}'] = L.circleMarker([{lat},{lng}],
-                                {{radius:10,color:'#D40511',fillColor:'#D40511',fillOpacity:.8}})
+                                {{radius:10,color:'#0868B2',fillColor:'#0868B2',fillOpacity:.8}})
                                 .addTo(window._mobMap)
                                 .bindPopup('<b>{jobId}</b><br/>{speed:F1} km/h');
                         }}

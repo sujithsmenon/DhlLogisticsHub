@@ -1,0 +1,331 @@
+@page "/reports"
+@using DhlLogistics.Shared.Models
+@inject AuthService Auth
+@inject ApiService Api
+@inject NavigationManager Nav
+
+@if (!Auth.IsLoggedIn)
+{
+    <div style="display:flex;justify-content:center;align-items:center;height:80vh;">
+        <button class="btn-primary" @onclick='() => Nav.NavigateTo("/login")'>Sign In</button>
+    </div>
+    return;
+}
+
+@if (Auth.CurrentRole is not ("Admin" or "Manager"))
+{
+    <div class="mob-empty">
+        <div class="empty-icon">🔒</div>
+        <div class="empty-title">Admin / Manager only</div>
+        <div class="empty-sub">Activity reports are restricted to Admin and Manager roles. Your role is "@Auth.CurrentRole".</div>
+    </div>
+    return;
+}
+
+<div class="mob-page">
+
+    <!-- Header -->
+    <div class="mob-header">
+        <div>
+            <div class="mob-greeting">Activity Report</div>
+            <div class="mob-name">@_active.ToUpper()</div>
+        </div>
+        <button class="refresh-btn" @onclick="Load" disabled="@_loading">↻</button>
+    </div>
+
+    <!-- Period tabs -->
+    <div class="rpt-tabs">
+        <button class="rpt-tab @(_active == "daily"   ? "active" : "")" @onclick='() => Switch("daily")'>Daily</button>
+        <button class="rpt-tab @(_active == "weekly"  ? "active" : "")" @onclick='() => Switch("weekly")'>Weekly</button>
+        <button class="rpt-tab @(_active == "monthly" ? "active" : "")" @onclick='() => Switch("monthly")'>Monthly</button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="mob-loading">Loading report…</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="mob-error">@_error</div>
+        <div style="text-align:center;"><button class="btn-primary" @onclick="Load">Retry</button></div>
+    }
+    else if (_report is not null)
+    {
+        <!-- Period banner -->
+        <div class="period-banner">
+            @_report.Period.From.ToString("dd MMM") → @_report.Period.To.ToString("dd MMM yyyy")
+        </div>
+
+        <!-- 6 KPI cards -->
+        <div class="kpi-row">
+            <div class="kpi-card kpi-total">
+                <div class="kpi-val">@_report.GrandTotal</div>
+                <div class="kpi-lbl">Total</div>
+            </div>
+            <div class="kpi-card kpi-recv">
+                <div class="kpi-val">@_report.TotalReceived</div>
+                <div class="kpi-lbl">Received</div>
+            </div>
+            <div class="kpi-card kpi-trans">
+                <div class="kpi-val">@_report.TotalInTransit</div>
+                <div class="kpi-lbl">In Transit</div>
+            </div>
+            <div class="kpi-card kpi-port">
+                <div class="kpi-val">@_report.TotalAtPort</div>
+                <div class="kpi-lbl">At Port</div>
+            </div>
+            <div class="kpi-card kpi-clr">
+                <div class="kpi-val">@_report.TotalCleared</div>
+                <div class="kpi-lbl">Cleared</div>
+            </div>
+            <div class="kpi-card kpi-done">
+                <div class="kpi-val">@_report.TotalCompleted</div>
+                <div class="kpi-lbl">Done</div>
+            </div>
+        </div>
+
+        <!-- 4 quadrant cards -->
+        <div class="mob-section-title">By Mode & Direction</div>
+        @foreach (var q in _report.Quadrants)
+        {
+            <div class="quad-card @(q == _selected ? "selected" : "")" @onclick="() => Select(q)">
+                <div class="quad-card-head">
+                    <div>
+                        <span class="mode-chip @(q.Mode == ReportMode.Sea ? "sea" : "air")">@q.Mode</span>
+                        <span class="dir-chip @(q.Direction == ReportDirection.Import ? "imp" : "exp")">@q.Direction</span>
+                    </div>
+                    <div class="quad-total">@q.Total</div>
+                </div>
+                <div class="quad-stages">
+                    <div class="stage-pill"><span>@q.Received</span>Recv</div>
+                    <div class="stage-pill"><span>@q.InTransit</span>Transit</div>
+                    <div class="stage-pill"><span>@q.AtPort</span>Port</div>
+                    <div class="stage-pill"><span>@q.Cleared</span>Cleared</div>
+                    <div class="stage-pill"><span>@q.Completed</span>Done</div>
+                </div>
+            </div>
+        }
+
+        <!-- Drill-down list for selected quadrant -->
+        @if (_selected is not null && _selected.Items.Count > 0)
+        {
+            <div class="mob-section-title">
+                @_selected.Mode @_selected.Direction · @_selected.Items.Count item(s)
+            </div>
+            @foreach (var i in _selected.Items)
+            {
+                <div class="item-card">
+                    <div class="item-head">
+                        <span class="src-chip src-@i.Source.ToLower()">@i.Source</span>
+                        <code class="item-ref">@i.Reference</code>
+                        <span class="stg-chip stg-@((int)i.Stage)">@i.Stage</span>
+                    </div>
+                    <div class="item-client">@i.ClientName</div>
+                    @if (!string.IsNullOrEmpty(i.Location))
+                    {
+                        <div class="item-meta">📍 @i.Location</div>
+                    }
+                    @if (!string.IsNullOrEmpty(i.VesselName) || !string.IsNullOrEmpty(i.VoyageNumber))
+                    {
+                        <div class="item-meta">🚢 @FormatVessel(i)</div>
+                    }
+                    <div class="item-meta tiny">
+                        Recv @i.ReceivedAt.ToString("dd MMM HH:mm")
+                        @if (i.LastEventAt.HasValue)
+                        {
+                            <span> · Last @i.LastEventAt.Value.ToString("dd MMM HH:mm")</span>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else if (_selected is not null)
+        {
+            <div class="mob-loading">No items for @_selected.Mode @_selected.Direction in this period.</div>
+        }
+    }
+</div>
+
+<style>
+.mob-page { padding: 16px; padding-bottom: 32px; }
+
+.mob-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+}
+.mob-greeting { font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: .8px; }
+.mob-name     { font-size: 20px; font-weight: 800; color: #111; }
+
+.refresh-btn {
+    background: none; border: none; font-size: 20px; cursor: pointer; color: #0868B2;
+}
+
+/* Tabs */
+.rpt-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; margin-bottom: 14px; }
+.rpt-tab {
+    flex: 1; background: none; border: none; padding: 10px 0;
+    font-size: 13px; font-weight: 700; color: #9ca3af; cursor: pointer;
+    border-bottom: 3px solid transparent; margin-bottom: -2px;
+    text-transform: uppercase; letter-spacing: .5px;
+}
+.rpt-tab.active { color: #0868B2; border-bottom-color: #0868B2; }
+
+.period-banner {
+    background: #eff6ff; color: #0868B2; padding: 8px 14px; border-radius: 10px;
+    font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 14px;
+}
+
+/* KPI strip */
+.kpi-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px;
+}
+.kpi-card {
+    background: #fff; border-radius: 12px; padding: 12px 8px; text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06); border-top: 3px solid var(--c);
+}
+.kpi-val { font-size: 22px; font-weight: 800; color: #111; line-height: 1.1; }
+.kpi-lbl { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+.kpi-total { --c: #0E2A47; }
+.kpi-recv  { --c: #6b7280; }
+.kpi-trans { --c: #2563eb; }
+.kpi-port  { --c: #b45309; }
+.kpi-clr   { --c: #15803d; }
+.kpi-done  { --c: #0868B2; }
+
+.mob-section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px;
+    color: #6b7280; margin: 14px 0 8px;
+}
+
+/* Quadrant card */
+.quad-card {
+    background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color .15s;
+}
+.quad-card.selected { border-color: #0868B2; }
+.quad-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.quad-total { font-size: 22px; font-weight: 800; color: #0868B2; }
+
+.mode-chip, .dir-chip {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 3px 9px; border-radius: 12px; margin-right: 4px;
+    text-transform: uppercase; letter-spacing: .3px;
+}
+.mode-chip.sea { background: #dbeafe; color: #1e40af; }
+.mode-chip.air { background: #fef3c7; color: #92400e; }
+.dir-chip.imp  { background: #ede9fe; color: #5b21b6; }
+.dir-chip.exp  { background: #dcfce7; color: #166534; }
+
+.quad-stages {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
+}
+.stage-pill {
+    background: #f9fafb; border-radius: 8px; padding: 6px 4px;
+    font-size: 9px; font-weight: 600; color: #6b7280; text-align: center;
+    text-transform: uppercase; letter-spacing: .3px;
+}
+.stage-pill span {
+    display: block; font-size: 14px; font-weight: 800; color: #111;
+    margin-bottom: 1px;
+}
+
+/* Drill-down item card */
+.item-card {
+    background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.item-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.item-ref { font-family: monospace; font-size: 11px; color: #0868B2; font-weight: 700; flex: 1; }
+.item-client { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 4px; }
+.item-meta { font-size: 11.5px; color: #6b7280; margin-top: 2px; }
+.item-meta.tiny { font-size: 10.5px; color: #9ca3af; margin-top: 6px; }
+
+.src-chip, .stg-chip {
+    display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: .3px;
+}
+.src-chip.src-awb       { background: #fee2e2; color: #991b1b; }
+.src-chip.src-export    { background: #dcfce7; color: #166534; }
+.src-chip.src-joborder  { background: #dbeafe; color: #1e40af; }
+
+.stg-chip.stg-0 { background: #f3f4f6; color: #374151; }
+.stg-chip.stg-1 { background: #dbeafe; color: #1e40af; }
+.stg-chip.stg-2 { background: #fef3c7; color: #92400e; }
+.stg-chip.stg-3 { background: #d1fae5; color: #065f46; }
+.stg-chip.stg-4 { background: #c7d2fe; color: #3730a3; }
+
+.mob-loading { text-align: center; color: #9ca3af; padding: 32px 0; font-size: 13px; }
+.mob-error   { background: #fef2f2; color: #b91c1c; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; font-size: 13px; }
+
+.mob-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 80px 24px; text-align: center;
+}
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: .5; }
+.empty-title { font-size: 18px; font-weight: 800; color: #111; margin-bottom: 6px; }
+.empty-sub   { font-size: 13px; color: #6b7280; }
+
+.btn-primary {
+    background: #0868B2; color: #fff; border: none;
+    padding: 12px 28px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+</style>
+
+@code {
+    private string _active = "daily";
+    private bool _loading;
+    private string? _error;
+    private ActivityReport? _report;
+    private QuadrantReport? _selected;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Switch(string period)
+    {
+        if (_active == period) return;
+        _active = period;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading  = true;
+        _error    = null;
+        _selected = null;
+        StateHasChanged();
+
+        try
+        {
+            _report = _active switch
+            {
+                "weekly"  => await Api.GetReportWeeklyAsync(),
+                "monthly" => await Api.GetReportMonthlyAsync(),
+                _         => await Api.GetReportDailyAsync(),
+            };
+
+            _selected = _report?.Quadrants.FirstOrDefault(q => q.Total > 0)
+                        ?? _report?.Quadrants.FirstOrDefault();
+        }
+        catch
+        {
+            _error = "Could not reach the server. Pull to retry.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Select(QuadrantReport q) => _selected = q;
+
+    private static string FormatVessel(ActivityItem i)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(i.VesselName))   parts.Add(i.VesselName);
+        if (!string.IsNullOrEmpty(i.VoyageNumber)) parts.Add($"V.{i.VoyageNumber}");
+        return string.Join(" / ", parts);
+    }
+}
