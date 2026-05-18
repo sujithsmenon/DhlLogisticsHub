@@ -1,5 +1,6 @@
 @page "/login"
 @inject AuthService Auth
+@inject ApiService Api
 @inject NavigationManager Nav
 
 <PageTitle>Sign In — PVGT Logistics LLP</PageTitle>
@@ -403,6 +404,11 @@ html, body {
 
     protected override async Task OnInitializedAsync()
     {
+        // Wake the Render free-tier container in the background while the user
+        // types credentials. By the time they tap Sign In (5-10s of typing),
+        // /api/auth/login will hit a warm server instead of a cold-start wait.
+        _ = Api.WarmupAsync();
+
         if (await Auth.TryRestoreSessionAsync())
             Nav.NavigateTo("/");
     }

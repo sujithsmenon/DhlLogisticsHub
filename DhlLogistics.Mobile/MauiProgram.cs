@@ -23,10 +23,16 @@ public static class MauiProgram
 #endif
 
         // Single HttpClient instance shared by both services so the JWT token
-        // set by AuthService is automatically used by ApiService
+        // set by AuthService is automatically used by ApiService.
+        //
+        // Explicit 60s timeout: Render free-tier cold-start can take ~30-45s.
+        // The .NET default (100s) is too long — pages would hang and the user
+        // would back-button out, silently cancelling the in-flight request
+        // ("Socket closed" in logcat) and seeing an empty tab.
         var httpClient = new HttpClient
         {
             BaseAddress = new Uri(AppConfig.ApiBaseUrl),
+            Timeout     = TimeSpan.FromSeconds(60),
         };
         builder.Services.AddSingleton(httpClient);
         builder.Services.AddSingleton<AuthService>();

@@ -253,6 +253,14 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// ── Warm-up ping ────────────────────────────────────────────────────────────
+// Mobile app calls this anonymously on launch to spin up the Render free-tier
+// container BEFORE the user reaches a data-loading screen. Returns instantly
+// once the container is warm; the first call after idle takes ~30-45s as
+// Render boots, which is exactly the wait we're trying to move off the UI path.
+app.MapGet("/api/ping", () => Results.Ok(new { ok = true, at = DateTime.UtcNow }))
+   .AllowAnonymous();
+
 // ── Diagnostic endpoint (TEMP — remove after deployment is debugged) ────────
 // Lists what files actually exist on disk in the deployed container so we can
 // compare against the local publish output and isolate why static files 404.

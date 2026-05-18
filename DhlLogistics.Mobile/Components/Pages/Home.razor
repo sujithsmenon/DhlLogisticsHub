@@ -27,6 +27,11 @@
     {
         <div class="mob-loading">Loading…</div>
     }
+    else if (_error is not null)
+    {
+        <div class="mob-error">@_error</div>
+        <div style="text-align:center;"><button class="btn-dhl" @onclick="Load">Retry</button></div>
+    }
     else if (_data is not null)
     {
         <!-- KPI row -->
@@ -123,6 +128,7 @@
 }
 
 .mob-loading { text-align: center; color: #9ca3af; padding: 48px 0; font-size: 14px; }
+.mob-error   { background: #fef2f2; color: #b91c1c; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; font-size: 13px; }
 
 .mob-kpi-row {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;
@@ -191,6 +197,7 @@
     private List<VehicleStatusDto>? _vehicles;
     private List<UserActivityDto>?  _users;
     private bool _loading  = true;
+    private string? _error;
     private int  _inTransit;
 
     protected override async Task OnInitializedAsync()
@@ -200,6 +207,14 @@
             Nav.NavigateTo("/login");
             return;
         }
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        _error   = null;
+        StateHasChanged();
 
         try
         {
@@ -210,9 +225,18 @@
             await tasks;
             _inTransit = _data?.TotalPendingPickups > 0 ? _data.TotalPendingPickups / 2 : 0;
         }
-        catch { }
-
-        _loading = false;
+        catch (TaskCanceledException)
+        {
+            _error = "Server took too long to respond (free-tier cold start can take 30-60s). Tap Retry.";
+        }
+        catch
+        {
+            _error = "Could not reach the server. Tap Retry.";
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private static string Initials(string name)

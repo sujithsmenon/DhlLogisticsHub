@@ -9,6 +9,17 @@ public class ApiService
 
     public ApiService(HttpClient http) => _http = http;
 
+    /// <summary>
+    /// Fire-and-forget warmup of the Render free-tier container. Called from
+    /// the login screen so the backend is spun up before the user navigates
+    /// to a data-loading tab. Swallows all errors — purely opportunistic.
+    /// </summary>
+    public async Task WarmupAsync()
+    {
+        try   { await _http.GetAsync("/api/ping"); }
+        catch { /* fire-and-forget */ }
+    }
+
     // Jobs
     public Task<List<PickupJob>?> GetJobsAsync() =>
         _http.GetFromJsonAsync<List<PickupJob>>("/api/jobs");
