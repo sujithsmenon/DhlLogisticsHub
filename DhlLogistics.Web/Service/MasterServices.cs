@@ -197,3 +197,18 @@ public class ShipmentActivityService : MasterServiceBase<ShipmentActivity>
     protected override DbSet<ShipmentActivity> Set => _db.ShipmentActivities;
     protected override IQueryable<ShipmentActivity> Query() => Set.OrderBy(a => a.ActivityName);
 }
+
+// ── Accounts: Chart of accounts ──────────────────────────────────────────────
+
+public class AccountHeadService : MasterServiceBase<AccountHead>
+{
+    public AccountHeadService(AppDbContext db) : base(db) { }
+    protected override DbSet<AccountHead> Set => _db.AccountHeads;
+    protected override IQueryable<AccountHead> Query() =>
+        Set.OrderBy(a => a.Group).ThenBy(a => a.AccountCode);
+
+    /// <summary>Heads flagged IsBank or IsCash — used in Receipt/Payment voucher popup.</summary>
+    public Task<List<AccountHead>> GetCashAndBankAsync() =>
+        Set.Where(a => a.IsActive && (a.IsBank || a.IsCash))
+           .OrderBy(a => a.AccountCode).ToListAsync();
+}

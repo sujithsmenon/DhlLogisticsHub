@@ -1,0 +1,333 @@
+@inject BillService Service
+@inject JobOrderService JobOrderService
+@inject LogisticsService Logistics
+@inject CompanyBranchService BranchService
+@inject CurrencyService CurrencyService
+@inject ChargeCodeService ChargeCodeService
+@inject SacService SacService
+@inject IToastService ToastService
+
+<style>
+    .custom-modal .modal-dialog { max-width: 1100px !important; }
+    .charges-table { width:100%; font-size:12px; border-collapse:collapse; }
+    .charges-table th { background:#198781b0; color:#fff; padding:6px 8px; text-align:left; font-weight:600; }
+    .charges-table td { padding:4px 6px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .charges-table .num input { text-align:right; }
+    .charges-table tfoot td { font-weight:600; background:#f4faf9; }
+    .billed-by { color:#0E2A47; font-weight:600; }
+</style>
+
+<div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
+    <div class="modal-contentnew">
+        <div class="modal-header">
+            <h5 class="modal-title">@Title</h5>
+            <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <EditForm Model="@item"><DataAnnotationsValidator />
+
+                <!-- Header row -->
+                <div class="row">
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Branch:</label>
+                        <SfComboBox @bind-Value="@item.BranchId" TItem="CompanyBranch" TValue="int?"
+                                    DataSource="@_branches" CssClass="e-small" ShowClearButton="true">
+                            <ComboBoxFieldSettings Text="BranchName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Bill No:</label>
+                        <SfTextBox Value="@(string.IsNullOrEmpty(item.BillNo) ? "(auto on save)" : item.BillNo)"
+                                   CssClass="e-small" Enabled="false" />
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Bill Date:</label>
+                        <SfDatePicker TValue="DateTime" @bind-Value="@item.BillDate" Format="dd-MMM-yyyy" StrictMode="true" CssClass="e-small" />
+                    </div>
+                    <div class="mb-3 col-md-3">
+                        <label class="form-Custom-label">Billing Client:</label>
+                        <SfComboBox @bind-Value="@item.BillingClientId" TItem="DhlClient" TValue="int"
+                                    DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="false"
+                                    Placeholder="Select Organization..">
+                            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Job Order:</label>
+                        <SfComboBox @bind-Value="@item.JobOrderId" TItem="JobOrder" TValue="long?"
+                                    DataSource="@_jobs" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                    Placeholder="Optional..">
+                            <ComboBoxFieldSettings Text="JobOrderNo" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Currency:</label>
+                        <SfComboBox @bind-Value="@item.CurrencyId" TItem="Currency" TValue="int?"
+                                    DataSource="@_currencies" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                            <ComboBoxFieldSettings Text="CurrencyCode" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Ex Rate:</label>
+                        <SfNumericTextBox TValue="decimal" @bind-Value="@item.ExchangeRate" Format="N4" CssClass="e-small" Min="0" />
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Status:</label>
+                        <SfTextBox Value="@item.Status.ToString()" Enabled="false" CssClass="e-small" />
+                    </div>
+                </div>
+
+                <!-- Charges card -->
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <span><b>Charges</b></span>
+                        <div class="ms-auto">
+                            <SfButton OnClick="@AddCharge" CssClass="e-small" IconCss="e-icons e-add" IsPrimary="true">Add Charge</SfButton>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:6px;">
+                        @if (item.Charges.Count == 0)
+                        {
+                            <p class="muted" style="text-align:center;padding:18px 0;">No charges yet. Click <b>Add Charge</b>.</p>
+                        }
+                        else
+                        {
+                            <table class="charges-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:34px;">#</th>
+                                        <th style="width:200px;">Charge Code</th>
+                                        <th style="width:120px;">SAC</th>
+                                        <th>Description</th>
+                                        <th style="width:80px;" class="num">Qty</th>
+                                        <th style="width:100px;" class="num">Rate</th>
+                                        <th style="width:110px;" class="num">Amount</th>
+                                        <th style="width:70px;" class="num">GST %</th>
+                                        <th style="width:110px;" class="num">GST Amt</th>
+                                        <th style="width:120px;" class="num">Net</th>
+                                        <th style="width:40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < item.Charges.Count; i++)
+                                    {
+                                        var idx = i;
+                                        var c = item.Charges[idx];
+                                        <tr>
+                                            <td>@(idx + 1)</td>
+                                            <td>
+                                                <SfComboBox TItem="ChargeCode" TValue="int?" DataSource="@_chargeCodes"
+                                                            Value="@c.ChargeCodeId" CssClass="e-small" ShowClearButton="true"
+                                                            ValueChanged="@((int? v) => OnChargeCodePicked(idx, v))"
+                                                            AllowFiltering="true">
+                                                    <ComboBoxFieldSettings Text="ChargeName" Value="Id" />
+                                                </SfComboBox>
+                                            </td>
+                                            <td>
+                                                <SfComboBox TItem="Sac" TValue="int?" DataSource="@_sacs"
+                                                            @bind-Value="@c.SacId" CssClass="e-small" ShowClearButton="true"
+                                                            AllowFiltering="true">
+                                                    <ComboBoxFieldSettings Text="SacCode" Value="Id" />
+                                                </SfComboBox>
+                                            </td>
+                                            <td><SfTextBox @bind-Value="@c.Description" CssClass="e-small" /></td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal" Value="@c.Quantity" CssClass="e-small" Format="N3"
+                                                                  ValueChanged="@((decimal v) => { c.Quantity = v; Recalc(); })" />
+                                            </td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal" Value="@c.Rate" CssClass="e-small" Format="N4"
+                                                                  ValueChanged="@((decimal v) => { c.Rate = v; Recalc(); })" />
+                                            </td>
+                                            <td class="num">@c.Amount.ToString("N2")</td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal" Value="@c.GstRate" CssClass="e-small" Format="N2"
+                                                                  ValueChanged="@((decimal v) => { c.GstRate = v; Recalc(); })" />
+                                            </td>
+                                            <td class="num">@c.GstAmount.ToString("N2")</td>
+                                            <td class="num">@c.NetAmount.ToString("N2")</td>
+                                            <td><SfButton OnClick="@(() => RemoveCharge(idx))" CssClass="e-small delete-btn" IconCss="e-icons e-delete" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="6" style="text-align:right;">Totals:</td>
+                                        <td class="num">@item.SubTotal.ToString("N2")</td>
+                                        <td></td>
+                                        <td class="num">@item.GstAmount.ToString("N2")</td>
+                                        <td class="num">@item.TotalAmount.ToString("N2")</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        }
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="mb-3 col-md-6">
+                        <label class="form-Custom-label">Reference:</label>
+                        <SfTextBox @bind-Value="@item.Reference" CssClass="e-small" />
+                    </div>
+                    <div class="mb-3 col-md-6">
+                        <label class="form-Custom-label">Remarks:</label>
+                        <SfTextBox @bind-Value="@item.Remarks" CssClass="e-small" />
+                    </div>
+                </div>
+
+                @if (item.Status == BillStatus.Rejected && !string.IsNullOrEmpty(item.RejectionReason))
+                {
+                    <div class="alert alert-warning" style="padding:6px 10px;font-size:12px;margin-top:8px;">
+                        <strong>Rejected:</strong> @item.RejectionReason
+                        (by @item.RejectedBy on @(item.RejectedOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")))
+                    </div>
+                }
+            </EditForm>
+        </div>
+
+        <div class="modal-footer">
+            <div class="row bs" style="width:100%;">
+                <div class="col-md-5">
+                    <small>Created by <span class="billed-by">@item.CreatedBy</span>
+                        @(item.CreatedOn != default ? "on " + item.CreatedOn.ToLocalTime().ToString("dd-MMM-yyyy HH:mm") : "")</small>
+                </div>
+                <div class="col-md-2 text-center">
+                    @if (Id != 0 && item.Status == BillStatus.Draft)
+                    {
+                        <SfButton OnClick="@Submit" CssClass="e-small" IconCss="e-icons e-send-1">Submit</SfButton>
+                    }
+                    <SfButton IsPrimary="true" OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save-as">@btnText</SfButton>
+                    <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Close</SfButton>
+                </div>
+                <div class="col-md-5 text-end">
+                    @if (item.ModifiedOn != null)
+                    {
+                        <small>Modified by <span class="billed-by">@item.ModifiedBy</span>
+                            on @item.ModifiedOn.Value.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</small>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+    [Parameter] public long Id { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public BillMode Mode { get; set; } = BillMode.Clearance;
+
+    private Bill item = new();
+    private string btnText => Id == 0 ? "Save" : "Update";
+
+    private List<DhlClient>     _clients      = new();
+    private List<CompanyBranch> _branches     = new();
+    private List<Currency>      _currencies   = new();
+    private List<ChargeCode>    _chargeCodes  = new();
+    private List<Sac>           _sacs         = new();
+    private List<JobOrder>      _jobs         = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _branches    = await BranchService.GetAllAsync();
+        _clients     = await Logistics.GetAllClientsAsync();
+        _currencies  = await CurrencyService.GetAllAsync();
+        _chargeCodes = await ChargeCodeService.GetAllAsync();
+        _sacs        = await SacService.GetAllAsync();
+        // Approved + Closed jobs are the natural source for billing. Submit/Verify
+        // happens earlier; jobs in those states aren't yet ready to bill against.
+        _jobs        = await JobOrderService.GetByStatusAsync(JobOrderStatus.Approved, JobOrderStatus.Closed);
+
+        if (Id != 0)
+        {
+            var e = await Service.GetByIdAsync(Id);
+            if (e is not null) { item = e; Recalc(); }
+        }
+        else
+        {
+            item = new Bill { Mode = Mode, BillDate = DateTime.UtcNow.Date, ExchangeRate = 1m };
+        }
+    }
+
+    private void AddCharge()
+    {
+        item.Charges.Add(new BillCharge { Quantity = 1m, DisplayOrder = item.Charges.Count + 1 });
+        Recalc();
+    }
+
+    private void RemoveCharge(int idx)
+    {
+        if (idx < 0 || idx >= item.Charges.Count) return;
+        item.Charges.RemoveAt(idx);
+        Recalc();
+    }
+
+    private void OnChargeCodePicked(int idx, int? chargeCodeId)
+    {
+        if (idx < 0 || idx >= item.Charges.Count) return;
+        var c = item.Charges[idx];
+        c.ChargeCodeId = chargeCodeId;
+        if (chargeCodeId.HasValue)
+        {
+            var cc = _chargeCodes.FirstOrDefault(x => x.Id == chargeCodeId);
+            if (cc is not null)
+            {
+                if (string.IsNullOrWhiteSpace(c.Description)) c.Description = cc.ChargeName;
+                if (c.Rate == 0 && cc.DefaultAmount > 0)      c.Rate = cc.DefaultAmount;
+                if (cc.SacId.HasValue)                         c.SacId = cc.SacId;
+                if (c.GstRate == 0 && cc.Sac is not null)      c.GstRate = cc.Sac.GstRate;
+            }
+        }
+        Recalc();
+    }
+
+    private void Recalc() => BillService.RecalcTotals(item);
+
+    private async Task Save()
+    {
+        if (item.BillingClientId == 0) { Toast("Billing Client is required."); return; }
+        if (item.Charges.Count == 0)   { Toast("At least one charge is required."); return; }
+
+        try
+        {
+            if (Id == 0)
+            {
+                item.Mode = Mode;
+                await Service.CreateAsync(item);
+            }
+            else
+            {
+                await Service.UpdateAsync(item);
+            }
+            ToastService.Show(new() { Title = "Success!", Content = "Bill saved.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task Submit()
+    {
+        try
+        {
+            await Service.SubmitAsync(Id);
+            ToastService.Show(new() { Title = "Submitted", Content = "Bill sent for verification.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Validation", Content = msg, CssClass = "e-toast-danger" });
+
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}

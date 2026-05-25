@@ -158,6 +158,11 @@ builder.Services.AddScoped<PermissionService>();
 // ── M4 Job Order service ─────────────────────────────────────────────────────
 builder.Services.AddScoped<JobOrderService>();
 
+// ── M4 Billing + Accounts services ───────────────────────────────────────────
+builder.Services.AddScoped<BillService>();
+builder.Services.AddScoped<VoucherService>();
+builder.Services.AddScoped<AccountHeadService>();
+
 // ── Admin Activity Report service ────────────────────────────────────────────
 builder.Services.AddScoped<ReportService>();
 

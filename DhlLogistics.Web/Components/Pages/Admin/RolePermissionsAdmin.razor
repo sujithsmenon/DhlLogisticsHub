@@ -145,6 +145,21 @@
         new("jobs/approve",                "Job Approval"),
         new("tracking",                    "Live Tracking"),
         new("cargo",                       "Cargo & Containers"),
+        // M4 Billing
+        new("finance/billing",             "Billing Overview"),
+        new("bills/clearance",             "Clearance Bills"),
+        new("bills/forwarding",            "Forwarding Bills"),
+        new("bills/transportation",        "Transportation Bills"),
+        new("bills/verify",                "Bill Verification"),
+        new("bills/approve",               "Bill Approval"),
+        // M4 Accounts
+        new("finance/accounts",            "Accounts Overview"),
+        new("accounts/heads",              "Chart of Accounts"),
+        new("accounts/journal",            "Journal Vouchers"),
+        new("accounts/cashbank",           "Cash & Bank Vouchers"),
+        new("accounts/verify",             "Voucher Verification"),
+        new("accounts/approve",            "Voucher Approval & Posting"),
+        // Admin
         new("admin/permissions",           "Role Permissions (Admin)"),
     };
 
@@ -165,17 +180,18 @@
         matrix.Clear();
         if (string.IsNullOrEmpty(selectedRole)) return;
 
+        // Seed defaults BEFORE the await so a re-render during the DB call
+        // can't hit a missing key on matrix[key].
+        foreach (var page in Pages)
+            foreach (var perm in AllPermissions)
+                matrix[$"{page.Path}|{perm}"] = false;
+
         var existing = await Db.RolePagePermissions
             .Where(p => p.RoleId == selectedRole)
             .ToListAsync();
 
-        foreach (var page in Pages)
-            foreach (var perm in AllPermissions)
-            {
-                var key = $"{page.Path}|{perm}";
-                var row = existing.FirstOrDefault(p => p.PagePath == page.Path && p.Permission == perm);
-                matrix[key] = row?.IsGranted ?? false;
-            }
+        foreach (var row in existing)
+            matrix[$"{row.PagePath}|{row.Permission}"] = row.IsGranted;
     }
 
     private async Task SaveAllAsync()

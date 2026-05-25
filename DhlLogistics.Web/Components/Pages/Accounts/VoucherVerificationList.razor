@@ -1,0 +1,159 @@
+@page "/accounts/verify"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject VoucherService Service
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header d-flex align-items-center">
+            <span><b>Voucher Verification Queue</b></span>
+            <div class="ms-auto d-flex gap-2 align-items-center">
+                <label class="form-Custom-label mb-0">Type:</label>
+                <SfDropDownList @bind-Value="typeFilter" TItem="TypeOption" TValue="string"
+                                DataSource="@_types" Width="180px" CssClass="e-small">
+                    <DropDownListFieldSettings Text="Label" Value="Value" />
+                    <DropDownListEvents TItem="TypeOption" TValue="string" ValueChange="@OnTypeChanged" />
+                </SfDropDownList>
+                <SfButton OnClick="@LoadData" CssClass="e-small" IconCss="e-icons e-refresh" IsPrimary="true">Refresh</SfButton>
+            </div>
+        </div>
+        <div class="card-body">
+            <SfGrid ID="Grid" TValue="Voucher" @ref="Grid" DataSource="@filtered"
+                    AllowPaging="true" AllowReordering="true" CssClass="e-small"
+                    AllowResizing="true" AllowSelection="true"
+                    AllowSorting="true" Toolbar="@(new List<string>{ "Search" })" Height="100%" RowHeight="25" Width="100%">
+                <GridPageSettings PageSize="15" PageSizes="@pagerDropdown" />
+                <GridEvents CommandClicked="OnCommandClicked" TValue="Voucher" />
+                <GridColumns>
+                    <GridColumn HeaderText="Action" Width="160" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                        <GridCommandColumns>
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Verify", IconCss = "e-icons e-check",        CssClass = "e-flat e-primary" })" />
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Reject", IconCss = "e-icons e-circle-close", CssClass = "e-flat delete-btn" })" />
+                        </GridCommandColumns>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(Voucher.Id)" HeaderText="Id" IsPrimaryKey="true" Visible="false" />
+                    <GridColumn Field="@nameof(Voucher.VoucherNo)"    HeaderText="Voucher No"  Width="140" />
+                    <GridColumn Field="@nameof(Voucher.Type)"         HeaderText="Type"        Width="100" />
+                    <GridColumn Field="@nameof(Voucher.VoucherDate)"  HeaderText="Date"        Width="100" Format="dd-MMM-yyyy" />
+                    <GridColumn Field="@nameof(Voucher.Narration)"    HeaderText="Narration"   Width="280" />
+                    <GridColumn Field="@nameof(Voucher.TotalDebit)"   HeaderText="Total Dr"    Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                    <GridColumn Field="@nameof(Voucher.TotalCredit)"  HeaderText="Total Cr"    Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                    <GridColumn Field="@nameof(Voucher.SubmittedBy)"  HeaderText="Submitted By" Width="120" />
+                    <GridColumn Field="@nameof(Voucher.SubmittedOn)"  HeaderText="Submitted On" Width="140" Format="dd-MMM-yyyy HH:mm" />
+                </GridColumns>
+            </SfGrid>
+        </div>
+    </div></div></div>
+</div>
+
+<SfDialog @ref="_rejectDlg" Width="420px" Height="auto" IsModal="true" ShowCloseIcon="true" Visible="false">
+    <DialogTemplates>
+        <Header>Reject Voucher @(_selected?.VoucherNo)</Header>
+        <Content>
+            <div class="mb-2"><label class="form-Custom-label">Reason:</label>
+                <SfTextBox Multiline="true" @bind-Value="@_rejectReason" CssClass="e-small" /></div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Reject" IsPrimary="true" OnClick="@ConfirmReject" />
+        <DialogButton Content="Cancel" OnClick="@CancelReject" />
+    </DialogButtons>
+</SfDialog>
+
+<ToastComponent />
+
+@code {
+    public record TypeOption(string Value, string Label);
+
+    private SfGrid<Voucher>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "15", "20" };
+
+    private List<Voucher> model = new();
+    private List<Voucher> filtered = new();
+    private string typeFilter = "ALL";
+
+    private static readonly List<TypeOption> _types = new()
+    {
+        new("ALL",     "All"),
+        new("JOURNAL", "Journal"),
+        new("RECEIPT", "Receipt"),
+        new("PAYMENT", "Payment"),
+    };
+
+    private SfDialog? _rejectDlg;
+    private Voucher? _selected;
+    private string _rejectReason = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        try { loader = true; model = await Service.GetByStatusAsync(VoucherStatus.Submitted); ApplyFilter(); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void ApplyFilter()
+    {
+        filtered = typeFilter switch
+        {
+            "JOURNAL" => model.Where(v => v.Type == VoucherType.Journal).ToList(),
+            "RECEIPT" => model.Where(v => v.Type == VoucherType.Receipt).ToList(),
+            "PAYMENT" => model.Where(v => v.Type == VoucherType.Payment).ToList(),
+            _         => model.ToList(),
+        };
+    }
+
+    private void OnTypeChanged(Syncfusion.Blazor.DropDowns.ChangeEventArgs<string, TypeOption> args)
+    {
+        typeFilter = args.Value; ApplyFilter();
+    }
+
+    public async Task OnCommandClicked(CommandClickEventArgs<Voucher> args)
+    {
+        var label = args.CommandColumn?.ButtonOption?.Content;
+        try
+        {
+            if (label == "Verify")
+            {
+                await Service.VerifyAsync(args.RowData.Id);
+                ToastService.Show(new() { Title = "Verified", Content = $"Voucher {args.RowData.VoucherNo} verified.", CssClass = "e-toast-success" });
+                await LoadData();
+            }
+            else if (label == "Reject")
+            {
+                _selected = args.RowData; _rejectReason = string.Empty;
+                if (_rejectDlg is not null) await _rejectDlg.ShowAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task ConfirmReject()
+    {
+        if (_selected is null) return;
+        if (string.IsNullOrWhiteSpace(_rejectReason))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Rejection reason is required.", CssClass = "e-toast-danger" });
+            return;
+        }
+        try
+        {
+            await Service.RejectAsync(_selected.Id, _rejectReason);
+            ToastService.Show(new() { Title = "Rejected", Content = $"Voucher {_selected.VoucherNo} rejected.", CssClass = "e-toast-success" });
+            if (_rejectDlg is not null) await _rejectDlg.HideAsync();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task CancelReject() { if (_rejectDlg is not null) await _rejectDlg.HideAsync(); }
+}

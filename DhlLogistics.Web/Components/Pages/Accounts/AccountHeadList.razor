@@ -1,0 +1,92 @@
+@page "/accounts/heads"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject AccountHeadService Service
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Chart of Accounts</b></div>
+        <div class="card-body">
+            <SfGrid ID="Grid" TValue="AccountHead" @ref="Grid" DataSource="@model"
+                    AllowPaging="true" AllowReordering="true" CssClass="e-small"
+                    AllowResizing="true" AllowSelection="true" AllowExcelExport="true"
+                    AllowSorting="true" Toolbar="@Toolbaritems" Height="100%" RowHeight="25" Width="100%">
+                <GridPageSettings PageSize="15" PageSizes="@pagerDropdown" />
+                <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                <GridEvents OnToolbarClick="ToolbarClick" CommandClicked="OnCommandClicked" TValue="AccountHead" />
+                <GridColumns>
+                    <GridColumn HeaderText="Manage" Width="80" TextAlign="TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
+                        <GridCommandColumns>
+                            <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
+                            <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })" />
+                        </GridCommandColumns>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(AccountHead.Id)" HeaderText="Id" IsPrimaryKey="true" Visible="false" />
+                    <GridColumn Field="@nameof(AccountHead.AccountCode)" HeaderText="Code"  Width="120" />
+                    <GridColumn Field="@nameof(AccountHead.AccountName)" HeaderText="Name"  Width="280" />
+                    <GridColumn Field="@nameof(AccountHead.Group)"       HeaderText="Group" Width="120" />
+                    <GridColumn Field="@nameof(AccountHead.IsBank)" HeaderText="Bank" Width="80"  DisplayAsCheckBox="true" />
+                    <GridColumn Field="@nameof(AccountHead.IsCash)" HeaderText="Cash" Width="80"  DisplayAsCheckBox="true" />
+                    <GridColumn Field="@nameof(AccountHead.OpeningBalance)"     HeaderText="Op. Balance" Width="130" Format="N2" TextAlign="TextAlign.Right" />
+                    <GridColumn Field="@nameof(AccountHead.OpeningBalanceType)" HeaderText="Op. Type"    Width="80" />
+                    <GridColumn Field="@nameof(AccountHead.IsActive)" HeaderText="Active" Width="80" DisplayAsCheckBox="true" />
+                </GridColumns>
+            </SfGrid>
+        </div>
+    </div></div></div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+<ToastComponent />
+
+@code {
+    private BsModalDialog? _modal;
+    public List<AccountHead> model { get; set; } = new();
+    SfGrid<AccountHead>? Grid;
+    private List<Object> Toolbaritems = new() { new ItemModel() { Text = "Add New Account", TooltipText = "Add New Account Head", PrefixIcon = "e-add", Id = "AddNew" }, "Search" };
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "5", "10", "15", "20" };
+    public EventCallback LoadOnSaveReference { get; set; }
+
+    protected override async Task OnInitializedAsync() { LoadOnSaveReference = EventCallback.Factory.Create(this, LoadOnSave); await LoadData(); }
+    private async Task LoadData() { try { loader = true; model = await Service.GetAllAsync(); } finally { loader = false; StateHasChanged(); } }
+    private async Task LoadOnSave() { await LoadData(); if (Grid is not null) await Grid.Refresh(); }
+
+    public async void ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (args.Item.Text == "Add New Account")
+        {
+            var o = new BsModalOptions();
+            o.ControlParameters.Add("Id", 0); o.ControlParameters.Add("Title", "New Account Head"); o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+            var r = await _modal!.Context.ShowAsync<AccountHeadPopup>(o);
+            if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+        }
+    }
+    public async Task OnCommandClicked(CommandClickEventArgs<AccountHead> args)
+    {
+        try
+        {
+            if (args.CommandColumn.Type == CommandButtonType.Edit)
+            {
+                var o = new BsModalOptions();
+                o.ControlParameters.Add("Id", args.RowData.Id);
+                o.ControlParameters.Add("Title", "Edit Account - " + args.RowData.AccountName);
+                o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+                var r = await _modal!.Context.ShowAsync<AccountHeadPopup>(o);
+                if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+            }
+            else if (args.CommandColumn.Type == CommandButtonType.Delete)
+            {
+                if (await DialogService.ConfirmAsync("Delete this account head? Vouchers using it will fail to load.", "Confirm delete"))
+                {
+                    await Service.DeleteAsync(args.RowData.Id);
+                    ToastService.Show(new() { Title = "Success!", Content = "Record Deleted Successfully.", CssClass = "e-toast-success" });
+                    await LoadOnSave();
+                }
+            }
+        }
+        catch (Exception ex) { ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" }); }
+    }
+}

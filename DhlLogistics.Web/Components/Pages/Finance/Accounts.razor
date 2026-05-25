@@ -1,12 +1,64 @@
-﻿@page "/finance/accounts"
+@page "/finance/accounts"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<style>
+    .module-tile {
+        display:block; padding:18px 16px; border-radius:10px;
+        background: linear-gradient(135deg, #198781 0%, #14706b 100%);
+        color:#fff; text-decoration:none; min-height:96px;
+        box-shadow:0 2px 6px rgba(0,0,0,.08); transition: transform .15s ease;
+    }
+    .module-tile:hover { transform: translateY(-2px); color:#fff; }
+    .module-tile.red    { background: linear-gradient(135deg, #AB1921 0%, #861017 100%); }
+    .module-tile.navy   { background: linear-gradient(135deg, #0E2A47 0%, #0B2238 100%); }
+    .module-tile.blue   { background: linear-gradient(135deg, #0868B2 0%, #07579b 100%); }
+    .module-tile h6     { margin:0 0 4px 0; font-size:16px; }
+    .module-tile small  { display:block; opacity:.92; font-size:11px; }
+    .module-tile .icon  { font-size:22px; margin-right:10px; }
+</style>
+
 <div class="main-div">
     <div class="card">
         <div class="card-header"><b>Accounts</b></div>
         <div class="card-body">
-            <p class="muted" style="padding:24px;text-align:center;">
-                Accounts module (Journal, CashBank, Ledger) — coming with the Accounts milestone of M4.
+            <p class="muted" style="margin-bottom:14px;">
+                Maintain the chart of accounts, post journal &amp; cash/bank vouchers,
+                and route them through verification &amp; approval before posting to the ledger.
+                Vouchers are numbered per financial year and per type
+                (e.g. <code>JV/26-27/0001</code>, <code>RV/&hellip;</code>, <code>PV/&hellip;</code>, <code>CV/&hellip;</code>).
             </p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <a class="module-tile navy" href="accounts/heads">
+                        <span class="icon">📒</span><h6>Chart of Accounts</h6>
+                        <small>Add ledger accounts &mdash; cash, bank, parties, income, expenses</small>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a class="module-tile" href="accounts/journal">
+                        <span class="icon">📝</span><h6>Journal Vouchers</h6>
+                        <small>Generic Dr/Cr entries &mdash; JV/&hellip; numbering</small>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a class="module-tile blue" href="accounts/cashbank">
+                        <span class="icon">💵</span><h6>Cash &amp; Bank</h6>
+                        <small>Receipts (RV/&hellip;), Payments (PV/&hellip;), Contra (CV/&hellip;)</small>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a class="module-tile red" href="accounts/verify">
+                        <span class="icon">✔</span><h6>Verification Queue</h6>
+                        <small>Submitted vouchers awaiting an executive's verification</small>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a class="module-tile red" href="accounts/approve">
+                        <span class="icon">✅</span><h6>Approval &amp; Posting</h6>
+                        <small>Verified vouchers awaiting a manager's approval, then posting to the ledger</small>
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>

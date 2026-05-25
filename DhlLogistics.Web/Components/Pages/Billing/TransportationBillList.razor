@@ -1,0 +1,248 @@
+@page "/bills/transportation"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject BillService Service
+@inject CompanyBranchService BranchService
+@inject LogisticsService Logistics
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+</style>
+<Syncfusion.Blazor.Popups.SfDialogProvider />
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header d-flex align-items-center">
+            <span><b>Transportation Bills</b></span>
+            <div class="ms-auto d-flex gap-3 align-items-center flex-wrap">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-Custom-label mb-0">By Date Range:</label>
+                    <SfCheckBox @bind-Checked="byDateRange" CssClass="e-small" />
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-1">
+                    <label class="form-Custom-label">Fin-Year:</label>
+                    <SfComboBox @bind-Value="filterFinYear" TItem="FinYearItem" TValue="int?" DataSource="@finYears"
+                                CssClass="e-small" ShowClearButton="true">
+                        <ComboBoxFieldSettings Text="DisplayName" Value="FinYear" />
+                    </SfComboBox>
+                </div>
+                <div class="mb-3 col-md-3">
+                    <label class="form-Custom-label">Billing Client:</label>
+                    <SfComboBox @bind-Value="filterClientId" TItem="DhlClient" TValue="int?" DataSource="@clients"
+                                AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                        <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                    </SfComboBox>
+                </div>
+                @if (byDateRange)
+                {
+                    <div class="mb-3 col-md-1"><label class="form-Custom-label">From:</label>
+                        <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" /></div>
+                    <div class="mb-3 col-md-1"><label class="form-Custom-label">To:</label>
+                        <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" /></div>
+                }
+                else
+                {
+                    <div class="mb-3 col-md-2"><label class="form-Custom-label">Bill No:</label>
+                        <SfTextBox @bind-Value="filterBillNo" CssClass="e-small" Placeholder="Search Bill No.." /></div>
+                }
+                <div class="mb-3 col-md-1">
+                    <label class="form-Custom-label">Status:</label>
+                    <SfDropDownList @bind-Value="filterStatus" TItem="StatusFilter" TValue="string" DataSource="@statuses" CssClass="e-small">
+                        <DropDownListFieldSettings Text="Label" Value="Value" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            <div style="height: calc(100vh - 220px);">
+                <SfGrid ID="Grid" TValue="Bill" DataSource="@filtered" @ref="Grid" AllowPaging="true" AllowReordering="true" CssClass="e-small"
+                        AllowResizing="true" AllowSelection="true" AllowExcelExport="true"
+                        AllowSorting="true" Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents OnToolbarClick="ToolbarClick" CommandClicked="OnCommandClicked" TValue="Bill" />
+                    <GridPageSettings PageSize="15" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn HeaderText="Manage" Width="80" TextAlign="TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
+                            <GridCommandColumns>
+                                <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
+                                <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })" />
+                            </GridCommandColumns>
+                        </GridColumn>
+                        <GridColumn Field="@nameof(Bill.Id)" HeaderText="ID" IsPrimaryKey="true" Visible="false" />
+                        <GridColumn Field="Branch.BranchName"          HeaderText="Branch"        Width="150" />
+                        <GridColumn Field="@nameof(Bill.BillNo)"       HeaderText="Bill No"       Width="130" />
+                        <GridColumn Field="@nameof(Bill.BillDate)"     HeaderText="Bill Date"     Width="100" Format="dd-MMM-yyyy" />
+                        <GridColumn Field="BillingClient.CompanyName"  HeaderText="Billing Client" Width="240" />
+                        <GridColumn Field="JobOrder.JobOrderNo"        HeaderText="Job Order"     Width="120" />
+                        <GridColumn Field="Currency.CurrencyCode"      HeaderText="Curr"          Width="60" />
+                        <GridColumn Field="@nameof(Bill.SubTotal)"     HeaderText="Sub Total"     Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(Bill.GstAmount)"    HeaderText="GST"           Width="100" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(Bill.TotalAmount)"  HeaderText="Total"         Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(Bill.Status)"       HeaderText="Status"        Width="100" />
+                        <GridColumn Field="@nameof(Bill.CreatedBy)"    HeaderText="Created By"    Width="100" />
+                        <GridColumn Field="@nameof(Bill.VerifiedBy)"   HeaderText="Verified By"   Width="100" />
+                        <GridColumn Field="@nameof(Bill.ApprovedBy)"   HeaderText="Approved By"   Width="100" />
+                        <GridColumn Field="@nameof(Bill.RejectedBy)"   HeaderText="Rejected By"   Width="100" />
+                        <GridColumn Field="@nameof(Bill.RejectionReason)" HeaderText="Rejection Reason" Width="180" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+<ToastComponent />
+
+@code {
+    public record StatusFilter(string Value, string Label);
+    public record FinYearItem(int? FinYear, string DisplayName);
+
+    private BsModalDialog? _modal;
+    private SfGrid<Bill>? Grid;
+    public EventCallback LoadOnSaveReference { get; set; }
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "5", "10", "15", "20" };
+    private List<Object> Toolbaritems = new() { new ItemModel() { Text = "Add New Bill", TooltipText = "Add New Transportation Bill", PrefixIcon = "e-add", Id = "AddNew" }, "Search" };
+
+    private List<Bill> model = new();
+    private List<Bill> filtered = new();
+    private List<CompanyBranch> branches = new();
+    private List<DhlClient> clients = new();
+    private List<FinYearItem> finYears = new();
+
+    private bool      byDateRange = false;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private int?      filterBranchId;
+    private int?      filterFinYear;
+    private int?      filterClientId;
+    private string?   filterBillNo;
+    private string    filterStatus = "ACTIVE";
+
+    private static readonly List<StatusFilter> statuses = new()
+    {
+        new("ACTIVE","Active"), new("ALL","All"), new("DRAFT","Draft"), new("SUBMITTED","Submitted"),
+        new("VERIFIED","Verified"), new("APPROVED","Approved"), new("REJECTED","Rejected"), new("CLOSED","Closed"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadOnSaveReference = EventCallback.Factory.Create(this, LoadOnSave);
+        branches = await BranchService.GetAllAsync();
+        clients  = await Logistics.GetAllClientsAsync();
+        var nowFy = BillService.ComputeFinYear(DateTime.UtcNow);
+        finYears = Enumerable.Range(-2, 5).Select(d => nowFy + d)
+            .Select(y => new FinYearItem(y, $"{y % 100:D2}-{(y + 1) % 100:D2}")).ToList();
+        filterFinYear = nowFy;
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try { loader = true; model = await Service.GetByModeAsync(BillMode.Transportation); ApplyFilters(); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<Bill> q = model;
+        q = filterStatus switch
+        {
+            "ACTIVE"    => q.Where(b => b.Status != BillStatus.Closed),
+            "DRAFT"     => q.Where(b => b.Status == BillStatus.Draft),
+            "SUBMITTED" => q.Where(b => b.Status == BillStatus.Submitted),
+            "VERIFIED"  => q.Where(b => b.Status == BillStatus.Verified),
+            "APPROVED"  => q.Where(b => b.Status == BillStatus.Approved),
+            "REJECTED"  => q.Where(b => b.Status == BillStatus.Rejected),
+            "CLOSED"    => q.Where(b => b.Status == BillStatus.Closed),
+            _ => q,
+        };
+        if (filterBranchId.HasValue)  q = q.Where(b => b.BranchId == filterBranchId);
+        if (filterFinYear.HasValue)   q = q.Where(b => b.FinYear == filterFinYear);
+        if (filterClientId.HasValue)  q = q.Where(b => b.BillingClientId == filterClientId);
+        if (byDateRange)
+        {
+            if (fromDate.HasValue) q = q.Where(b => b.BillDate >= fromDate.Value.Date);
+            if (toDate.HasValue)   q = q.Where(b => b.BillDate <= toDate.Value.Date);
+        }
+        else if (!string.IsNullOrWhiteSpace(filterBillNo))
+        {
+            q = q.Where(b => b.BillNo.Contains(filterBillNo, StringComparison.OrdinalIgnoreCase));
+        }
+        filtered = q.ToList();
+    }
+
+    private void Show()  => ApplyFilters();
+    private void Clear()
+    {
+        byDateRange = false; fromDate = null; toDate = null;
+        filterBranchId = null; filterClientId = null; filterBillNo = null;
+        filterStatus = "ACTIVE";
+        filterFinYear = BillService.ComputeFinYear(DateTime.UtcNow);
+        ApplyFilters();
+    }
+
+    private async Task LoadOnSave() { await LoadData(); if (Grid is not null) await Grid.Refresh(); }
+
+    public async void ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (args.Item.Text == "Add New Bill")
+        {
+            var o = new BsModalOptions();
+            o.ControlParameters.Add("Id", 0L);
+            o.ControlParameters.Add("Title", "New Transportation Bill");
+            o.ControlParameters.Add("Mode", BillMode.Transportation);
+            o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+            var r = await _modal!.Context.ShowAsync<BillPopup>(o);
+            if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+        }
+    }
+
+    public async Task OnCommandClicked(CommandClickEventArgs<Bill> args)
+    {
+        try
+        {
+            if (args.CommandColumn.Type == CommandButtonType.Edit)
+            {
+                var o = new BsModalOptions();
+                o.ControlParameters.Add("Id", args.RowData.Id);
+                o.ControlParameters.Add("Title", "Transportation Bill - " + args.RowData.BillNo);
+                o.ControlParameters.Add("Mode", BillMode.Transportation);
+                o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+                var r = await _modal!.Context.ShowAsync<BillPopup>(o);
+                if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+            }
+            else if (args.CommandColumn.Type == CommandButtonType.Delete)
+            {
+                if (await DialogService.ConfirmAsync($"Delete bill {args.RowData.BillNo}? Only Draft bills can be deleted.", "Confirm delete"))
+                {
+                    await Service.DeleteAsync(args.RowData.Id);
+                    ToastService.Show(new() { Title = "Success!", Content = "Record Deleted Successfully.", CssClass = "e-toast-success" });
+                    await LoadOnSave();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+}

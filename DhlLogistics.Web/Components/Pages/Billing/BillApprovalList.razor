@@ -1,0 +1,162 @@
+@page "/bills/approve"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject BillService Service
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header d-flex align-items-center">
+            <span><b>Bill Approval Queue</b></span>
+            <div class="ms-auto d-flex gap-2 align-items-center">
+                <label class="form-Custom-label mb-0">Mode:</label>
+                <SfDropDownList @bind-Value="modeFilter" TItem="ModeOption" TValue="string"
+                                DataSource="@_modes" Width="180px" CssClass="e-small">
+                    <DropDownListFieldSettings Text="Label" Value="Value" />
+                    <DropDownListEvents TItem="ModeOption" TValue="string" ValueChange="@OnModeChanged" />
+                </SfDropDownList>
+                <SfButton OnClick="@LoadData" CssClass="e-small" IconCss="e-icons e-refresh" IsPrimary="true">Refresh</SfButton>
+            </div>
+        </div>
+        <div class="card-body">
+            <SfGrid ID="Grid" TValue="Bill" @ref="Grid" DataSource="@filtered"
+                    AllowPaging="true" AllowReordering="true" CssClass="e-small"
+                    AllowResizing="true" AllowSelection="true"
+                    AllowSorting="true" Toolbar="@(new List<string>{ "Search" })" Height="100%" RowHeight="25" Width="100%">
+                <GridPageSettings PageSize="15" PageSizes="@pagerDropdown"></GridPageSettings>
+                <GridEvents CommandClicked="OnCommandClicked" TValue="Bill" />
+                <GridColumns>
+                    <GridColumn HeaderText="Action" Width="160" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                        <GridCommandColumns>
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Approve", IconCss = "e-icons e-check",        CssClass = "e-flat e-primary" })" />
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Reject",  IconCss = "e-icons e-circle-close", CssClass = "e-flat delete-btn" })" />
+                        </GridCommandColumns>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(Bill.Id)" HeaderText="Id" IsPrimaryKey="true" Visible="false" />
+                    <GridColumn Field="@nameof(Bill.BillNo)"      HeaderText="Bill No"   Width="140" />
+                    <GridColumn Field="@nameof(Bill.Mode)"        HeaderText="Mode"      Width="120" />
+                    <GridColumn Field="@nameof(Bill.BillDate)"    HeaderText="Date"      Width="100" Format="dd-MMM-yyyy" />
+                    <GridColumn Field="BillingClient.CompanyName" HeaderText="Client"    Width="240" />
+                    <GridColumn Field="@nameof(Bill.SubTotal)"    HeaderText="Sub Total" Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                    <GridColumn Field="@nameof(Bill.GstAmount)"   HeaderText="GST"       Width="100" Format="N2" TextAlign="TextAlign.Right" />
+                    <GridColumn Field="@nameof(Bill.TotalAmount)" HeaderText="Total"     Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                    <GridColumn Field="@nameof(Bill.VerifiedBy)"  HeaderText="Verified By" Width="120" />
+                    <GridColumn Field="@nameof(Bill.VerifiedOn)"  HeaderText="Verified On" Width="140" Format="dd-MMM-yyyy HH:mm" />
+                </GridColumns>
+            </SfGrid>
+        </div>
+    </div></div></div>
+</div>
+
+<SfDialog @ref="_rejectDlg" Width="420px" Height="auto" IsModal="true" ShowCloseIcon="true" Visible="false">
+    <DialogTemplates>
+        <Header>Reject Bill @(_selected?.BillNo)</Header>
+        <Content>
+            <div class="mb-2">
+                <label class="form-Custom-label">Reason:</label>
+                <SfTextBox Multiline="true" @bind-Value="@_rejectReason" CssClass="e-small" />
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Reject" IsPrimary="true" OnClick="@ConfirmReject" />
+        <DialogButton Content="Cancel" OnClick="@CancelReject" />
+    </DialogButtons>
+</SfDialog>
+
+<ToastComponent />
+
+@code {
+    public record ModeOption(string Value, string Label);
+
+    private SfGrid<Bill>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "15", "20" };
+
+    private List<Bill> model = new();
+    private List<Bill> filtered = new();
+    private string modeFilter = "ALL";
+
+    private static readonly List<ModeOption> _modes = new()
+    {
+        new("ALL",            "All"),
+        new("CLEARANCE",      "Clearance"),
+        new("FORWARDING",     "Forwarding"),
+        new("TRANSPORTATION", "Transportation"),
+    };
+
+    private SfDialog? _rejectDlg;
+    private Bill? _selected;
+    private string _rejectReason = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        try { loader = true; model = await Service.GetByStatusAsync(BillStatus.Verified); ApplyFilter(); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void ApplyFilter()
+    {
+        filtered = modeFilter switch
+        {
+            "CLEARANCE"      => model.Where(b => b.Mode == BillMode.Clearance).ToList(),
+            "FORWARDING"     => model.Where(b => b.Mode == BillMode.Forwarding).ToList(),
+            "TRANSPORTATION" => model.Where(b => b.Mode == BillMode.Transportation).ToList(),
+            _                => model.ToList(),
+        };
+    }
+
+    private void OnModeChanged(Syncfusion.Blazor.DropDowns.ChangeEventArgs<string, ModeOption> args)
+    {
+        modeFilter = args.Value; ApplyFilter();
+    }
+
+    public async Task OnCommandClicked(CommandClickEventArgs<Bill> args)
+    {
+        var label = args.CommandColumn?.ButtonOption?.Content;
+        try
+        {
+            if (label == "Approve")
+            {
+                await Service.ApproveAsync(args.RowData.Id);
+                ToastService.Show(new() { Title = "Approved", Content = $"Bill {args.RowData.BillNo} approved.", CssClass = "e-toast-success" });
+                await LoadData();
+            }
+            else if (label == "Reject")
+            {
+                _selected = args.RowData; _rejectReason = string.Empty;
+                if (_rejectDlg is not null) await _rejectDlg.ShowAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task ConfirmReject()
+    {
+        if (_selected is null) return;
+        if (string.IsNullOrWhiteSpace(_rejectReason))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Rejection reason is required.", CssClass = "e-toast-danger" });
+            return;
+        }
+        try
+        {
+            await Service.RejectAsync(_selected.Id, _rejectReason);
+            ToastService.Show(new() { Title = "Rejected", Content = $"Bill {_selected.BillNo} rejected.", CssClass = "e-toast-success" });
+            if (_rejectDlg is not null) await _rejectDlg.HideAsync();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task CancelReject() { if (_rejectDlg is not null) await _rejectDlg.HideAsync(); }
+}

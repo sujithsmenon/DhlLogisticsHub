@@ -1,0 +1,264 @@
+@page "/accounts/cashbank"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject VoucherService Service
+@inject CompanyBranchService BranchService
+@inject SfDialogService DialogService
+@inject IToastService ToastService
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+</style>
+<Syncfusion.Blazor.Popups.SfDialogProvider />
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header d-flex align-items-center">
+            <span><b>Cash &amp; Bank Vouchers</b></span>
+            <div class="ms-auto d-flex gap-3 align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-Custom-label mb-0">By Date Range:</label>
+                    <SfCheckBox @bind-Checked="byDateRange" CssClass="e-small" />
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Type:</label>
+                    <SfDropDownList @bind-Value="filterType" TItem="TypeOption" TValue="string"
+                                    DataSource="@_types" CssClass="e-small">
+                        <DropDownListFieldSettings Text="Label" Value="Value" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-1">
+                    <label class="form-Custom-label">Fin-Year:</label>
+                    <SfComboBox @bind-Value="filterFinYear" TItem="FinYearItem" TValue="int?" DataSource="@finYears"
+                                CssClass="e-small" ShowClearButton="true">
+                        <ComboBoxFieldSettings Text="DisplayName" Value="FinYear" />
+                    </SfComboBox>
+                </div>
+                @if (byDateRange)
+                {
+                    <div class="mb-3 col-md-1"><label class="form-Custom-label">From:</label>
+                        <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" /></div>
+                    <div class="mb-3 col-md-1"><label class="form-Custom-label">To:</label>
+                        <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" /></div>
+                }
+                else
+                {
+                    <div class="mb-3 col-md-2"><label class="form-Custom-label">Voucher No:</label>
+                        <SfTextBox @bind-Value="filterVoucherNo" CssClass="e-small" Placeholder="Search.." /></div>
+                }
+                <div class="mb-3 col-md-1">
+                    <label class="form-Custom-label">Status:</label>
+                    <SfDropDownList @bind-Value="filterStatus" TItem="StatusFilter" TValue="string" DataSource="@statuses" CssClass="e-small">
+                        <DropDownListFieldSettings Text="Label" Value="Value" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                    <SfSplitButton CssClass="e-small" Content="Add New">
+                        <DropDownMenuItems>
+                            <DropDownMenuItem Text="Receipt" Id="ADD_RECEIPT" IconCss="e-icons e-arrow-down" />
+                            <DropDownMenuItem Text="Payment" Id="ADD_PAYMENT" IconCss="e-icons e-arrow-up" />
+                            <DropDownMenuItem Text="Contra"  Id="ADD_CONTRA"  IconCss="e-icons e-refresh" />
+                        </DropDownMenuItems>
+                        <SplitButtonEvents ItemSelected="OnAddSelected" />
+                    </SfSplitButton>
+                </div>
+            </div>
+
+            <div style="height: calc(100vh - 220px);">
+                <SfGrid ID="Grid" TValue="Voucher" DataSource="@filtered" @ref="Grid" AllowPaging="true" CssClass="e-small"
+                        AllowResizing="true" AllowSelection="true" AllowSorting="true"
+                        Toolbar="@(new List<string>{ "Search" })" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents CommandClicked="OnCommandClicked" TValue="Voucher" />
+                    <GridPageSettings PageSize="15" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn HeaderText="Manage" Width="80" TextAlign="TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
+                            <GridCommandColumns>
+                                <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
+                                <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })" />
+                            </GridCommandColumns>
+                        </GridColumn>
+                        <GridColumn Field="@nameof(Voucher.Id)" HeaderText="ID" IsPrimaryKey="true" Visible="false" />
+                        <GridColumn Field="@nameof(Voucher.Type)"          HeaderText="Type"        Width="100" />
+                        <GridColumn Field="@nameof(Voucher.VoucherNo)"     HeaderText="Voucher No"  Width="140" />
+                        <GridColumn Field="@nameof(Voucher.VoucherDate)"   HeaderText="Date"        Width="100" Format="dd-MMM-yyyy" />
+                        <GridColumn Field="CashOrBankAccount.AccountName"  HeaderText="Cash/Bank A/c" Width="200" />
+                        <GridColumn Field="Party.CompanyName"              HeaderText="Party"       Width="220" />
+                        <GridColumn Field="@nameof(Voucher.Narration)"     HeaderText="Narration"   Width="240" />
+                        <GridColumn Field="@nameof(Voucher.TotalDebit)"    HeaderText="Amount"      Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(Voucher.Status)"        HeaderText="Status"      Width="100" />
+                        <GridColumn Field="@nameof(Voucher.CreatedBy)"     HeaderText="Created By"  Width="100" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+<ToastComponent />
+
+@code {
+    public record StatusFilter(string Value, string Label);
+    public record FinYearItem(int? FinYear, string DisplayName);
+    public record TypeOption(string Value, string Label);
+
+    private BsModalDialog? _modal;
+    private SfGrid<Voucher>? Grid;
+    public EventCallback LoadOnSaveReference { get; set; }
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "5", "10", "15", "20" };
+
+    private List<Voucher> model = new();
+    private List<Voucher> filtered = new();
+    private List<CompanyBranch> branches = new();
+    private List<FinYearItem> finYears = new();
+
+    private bool      byDateRange = false;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private int?      filterBranchId;
+    private int?      filterFinYear;
+    private string?   filterVoucherNo;
+    private string    filterStatus = "ACTIVE";
+    private string    filterType   = "ALL";
+
+    private static readonly List<TypeOption> _types = new()
+    {
+        new("ALL",     "All Cash/Bank"),
+        new("RECEIPT", "Receipt"),
+        new("PAYMENT", "Payment"),
+        new("CONTRA",  "Contra"),
+    };
+    private static readonly List<StatusFilter> statuses = new()
+    {
+        new("ACTIVE","Active"), new("ALL","All"), new("DRAFT","Draft"), new("SUBMITTED","Submitted"),
+        new("VERIFIED","Verified"), new("APPROVED","Approved"), new("REJECTED","Rejected"), new("POSTED","Posted"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadOnSaveReference = EventCallback.Factory.Create(this, LoadOnSave);
+        branches = await BranchService.GetAllAsync();
+        var nowFy = VoucherService.ComputeFinYear(DateTime.UtcNow);
+        finYears = Enumerable.Range(-2, 5).Select(d => nowFy + d)
+            .Select(y => new FinYearItem(y, $"{y % 100:D2}-{(y + 1) % 100:D2}")).ToList();
+        filterFinYear = nowFy;
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try { loader = true; model = await Service.GetByTypeAsync(VoucherType.Receipt, VoucherType.Payment, VoucherType.Contra); ApplyFilters(); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<Voucher> q = model;
+        q = filterType switch
+        {
+            "RECEIPT" => q.Where(v => v.Type == VoucherType.Receipt),
+            "PAYMENT" => q.Where(v => v.Type == VoucherType.Payment),
+            "CONTRA"  => q.Where(v => v.Type == VoucherType.Contra),
+            _ => q,
+        };
+        q = filterStatus switch
+        {
+            "ACTIVE"    => q.Where(v => v.Status != VoucherStatus.Posted),
+            "DRAFT"     => q.Where(v => v.Status == VoucherStatus.Draft),
+            "SUBMITTED" => q.Where(v => v.Status == VoucherStatus.Submitted),
+            "VERIFIED"  => q.Where(v => v.Status == VoucherStatus.Verified),
+            "APPROVED"  => q.Where(v => v.Status == VoucherStatus.Approved),
+            "REJECTED"  => q.Where(v => v.Status == VoucherStatus.Rejected),
+            "POSTED"    => q.Where(v => v.Status == VoucherStatus.Posted),
+            _ => q,
+        };
+        if (filterBranchId.HasValue) q = q.Where(v => v.BranchId == filterBranchId);
+        if (filterFinYear.HasValue)  q = q.Where(v => v.FinYear == filterFinYear);
+        if (byDateRange)
+        {
+            if (fromDate.HasValue) q = q.Where(v => v.VoucherDate >= fromDate.Value.Date);
+            if (toDate.HasValue)   q = q.Where(v => v.VoucherDate <= toDate.Value.Date);
+        }
+        else if (!string.IsNullOrWhiteSpace(filterVoucherNo))
+        {
+            q = q.Where(v => v.VoucherNo.Contains(filterVoucherNo, StringComparison.OrdinalIgnoreCase));
+        }
+        filtered = q.ToList();
+    }
+
+    private void Show()  => ApplyFilters();
+    private void Clear()
+    {
+        byDateRange = false; fromDate = null; toDate = null;
+        filterBranchId = null; filterVoucherNo = null;
+        filterStatus = "ACTIVE"; filterType = "ALL";
+        filterFinYear = VoucherService.ComputeFinYear(DateTime.UtcNow);
+        ApplyFilters();
+    }
+
+    private async Task LoadOnSave() { await LoadData(); if (Grid is not null) await Grid.Refresh(); }
+
+    private async Task OnAddSelected(Syncfusion.Blazor.SplitButtons.MenuEventArgs args)
+    {
+        var type = args.Item.Id switch
+        {
+            "ADD_RECEIPT" => VoucherType.Receipt,
+            "ADD_PAYMENT" => VoucherType.Payment,
+            "ADD_CONTRA"  => VoucherType.Contra,
+            _ => VoucherType.Receipt,
+        };
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("Id", 0L);
+        o.ControlParameters.Add("Title", $"New {type} Voucher");
+        o.ControlParameters.Add("Type", type);
+        o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+        var r = await _modal!.Context.ShowAsync<VoucherPopup>(o);
+        if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+    }
+
+    public async Task OnCommandClicked(CommandClickEventArgs<Voucher> args)
+    {
+        try
+        {
+            if (args.CommandColumn.Type == CommandButtonType.Edit)
+            {
+                var o = new BsModalOptions();
+                o.ControlParameters.Add("Id", args.RowData.Id);
+                o.ControlParameters.Add("Title", $"{args.RowData.Type} - {args.RowData.VoucherNo}");
+                o.ControlParameters.Add("Type", args.RowData.Type);
+                o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+                var r = await _modal!.Context.ShowAsync<VoucherPopup>(o);
+                if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+            }
+            else if (args.CommandColumn.Type == CommandButtonType.Delete)
+            {
+                if (await DialogService.ConfirmAsync($"Delete voucher {args.RowData.VoucherNo}? Only Draft vouchers can be deleted.", "Confirm delete"))
+                {
+                    await Service.DeleteAsync(args.RowData.Id);
+                    ToastService.Show(new() { Title = "Success!", Content = "Record Deleted Successfully.", CssClass = "e-toast-success" });
+                    await LoadOnSave();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+}

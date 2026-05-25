@@ -26,6 +26,14 @@ public static class PermissionSeed
         "awb", "export", "jobs",
         "jobs/clearance", "jobs/forwarding", "jobs/verify", "jobs/approve",
         "tracking", "cargo",
+        // M4 Billing
+        "finance/billing",
+        "bills/clearance", "bills/forwarding", "bills/transportation",
+        "bills/verify", "bills/approve",
+        // M4 Accounts
+        "finance/accounts",
+        "accounts/heads", "accounts/journal", "accounts/cashbank",
+        "accounts/verify", "accounts/approve",
         // Admin
         "admin/permissions",
     };

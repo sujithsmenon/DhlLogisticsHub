@@ -1,0 +1,86 @@
+@inject AccountHeadService Service
+@inject IToastService ToastService
+
+<div class="modal-dialog modal-lg modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small">
+    <div class="modal-contentnew">
+        <div class="modal-header"><h5 class="modal-title">@Title</h5><button type="button" class="btn-close e-small" @onclick="Close"></button></div>
+        <div class="modal-body"><div class="card"><div class="card-body">
+            <EditForm Model="@item"><DataAnnotationsValidator />
+                <div class="row">
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Code:</label>
+                        <SfTextBox @bind-Value="@item.AccountCode" CssClass="e-small" /></div>
+                    <div class="col-md-6 mb-3"><label class="form-Custom-label">Name:</label>
+                        <SfTextBox @bind-Value="@item.AccountName" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Group:</label>
+                        <SfDropDownList @bind-Value="@item.Group" TItem="EnumItem<AccountGroup>" TValue="AccountGroup"
+                                        DataSource="@_groups" CssClass="e-small">
+                            <DropDownListFieldSettings Text="Label" Value="Value" />
+                        </SfDropDownList></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Cash:</label>
+                        <SfCheckBox @bind-Checked="@item.IsCash" Label="Cash head" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Bank:</label>
+                        <SfCheckBox @bind-Checked="@item.IsBank" Label="Bank head" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Active:</label>
+                        <SfCheckBox @bind-Checked="@item.IsActive" Label="Active" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Opening Balance:</label>
+                        <SfNumericTextBox TValue="decimal" @bind-Value="@item.OpeningBalance" Format="N2" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Op. Type:</label>
+                        <SfDropDownList @bind-Value="@item.OpeningBalanceType" TItem="EnumItem<DrCr>" TValue="DrCr"
+                                        DataSource="@_drcr" CssClass="e-small">
+                            <DropDownListFieldSettings Text="Label" Value="Value" />
+                        </SfDropDownList></div>
+                    <div class="col-md-12 mb-3"><label class="form-Custom-label">Remarks:</label>
+                        <SfTextBox @bind-Value="@item.Remarks" CssClass="e-small" Multiline="true" /></div>
+                </div>
+            </EditForm>
+        </div></div></div>
+        <div class="modal-footer">
+            <SfButton OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save" IsPrimary="true">@(Id == 0 ? "Save" : "Update")</SfButton>
+            <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+        </div>
+    </div>
+</div>
+
+@code {
+    public record EnumItem<T>(T Value, string Label);
+
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+    [Parameter] public int Id { get; set; }
+    [Parameter] public string? Title { get; set; }
+    private AccountHead item = new() { IsActive = true };
+
+    private static readonly List<EnumItem<AccountGroup>> _groups = new()
+    {
+        new(AccountGroup.Asset, "Asset"), new(AccountGroup.Liability, "Liability"),
+        new(AccountGroup.Equity, "Equity"), new(AccountGroup.Income, "Income"),
+        new(AccountGroup.Expense, "Expense"),
+    };
+    private static readonly List<EnumItem<DrCr>> _drcr = new()
+    {
+        new(DrCr.Debit, "Debit"), new(DrCr.Credit, "Credit"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id != 0) { var e = await Service.GetByIdAsync(Id); if (e is not null) item = e; }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(item.AccountCode)) { Toast("Account Code is required."); return; }
+        if (string.IsNullOrWhiteSpace(item.AccountName)) { Toast("Account Name is required."); return; }
+        if (item.IsBank && item.IsCash)                  { Toast("An account is either Bank or Cash, not both."); return; }
+
+        try
+        {
+            if (Id == 0) await Service.AddAsync(item); else await Service.UpdateAsync(item);
+            ToastService.Show(new() { Title = "Success!", Content = "Account saved.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex) { ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" }); }
+    }
+    private void Toast(string msg) => ToastService.Show(new() { Title = "Validation", Content = msg, CssClass = "e-toast-danger" });
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}

@@ -69,6 +69,17 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<CompanyBranch>    CompanyBranches   => Set<CompanyBranch>();
     public DbSet<ShipmentActivity> ShipmentActivities => Set<ShipmentActivity>();
 
+    // ── M4 Billing ───────────────────────────────────────────────────────────
+    public DbSet<Bill>        Bills        => Set<Bill>();
+    public DbSet<BillCharge>  BillCharges  => Set<BillCharge>();
+    public DbSet<BillEvent>   BillEvents   => Set<BillEvent>();
+
+    // ── M4 Accounts ──────────────────────────────────────────────────────────
+    public DbSet<AccountHead>   AccountHeads   => Set<AccountHead>();
+    public DbSet<Voucher>       Vouchers       => Set<Voucher>();
+    public DbSet<VoucherLine>   VoucherLines   => Set<VoucherLine>();
+    public DbSet<VoucherEvent>  VoucherEvents  => Set<VoucherEvent>();
+
     protected override void OnModelCreating(ModelBuilder mb)
     {
         base.OnModelCreating(mb);
@@ -186,5 +197,85 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasOne(e => e.JobOrder).WithMany(j => j.Events).HasForeignKey(e => e.JobOrderId)
             .OnDelete(DeleteBehavior.Cascade);
         mb.Entity<JobOrderEvent>().HasIndex(e => new { e.JobOrderId, e.At });
+
+        // ── M4 Billing ────────────────────────────────────────────────────────
+        mb.Entity<Bill>().Property(b => b.ExchangeRate).HasPrecision(18, 6);
+        mb.Entity<Bill>().Property(b => b.SubTotal).HasPrecision(18, 2);
+        mb.Entity<Bill>().Property(b => b.GstAmount).HasPrecision(18, 2);
+        mb.Entity<Bill>().Property(b => b.TotalAmount).HasPrecision(18, 2);
+
+        mb.Entity<Bill>()
+            .HasOne(b => b.Branch).WithMany().HasForeignKey(b => b.BranchId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<Bill>()
+            .HasOne(b => b.JobOrder).WithMany().HasForeignKey(b => b.JobOrderId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<Bill>()
+            .HasOne(b => b.BillingClient).WithMany().HasForeignKey(b => b.BillingClientId)
+            .OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<Bill>()
+            .HasOne(b => b.Currency).WithMany().HasForeignKey(b => b.CurrencyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        mb.Entity<Bill>().HasIndex(b => b.BillNo).IsUnique();
+        mb.Entity<Bill>().HasIndex(b => new { b.Mode, b.FinYear });
+        mb.Entity<Bill>().HasIndex(b => b.Status);
+
+        mb.Entity<BillCharge>().Property(c => c.Quantity).HasPrecision(12, 3);
+        mb.Entity<BillCharge>().Property(c => c.Rate).HasPrecision(18, 4);
+        mb.Entity<BillCharge>().Property(c => c.Amount).HasPrecision(18, 2);
+        mb.Entity<BillCharge>().Property(c => c.GstRate).HasPrecision(5, 2);
+        mb.Entity<BillCharge>().Property(c => c.GstAmount).HasPrecision(18, 2);
+        mb.Entity<BillCharge>().Property(c => c.NetAmount).HasPrecision(18, 2);
+
+        mb.Entity<BillCharge>()
+            .HasOne(c => c.Bill).WithMany(b => b.Charges).HasForeignKey(c => c.BillId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<BillCharge>()
+            .HasOne(c => c.ChargeCode).WithMany().HasForeignKey(c => c.ChargeCodeId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<BillCharge>()
+            .HasOne(c => c.Sac).WithMany().HasForeignKey(c => c.SacId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        mb.Entity<BillEvent>()
+            .HasOne(e => e.Bill).WithMany(b => b.Events).HasForeignKey(e => e.BillId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<BillEvent>().HasIndex(e => new { e.BillId, e.At });
+
+        // ── M4 Accounts ───────────────────────────────────────────────────────
+        mb.Entity<AccountHead>().Property(a => a.OpeningBalance).HasPrecision(18, 2);
+        mb.Entity<AccountHead>().HasIndex(a => a.AccountCode).IsUnique();
+        mb.Entity<AccountHead>().HasIndex(a => a.AccountName);
+
+        mb.Entity<Voucher>().Property(v => v.TotalDebit).HasPrecision(18, 2);
+        mb.Entity<Voucher>().Property(v => v.TotalCredit).HasPrecision(18, 2);
+
+        mb.Entity<Voucher>()
+            .HasOne(v => v.Branch).WithMany().HasForeignKey(v => v.BranchId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<Voucher>()
+            .HasOne(v => v.CashOrBankAccount).WithMany().HasForeignKey(v => v.CashOrBankAccountId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<Voucher>()
+            .HasOne(v => v.Party).WithMany().HasForeignKey(v => v.PartyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        mb.Entity<Voucher>().HasIndex(v => v.VoucherNo).IsUnique();
+        mb.Entity<Voucher>().HasIndex(v => new { v.Type, v.FinYear });
+        mb.Entity<Voucher>().HasIndex(v => v.Status);
+
+        mb.Entity<VoucherLine>().Property(l => l.Amount).HasPrecision(18, 2);
+        mb.Entity<VoucherLine>()
+            .HasOne(l => l.Voucher).WithMany(v => v.Lines).HasForeignKey(l => l.VoucherId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<VoucherLine>()
+            .HasOne(l => l.AccountHead).WithMany().HasForeignKey(l => l.AccountHeadId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        mb.Entity<VoucherEvent>()
+            .HasOne(e => e.Voucher).WithMany(v => v.Events).HasForeignKey(e => e.VoucherId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<VoucherEvent>().HasIndex(e => new { e.VoucherId, e.At });
     }
 }

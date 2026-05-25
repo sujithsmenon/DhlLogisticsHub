@@ -1,12 +1,64 @@
-﻿@page "/finance/billing"
+@page "/finance/billing"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<style>
+    .module-tile {
+        display:block; padding:18px 16px; border-radius:10px;
+        background: linear-gradient(135deg, #198781 0%, #14706b 100%);
+        color:#fff; text-decoration:none; min-height:96px;
+        box-shadow:0 2px 6px rgba(0,0,0,.08); transition: transform .15s ease;
+    }
+    .module-tile:hover { transform: translateY(-2px); color:#fff; }
+    .module-tile.red    { background: linear-gradient(135deg, #AB1921 0%, #861017 100%); }
+    .module-tile.navy   { background: linear-gradient(135deg, #0E2A47 0%, #0B2238 100%); }
+    .module-tile.blue   { background: linear-gradient(135deg, #0868B2 0%, #07579b 100%); }
+    .module-tile h6     { margin:0 0 4px 0; font-size:16px; }
+    .module-tile small  { display:block; opacity:.92; font-size:11px; }
+    .module-tile .icon  { font-size:22px; margin-right:10px; }
+</style>
+
 <div class="main-div">
     <div class="card">
         <div class="card-header"><b>Billing</b></div>
         <div class="card-body">
-            <p class="muted" style="padding:24px;text-align:center;">
-                Billing module (Clearance Bills, Forwarding Bills, Transportation Bills) — coming with the Billing milestone of M4.
+            <p class="muted" style="margin-bottom:14px;">
+                Raise customer bills, route them through verification &amp; approval, then close them once paid.
+                Three bill types are supported: <b>Clearance</b>, <b>Forwarding</b>, and <b>Transportation</b>.
+                Each bill is numbered per financial year and per type
+                (e.g. <code>CB/26-27/0001</code>, <code>FB/.../</code>, <code>TB/.../</code>).
             </p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <a class="module-tile" href="bills/clearance">
+                        <span class="icon">🛃</span><h6>Clearance Bills</h6>
+                        <small>Customs clearance line-items, GST, ex-rate &mdash; CB/&hellip; numbering</small>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a class="module-tile blue" href="bills/forwarding">
+                        <span class="icon">📦</span><h6>Forwarding Bills</h6>
+                        <small>Freight forwarding charges &mdash; FB/&hellip; numbering</small>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a class="module-tile navy" href="bills/transportation">
+                        <span class="icon">🚛</span><h6>Transportation Bills</h6>
+                        <small>Inland / vehicle transport billing &mdash; TB/&hellip; numbering</small>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a class="module-tile red" href="bills/verify">
+                        <span class="icon">✔</span><h6>Verification Queue</h6>
+                        <small>Submitted bills awaiting an executive's verification</small>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a class="module-tile red" href="bills/approve">
+                        <span class="icon">✅</span><h6>Approval Queue</h6>
+                        <small>Verified bills awaiting a manager's approval</small>
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>

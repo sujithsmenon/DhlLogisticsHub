@@ -50,15 +50,45 @@
         </div>
     </details>
 
-    <!-- ── Finance ─────────────────────────────────────────────────────── -->
+    <!-- ── Billing (Finance / Receivables) ─────────────────────────────── -->
     <details class="nav-group">
         <summary>
-            <span class="nav-icon">💼</span> Finance
+            <span class="nav-icon">🧾</span> Billing
             <span class="nav-caret">▶</span>
         </summary>
         <div class="nav-group-body">
-            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="finance/accounts"><span class="nav-icon">📒</span> Accounts</NavLink></div>
-            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="finance/billing"><span class="nav-icon">🧾</span> Billing</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="finance/billing" Match="NavLinkMatch.All"><span class="nav-icon">🏠</span> Overview</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="bills/clearance"><span class="nav-icon">🛃</span> Clearance Bills</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="bills/forwarding"><span class="nav-icon">📦</span> Forwarding Bills</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="bills/transportation"><span class="nav-icon">🚛</span> Transportation Bills</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="bills/verify"><span class="nav-icon">✔</span> Verification</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="bills/approve"><span class="nav-icon">✅</span> Approval</NavLink></div>
+        </div>
+    </details>
+
+    <!-- ── Accounts (Finance / Ledger) ─────────────────────────────────── -->
+    <details class="nav-group">
+        <summary>
+            <span class="nav-icon">📒</span> Accounts
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="finance/accounts" Match="NavLinkMatch.All"><span class="nav-icon">🏠</span> Overview</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="accounts/heads"><span class="nav-icon">📚</span> Chart of Accounts</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="accounts/journal"><span class="nav-icon">📝</span> Journal Vouchers</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="accounts/cashbank"><span class="nav-icon">💵</span> Cash &amp; Bank</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="accounts/verify"><span class="nav-icon">✔</span> Verification</NavLink></div>
+            <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="accounts/approve"><span class="nav-icon">✅</span> Approval &amp; Posting</NavLink></div>
+        </div>
+    </details>
+
+    <!-- ── Finance Masters ─────────────────────────────────────────────── -->
+    <details class="nav-group">
+        <summary>
+            <span class="nav-icon">💼</span> Finance Masters
+            <span class="nav-caret">▶</span>
+        </summary>
+        <div class="nav-group-body">
             <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/currencies"><span class="nav-icon">💱</span> Currencies</NavLink></div>
             <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/sac"><span class="nav-icon">🧾</span> SAC Codes</NavLink></div>
             <div class="nav-item-dhl"><NavLink class="nav-link-dhl" href="masters/charge-codes"><span class="nav-icon">💰</span> Charge Codes</NavLink></div>

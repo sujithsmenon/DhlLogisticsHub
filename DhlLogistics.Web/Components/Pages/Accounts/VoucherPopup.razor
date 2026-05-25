@@ -1,0 +1,301 @@
+@inject VoucherService Service
+@inject AccountHeadService HeadService
+@inject CompanyBranchService BranchService
+@inject LogisticsService Logistics
+@inject IToastService ToastService
+
+<style>
+    .custom-modal .modal-dialog { max-width: 1100px !important; }
+    .lines-table { width:100%; font-size:12px; border-collapse:collapse; }
+    .lines-table th { background:#198781b0; color:#fff; padding:6px 8px; text-align:left; font-weight:600; }
+    .lines-table td { padding:4px 6px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .lines-table .num input { text-align:right; }
+    .lines-table tfoot td { font-weight:600; background:#f4faf9; }
+    .balance-ok   { color:#198781; font-weight:600; }
+    .balance-bad  { color:#AB1921; font-weight:600; }
+</style>
+
+<div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
+    <div class="modal-contentnew">
+        <div class="modal-header">
+            <h5 class="modal-title">@Title</h5>
+            <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <EditForm Model="@item"><DataAnnotationsValidator />
+
+                <!-- Header row -->
+                <div class="row">
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Branch:</label>
+                        <SfComboBox @bind-Value="@item.BranchId" TItem="CompanyBranch" TValue="int?"
+                                    DataSource="@_branches" CssClass="e-small" ShowClearButton="true">
+                            <ComboBoxFieldSettings Text="BranchName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Voucher No:</label>
+                        <SfTextBox Value="@(string.IsNullOrEmpty(item.VoucherNo) ? "(auto on save)" : item.VoucherNo)"
+                                   CssClass="e-small" Enabled="false" />
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Date:</label>
+                        <SfDatePicker TValue="DateTime" @bind-Value="@item.VoucherDate" Format="dd-MMM-yyyy" StrictMode="true" CssClass="e-small" />
+                    </div>
+                    @if (Type == VoucherType.Receipt || Type == VoucherType.Payment || Type == VoucherType.Contra)
+                    {
+                        <div class="mb-3 col-md-3">
+                            <label class="form-Custom-label">@(Type == VoucherType.Payment ? "Paid From" : Type == VoucherType.Receipt ? "Received Into" : "Cash/Bank"):</label>
+                            <SfComboBox @bind-Value="@item.CashOrBankAccountId" TItem="AccountHead" TValue="int?"
+                                        DataSource="@_cashBankHeads" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                                <ComboBoxFieldSettings Text="AccountName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                    }
+                    @if (Type == VoucherType.Receipt || Type == VoucherType.Payment)
+                    {
+                        <div class="mb-3 col-md-3">
+                            <label class="form-Custom-label">Party (optional):</label>
+                            <SfComboBox @bind-Value="@item.PartyId" TItem="DhlClient" TValue="int?"
+                                        DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                                <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                    }
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Reference No:</label>
+                        <SfTextBox @bind-Value="@item.ReferenceNo" CssClass="e-small" />
+                    </div>
+                    <div class="mb-3 col-md-1">
+                        <label class="form-Custom-label">Status:</label>
+                        <SfTextBox Value="@item.Status.ToString()" Enabled="false" CssClass="e-small" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="mb-3 col-md-12">
+                        <label class="form-Custom-label">Narration:</label>
+                        <SfTextBox @bind-Value="@item.Narration" CssClass="e-small" Multiline="true"
+                                   HtmlAttributes="@(new Dictionary<string, object> { { "rows", "2" } })" />
+                    </div>
+                </div>
+
+                <!-- Lines card -->
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <span><b>Voucher Lines</b></span>
+                        <div class="ms-auto d-flex gap-2 align-items-center">
+                            <span class="@(IsBalanced ? "balance-ok" : "balance-bad")">
+                                Dr: @item.TotalDebit.ToString("N2") &nbsp;|&nbsp;
+                                Cr: @item.TotalCredit.ToString("N2") &nbsp;|&nbsp;
+                                Diff: @((item.TotalDebit - item.TotalCredit).ToString("N2"))
+                            </span>
+                            <SfButton OnClick="@AddLine" CssClass="e-small" IconCss="e-icons e-add" IsPrimary="true">Add Line</SfButton>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:6px;">
+                        @if (item.Lines.Count == 0)
+                        {
+                            <p class="muted" style="text-align:center;padding:18px 0;">No lines yet. Click <b>Add Line</b>.</p>
+                        }
+                        else
+                        {
+                            <table class="lines-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:34px;">#</th>
+                                        <th style="width:340px;">Account Head</th>
+                                        <th style="width:90px;">Dr / Cr</th>
+                                        <th style="width:140px;" class="num">Amount</th>
+                                        <th>Narration</th>
+                                        <th style="width:40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < item.Lines.Count; i++)
+                                    {
+                                        var idx = i;
+                                        var l = item.Lines[idx];
+                                        <tr>
+                                            <td>@(idx + 1)</td>
+                                            <td>
+                                                <SfComboBox TItem="AccountHead" TValue="int" DataSource="@_heads"
+                                                            @bind-Value="@l.AccountHeadId" CssClass="e-small"
+                                                            AllowFiltering="true" Placeholder="Select account..">
+                                                    <ComboBoxFieldSettings Text="AccountName" Value="Id" />
+                                                </SfComboBox>
+                                            </td>
+                                            <td>
+                                                <SfDropDownList TItem="EnumItem<DrCr>" TValue="DrCr" DataSource="@_drcr"
+                                                                Value="@l.DrCr" CssClass="e-small"
+                                                                ValueChanged="@((DrCr v) => { l.DrCr = v; Recalc(); })">
+                                                    <DropDownListFieldSettings Text="Label" Value="Value" />
+                                                </SfDropDownList>
+                                            </td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal" Value="@l.Amount" CssClass="e-small" Format="N2" Min="0"
+                                                                  ValueChanged="@((decimal v) => { l.Amount = v; Recalc(); })" />
+                                            </td>
+                                            <td><SfTextBox @bind-Value="@l.Narration" CssClass="e-small" /></td>
+                                            <td><SfButton OnClick="@(() => RemoveLine(idx))" CssClass="e-small delete-btn" IconCss="e-icons e-delete" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="3" style="text-align:right;">Totals:</td>
+                                        <td class="num">
+                                            Dr: @item.TotalDebit.ToString("N2") &nbsp;|&nbsp;
+                                            Cr: @item.TotalCredit.ToString("N2")
+                                        </td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        }
+                    </div>
+                </div>
+
+                @if (item.Status == VoucherStatus.Rejected && !string.IsNullOrEmpty(item.RejectionReason))
+                {
+                    <div class="alert alert-warning" style="padding:6px 10px;font-size:12px;margin-top:8px;">
+                        <strong>Rejected:</strong> @item.RejectionReason
+                        (by @item.RejectedBy on @(item.RejectedOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")))
+                    </div>
+                }
+            </EditForm>
+        </div>
+
+        <div class="modal-footer">
+            <div class="row bs" style="width:100%;">
+                <div class="col-md-5">
+                    <small>Created by <b>@item.CreatedBy</b>
+                        @(item.CreatedOn != default ? " on " + item.CreatedOn.ToLocalTime().ToString("dd-MMM-yyyy HH:mm") : "")</small>
+                </div>
+                <div class="col-md-2 text-center">
+                    @if (Id != 0 && item.Status == VoucherStatus.Draft)
+                    {
+                        <SfButton OnClick="@Submit" CssClass="e-small" IconCss="e-icons e-send-1">Submit</SfButton>
+                    }
+                    <SfButton IsPrimary="true" OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save-as">@btnText</SfButton>
+                    <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Close</SfButton>
+                </div>
+                <div class="col-md-5 text-end">
+                    @if (item.ModifiedOn != null)
+                    {
+                        <small>Modified by <b>@item.ModifiedBy</b>
+                            on @item.ModifiedOn.Value.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</small>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public record EnumItem<T>(T Value, string Label);
+
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+    [Parameter] public long Id { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public VoucherType Type { get; set; } = VoucherType.Journal;
+
+    private Voucher item = new();
+    private string btnText => Id == 0 ? "Save" : "Update";
+    private bool IsBalanced => decimal.Round(item.TotalDebit, 2) == decimal.Round(item.TotalCredit, 2)
+                               && item.TotalDebit > 0;
+
+    private List<AccountHead> _heads         = new();
+    private List<AccountHead> _cashBankHeads = new();
+    private List<CompanyBranch> _branches    = new();
+    private List<DhlClient> _clients         = new();
+
+    private static readonly List<EnumItem<DrCr>> _drcr = new()
+    {
+        new(DrCr.Debit, "Debit"), new(DrCr.Credit, "Credit"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _branches      = await BranchService.GetAllAsync();
+        _heads         = (await HeadService.GetAllAsync()).Where(a => a.IsActive).ToList();
+        _cashBankHeads = await HeadService.GetCashAndBankAsync();
+        _clients       = await Logistics.GetAllClientsAsync();
+
+        if (Id != 0)
+        {
+            var e = await Service.GetByIdAsync(Id);
+            if (e is not null) { item = e; Recalc(); }
+        }
+        else
+        {
+            item = new Voucher { Type = Type, VoucherDate = DateTime.UtcNow.Date };
+            // Pre-seed one debit and one credit line so the user can just fill them in.
+            item.Lines.Add(new VoucherLine { DrCr = DrCr.Debit,  DisplayOrder = 1 });
+            item.Lines.Add(new VoucherLine { DrCr = DrCr.Credit, DisplayOrder = 2 });
+        }
+    }
+
+    private void AddLine()
+    {
+        var nextDrCr = item.Lines.Count(l => l.DrCr == DrCr.Debit) <= item.Lines.Count(l => l.DrCr == DrCr.Credit)
+                       ? DrCr.Debit : DrCr.Credit;
+        item.Lines.Add(new VoucherLine { DrCr = nextDrCr, DisplayOrder = item.Lines.Count + 1 });
+        Recalc();
+    }
+
+    private void RemoveLine(int idx)
+    {
+        if (idx < 0 || idx >= item.Lines.Count) return;
+        item.Lines.RemoveAt(idx);
+        Recalc();
+    }
+
+    private void Recalc() => VoucherService.RecalcTotals(item);
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(item.Narration)) { Toast("Narration is required."); return; }
+        try
+        {
+            if (Id == 0)
+            {
+                item.Type = Type;
+                await Service.CreateAsync(item);
+            }
+            else
+            {
+                await Service.UpdateAsync(item);
+            }
+            ToastService.Show(new() { Title = "Success!", Content = "Voucher saved.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task Submit()
+    {
+        try
+        {
+            await Service.SubmitAsync(Id);
+            ToastService.Show(new() { Title = "Submitted", Content = "Voucher sent for verification.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Validation", Content = msg, CssClass = "e-toast-danger" });
+
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}
