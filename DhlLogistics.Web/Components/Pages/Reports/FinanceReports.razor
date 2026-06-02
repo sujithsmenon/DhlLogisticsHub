@@ -1,0 +1,56 @@
+@page "/reports/finance"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<style>
+    .module-tile {
+        display:block; padding:18px 16px; border-radius:10px;
+        background: linear-gradient(135deg, #198781 0%, #14706b 100%);
+        color:#fff; text-decoration:none; min-height:96px;
+        box-shadow:0 2px 6px rgba(0,0,0,.08); transition: transform .15s ease;
+    }
+    .module-tile:hover { transform: translateY(-2px); color:#fff; }
+    .module-tile.red    { background: linear-gradient(135deg, #AB1921 0%, #861017 100%); }
+    .module-tile.navy   { background: linear-gradient(135deg, #0E2A47 0%, #0B2238 100%); }
+    .module-tile.blue   { background: linear-gradient(135deg, #0868B2 0%, #07579b 100%); }
+    .module-tile h6     { margin:0 0 4px 0; font-size:16px; }
+    .module-tile small  { display:block; opacity:.92; font-size:11px; }
+    .module-tile .icon  { font-size:22px; margin-right:10px; }
+</style>
+
+<div class="main-div">
+    <div class="card">
+        <div class="card-header"><b>Finance Reports</b></div>
+        <div class="card-body">
+            <p class="muted" style="margin-bottom:14px;">
+                Read-only reports over posted vouchers and approved bills. Use these to
+                check balances, reconcile GST output, and audit the bill register.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <a class="module-tile navy" href="reports/ledger">
+                        <span class="icon">📒</span><h6>Account Ledger</h6>
+                        <small>Per-account Dr/Cr lines with running balance and opening/closing</small>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a class="module-tile" href="reports/trial-balance">
+                        <span class="icon">⚖</span><h6>Trial Balance</h6>
+                        <small>Opening / Period / Closing per account &mdash; should balance Dr = Cr</small>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a class="module-tile blue" href="reports/gst-output">
+                        <span class="icon">🧾</span><h6>GST Output Register</h6>
+                        <small>GST collected on outgoing bills &mdash; for GSTR&#8209;1 reconciliation</small>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a class="module-tile red" href="reports/bill-register">
+                        <span class="icon">📑</span><h6>Combined Bill Register</h6>
+                        <small>All bills (Clearance + Forwarding + Transportation) in one view</small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

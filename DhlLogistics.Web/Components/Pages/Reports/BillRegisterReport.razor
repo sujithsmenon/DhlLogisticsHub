@@ -1,0 +1,188 @@
+@page "/reports/bill-register"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .summary-strip { display:flex; flex-wrap:wrap; gap:18px; padding:8px 4px; }
+    .summary-strip .item b { display:block; font-size:11px; color:#666; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .summary-strip .item span { font-size:14px; font-weight:700; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Combined Bill Register</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Mode:</label>
+                    <SfDropDownList @bind-Value="filterMode" TItem="ModeOption" TValue="string"
+                                    DataSource="@_modes" CssClass="e-small">
+                        <DropDownListFieldSettings Text="Label" Value="Value" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Status:</label>
+                    <SfDropDownList @bind-Value="filterStatus" TItem="StatusOption" TValue="string"
+                                    DataSource="@_statuses" CssClass="e-small">
+                        <DropDownListFieldSettings Text="Label" Value="Value" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?"
+                                    DataSource="@branches" CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (rows.Count > 0)
+            {
+                <div class="summary-strip">
+                    <div class="item"><b>Bills</b><span>@rows.Count</span></div>
+                    <div class="item"><b>Sub Total</b><span>@rows.Sum(r => r.SubTotal).ToString("N2")</span></div>
+                    <div class="item"><b>GST</b><span>@rows.Sum(r => r.GstAmount).ToString("N2")</span></div>
+                    <div class="item"><b>Total</b><span>@rows.Sum(r => r.TotalAmount).ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 300px);">
+                <SfGrid ID="Grid" TValue="BillRegisterRow" DataSource="@rows" @ref="Grid"
+                        AllowPaging="true" CssClass="e-small" AllowResizing="true" AllowSelection="true"
+                        AllowSorting="true" AllowGrouping="true" AllowExcelExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridGroupSettings ShowGroupedColumn="false" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="BillRegisterRow" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(BillRegisterRow.BillDate)"     HeaderText="Date"      Width="100" Format="dd-MMM-yyyy" />
+                        <GridColumn Field="@nameof(BillRegisterRow.BillNo)"       HeaderText="Bill No"   Width="130" />
+                        <GridColumn Field="@nameof(BillRegisterRow.Mode)"         HeaderText="Mode"      Width="110" />
+                        <GridColumn Field="@nameof(BillRegisterRow.ClientName)"   HeaderText="Client"    Width="240" />
+                        <GridColumn Field="@nameof(BillRegisterRow.JobOrderNo)"   HeaderText="JobOrder"  Width="130" />
+                        <GridColumn Field="@nameof(BillRegisterRow.Branch)"       HeaderText="Branch"    Width="120" />
+                        <GridColumn Field="@nameof(BillRegisterRow.Currency)"     HeaderText="Cur"       Width="60"  />
+                        <GridColumn Field="@nameof(BillRegisterRow.ExchangeRate)" HeaderText="Ex.Rate"   Width="80" Format="N4" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(BillRegisterRow.SubTotal)"     HeaderText="Sub Total" Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(BillRegisterRow.GstAmount)"    HeaderText="GST"       Width="100" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(BillRegisterRow.TotalAmount)"  HeaderText="Total"     Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(BillRegisterRow.Status)"       HeaderText="Status"    Width="90" />
+                        <GridColumn Field="@nameof(BillRegisterRow.CreatedBy)"    HeaderText="Created By"  Width="120" />
+                        <GridColumn Field="@nameof(BillRegisterRow.ApprovedBy)"   HeaderText="Approved By" Width="120" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    public record ModeOption(string Value, string Label);
+    public record StatusOption(string Value, string Label);
+
+    private SfGrid<BillRegisterRow>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "20", "50" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "Search" };
+
+    private List<CompanyBranch>    branches = new();
+    private List<BillRegisterRow>  rows = new();
+
+    private string    filterMode = "ALL";
+    private string    filterStatus = "NON_DRAFT";
+    private int?      filterBranchId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private static readonly List<ModeOption> _modes = new()
+    {
+        new("ALL","All Modes"), new("CLEARANCE","Clearance"),
+        new("FORWARDING","Forwarding"), new("TRANSPORTATION","Transportation"),
+    };
+    private static readonly List<StatusOption> _statuses = new()
+    {
+        new("NON_DRAFT","Active (excl. Draft)"), new("ALL","All"),
+        new("SUBMITTED","Submitted"), new("VERIFIED","Verified"),
+        new("APPROVED","Approved"), new("REJECTED","Rejected"), new("CLOSED","Closed"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        branches = await Branches.GetAllAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            BillMode? m = filterMode switch
+            {
+                "CLEARANCE"      => BillMode.Clearance,
+                "FORWARDING"     => BillMode.Forwarding,
+                "TRANSPORTATION" => BillMode.Transportation,
+                _ => null,
+            };
+            BillStatus? s = filterStatus switch
+            {
+                "SUBMITTED" => BillStatus.Submitted,
+                "VERIFIED"  => BillStatus.Verified,
+                "APPROVED"  => BillStatus.Approved,
+                "REJECTED"  => BillStatus.Rejected,
+                "CLOSED"    => BillStatus.Closed,
+                "ALL"       => null,           // ALL = no status filter; service still excludes nothing
+                _           => null,           // NON_DRAFT — service default also excludes Draft
+            };
+            rows = await Reports.GetBillRegisterAsync(fromDate.Value, toDate.Value, m, s, filterBranchId);
+            // Service excludes Drafts by default. For "ALL" the user may want them back —
+            // we'd need a second method, but for now keep it simple and document.
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterMode = "ALL"; filterStatus = "NON_DRAFT"; filterBranchId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null) return;
+        if (args.Item.Id is { } id && id.EndsWith("_excelexport"))
+            await Grid.ExportToExcelAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

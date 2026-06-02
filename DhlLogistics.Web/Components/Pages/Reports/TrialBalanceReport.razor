@@ -1,0 +1,138 @@
+@page "/reports/trial-balance"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .total-pill { display:inline-block; margin-left:14px; padding:4px 10px; border-radius:12px;
+                  font-size:12px; font-weight:700; background:#198781; color:#fff; }
+    .total-pill.balanced { background:#198781; }
+    .total-pill.unbalanced { background:#AB1921; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header d-flex align-items-center">
+            <span><b>Trial Balance</b></span>
+            @if (rows.Count > 0)
+            {
+                var pillClass = (totClosingDr == totClosingCr) ? "balanced" : "unbalanced";
+                <span class="total-pill @pillClass">
+                    @(totClosingDr == totClosingCr ? "Balanced" : "Out of balance") &mdash;
+                    Dr @totClosingDr.ToString("N2") / Cr @totClosingCr.ToString("N2")
+                </span>
+            }
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?"
+                                    DataSource="@branches" CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            <div style="height: calc(100vh - 270px);">
+                <SfGrid ID="Grid" TValue="TrialBalanceRow" DataSource="@rows" @ref="Grid"
+                        AllowPaging="true" CssClass="e-small" AllowResizing="true" AllowSelection="true"
+                        AllowSorting="true" AllowGrouping="true" AllowExcelExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridGroupSettings ShowGroupedColumn="false" Columns="@_groupBy" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="TrialBalanceRow" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(TrialBalanceRow.Group)"         HeaderText="Group"   Width="110" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.AccountCode)"   HeaderText="Code"    Width="110" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.AccountName)"   HeaderText="Account" Width="260" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.OpeningDebit)"  HeaderText="Op. Dr"   Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.OpeningCredit)" HeaderText="Op. Cr"   Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.PeriodDebit)"   HeaderText="Period Dr" Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.PeriodCredit)"  HeaderText="Period Cr" Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.ClosingDebit)"  HeaderText="Cl. Dr"   Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(TrialBalanceRow.ClosingCredit)" HeaderText="Cl. Cr"   Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private SfGrid<TrialBalanceRow>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "20", "50" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "Search" };
+    private readonly string[] _groupBy = new[] { nameof(TrialBalanceRow.Group) };
+
+    private List<CompanyBranch> branches = new();
+    private List<TrialBalanceRow> rows = new();
+
+    private int?      filterBranchId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private decimal totClosingDr => rows.Sum(r => r.ClosingDebit);
+    private decimal totClosingCr => rows.Sum(r => r.ClosingCredit);
+
+    protected override async Task OnInitializedAsync()
+    {
+        branches = await Branches.GetAllAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            rows = await Reports.GetTrialBalanceAsync(fromDate.Value, toDate.Value, filterBranchId);
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterBranchId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null) return;
+        if (args.Item.Id is { } id && id.EndsWith("_excelexport"))
+            await Grid.ExportToExcelAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

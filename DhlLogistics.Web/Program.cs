@@ -163,6 +163,9 @@ builder.Services.AddScoped<BillService>();
 builder.Services.AddScoped<VoucherService>();
 builder.Services.AddScoped<AccountHeadService>();
 
+// ── Finance reports (read-only over the above) ───────────────────────────────
+builder.Services.AddScoped<FinanceReportService>();
+
 // ── Admin Activity Report service ────────────────────────────────────────────
 builder.Services.AddScoped<ReportService>();
 

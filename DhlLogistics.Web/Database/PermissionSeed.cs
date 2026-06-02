@@ -34,6 +34,9 @@ public static class PermissionSeed
         "finance/accounts",
         "accounts/heads", "accounts/journal", "accounts/cashbank",
         "accounts/verify", "accounts/approve",
+        // Finance Reports
+        "reports/finance", "reports/ledger", "reports/trial-balance",
+        "reports/gst-output", "reports/bill-register",
         // Admin
         "admin/permissions",
     };

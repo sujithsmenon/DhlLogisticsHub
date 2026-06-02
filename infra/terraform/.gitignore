@@ -1,0 +1,22 @@
+# Terraform state — never commit
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Plans contain secrets in plain text
+*.tfplan
+
+# Local var files — secrets live here
+terraform.tfvars
+*.auto.tfvars
+
+# Local plugins / cache
+.terraform/
+.terraform.lock.hcl
+crash.log
+
+# CLI overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

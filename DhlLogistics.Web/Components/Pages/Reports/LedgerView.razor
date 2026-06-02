@@ -1,0 +1,157 @@
+@page "/reports/ledger"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject AccountHeadService AccountHeads
+@inject CompanyBranchService Branches
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .summary-strip { display:flex; flex-wrap:wrap; gap:18px; padding:8px 4px; }
+    .summary-strip .item b { display:block; font-size:11px; color:#666; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .summary-strip .item span { font-size:14px; font-weight:700; }
+    .summary-strip .item .dr { color:#198781; }
+    .summary-strip .item .cr { color:#AB1921; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Account Ledger</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-4">
+                    <label class="form-Custom-label">Account:</label>
+                    <SfDropDownList @bind-Value="filterAccountId" TItem="AccountHead" TValue="int?"
+                                    DataSource="@accounts" CssClass="e-small" ShowClearButton="true"
+                                    Placeholder="Pick an account...">
+                        <DropDownListFieldSettings Text="AccountName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?"
+                                    DataSource="@branches" CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (report is not null)
+            {
+                <div class="summary-strip">
+                    <div class="item"><b>Account</b><span>@report.AccountCode &mdash; @report.AccountName</span></div>
+                    <div class="item"><b>Group</b><span>@report.Group</span></div>
+                    <div class="item"><b>Period</b><span>@report.FromDate.ToString("dd-MMM-yyyy") &rarr; @report.ToDate.ToString("dd-MMM-yyyy")</span></div>
+                    <div class="item"><b>Opening</b><span class="@(report.OpeningBalance >= 0 ? "dr" : "cr")">@FormatBal(report.OpeningBalance)</span></div>
+                    <div class="item"><b>Period Dr</b><span class="dr">@report.PeriodDebit.ToString("N2")</span></div>
+                    <div class="item"><b>Period Cr</b><span class="cr">@report.PeriodCredit.ToString("N2")</span></div>
+                    <div class="item"><b>Closing</b><span class="@(report.ClosingBalance >= 0 ? "dr" : "cr")">@FormatBal(report.ClosingBalance)</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 300px);">
+                <SfGrid ID="Grid" TValue="LedgerEntry" DataSource="@entries" @ref="Grid" AllowPaging="true" CssClass="e-small"
+                        AllowResizing="true" AllowSelection="true" AllowSorting="true" AllowExcelExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="LedgerEntry" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(LedgerEntry.Date)"           HeaderText="Date"        Width="100" Format="dd-MMM-yyyy" />
+                        <GridColumn Field="@nameof(LedgerEntry.VoucherNo)"      HeaderText="Voucher No"  Width="130" />
+                        <GridColumn Field="@nameof(LedgerEntry.VoucherType)"    HeaderText="Type"        Width="90" />
+                        <GridColumn Field="@nameof(LedgerEntry.ContraAccount)"  HeaderText="Contra A/c"  Width="200" />
+                        <GridColumn Field="@nameof(LedgerEntry.Narration)"      HeaderText="Narration"   Width="260" />
+                        <GridColumn Field="@nameof(LedgerEntry.Reference)"      HeaderText="Reference"   Width="120" />
+                        <GridColumn Field="@nameof(LedgerEntry.Debit)"          HeaderText="Debit"       Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(LedgerEntry.Credit)"         HeaderText="Credit"      Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(LedgerEntry.RunningBalance)" HeaderText="Balance"     Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private SfGrid<LedgerEntry>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "20", "50" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "Search" };
+
+    private List<AccountHead>   accounts = new();
+    private List<CompanyBranch> branches = new();
+
+    private LedgerReport?      report;
+    private List<LedgerEntry>  entries = new();
+
+    private int?      filterAccountId;
+    private int?      filterBranchId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        accounts = (await AccountHeads.GetAllAsync()).OrderBy(a => a.AccountCode).ToList();
+        branches = await Branches.GetAllAsync();
+
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart;
+        toDate   = now;
+    }
+
+    private async Task Show()
+    {
+        if (!filterAccountId.HasValue) { Toast("Pick an account first."); return; }
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+
+        try
+        {
+            loader = true;
+            report  = await Reports.GetLedgerAsync(filterAccountId.Value, fromDate.Value, toDate.Value, filterBranchId);
+            entries = report.Entries;
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterAccountId = null; filterBranchId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        report = null; entries = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null) return;
+        if (args.Item.Id is { } id && id.EndsWith("_excelexport"))
+            await Grid.ExportToExcelAsync();
+    }
+
+    private static string FormatBal(decimal v) =>
+        v >= 0 ? $"{v:N2} Dr" : $"{-v:N2} Cr";
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

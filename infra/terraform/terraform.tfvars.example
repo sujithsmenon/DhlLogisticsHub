@@ -1,0 +1,28 @@
+###############################################################################
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is gitignored — NEVER commit secrets.
+###############################################################################
+
+# Required — DNS + GitHub
+root_domain = "pvgtlogistics.com"      # must already be a Route53 hosted zone
+subdomain   = "app"                    # final FQDN: app.pvgtlogistics.com
+github_org  = "your-github-username"
+github_repo = "DhlLogisticsHub"
+
+# Required — secrets
+jwt_signing_key        = "REPLACE-WITH-32-CHAR-RANDOM-STRING-XXXXXXXX"
+syncfusion_license_key = "Ngo9BigBOggjHTQxAR8/V1JHaF5cWWdC..."
+
+# Optional — Web Push (leave empty if not used)
+webpush_subject     = "mailto:admin@pvgtlogistics.com"
+webpush_public_key  = ""
+webpush_private_key = ""
+
+# Optional — overrides
+# region              = "ap-south-1"
+# environment         = "prod"
+# task_cpu            = 512
+# task_memory         = 1024
+# desired_count       = 2
+# db_instance_class   = "db.t4g.small"
+# db_multi_az         = true

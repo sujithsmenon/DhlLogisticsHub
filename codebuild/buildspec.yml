@@ -1,0 +1,83 @@
+# AWS CodeBuild buildspec.
+#
+# Use this if you'd rather build inside AWS (e.g. VPC-only builds, or when
+# you don't want to wire GitHub Actions). Set the following env vars on
+# the CodeBuild project (Manage → Edit → Environment → Additional configuration):
+#
+#   AWS_REGION       (e.g. ap-south-1)
+#   ECR_REPOSITORY   (e.g. dhl-logistics/web)
+#   ECS_CLUSTER      (e.g. dhl-logistics-prod-cluster)
+#   ECS_SERVICE      (e.g. dhl-logistics-prod-web)
+#   ECS_FAMILY       (e.g. dhl-logistics-prod-web)
+#   CONTAINER_NAME   (e.g. web)
+#
+# The CodeBuild service role needs the same permissions as the GitHub Actions
+# role (push to ECR, register task def, update service, pass roles).
+#
+# Trigger:
+#   - Connect CodeBuild to GitHub via CodeConnections, then create a webhook
+#     trigger on the main branch.
+#   - Or wrap in a CodePipeline with GitHub → CodeBuild → ECS Deploy stage.
+
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo "Logging in to ECR..."
+      - aws ecr get-login-password --region "$AWS_REGION" |
+          docker login --username AWS --password-stdin
+          "$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com"
+      - SHA_TAG="sha-$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)"
+      - REGISTRY="$(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com"
+      - IMAGE_URI="$REGISTRY/$ECR_REPOSITORY:$SHA_TAG"
+      - LATEST_URI="$REGISTRY/$ECR_REPOSITORY:latest"
+      - echo "Image URI will be $IMAGE_URI"
+
+  build:
+    commands:
+      - echo "Build started on $(date)"
+      - docker build -t "$IMAGE_URI" -t "$LATEST_URI" .
+
+  post_build:
+    commands:
+      - echo "Pushing image to ECR..."
+      - docker push "$IMAGE_URI"
+      - docker push "$LATEST_URI"
+
+      - echo "Rendering new task definition..."
+      - aws ecs describe-task-definition
+          --task-definition "$ECS_FAMILY"
+          --query 'taskDefinition' --output json > taskdef.json
+      - jq 'del(
+              .taskDefinitionArn, .revision, .status,
+              .requiresAttributes, .compatibilities,
+              .registeredAt, .registeredBy
+            )
+            | .containerDefinitions[0].image = "'$IMAGE_URI'"' taskdef.json > new-taskdef.json
+
+      - NEW_TD_ARN=$(aws ecs register-task-definition
+          --cli-input-json file://new-taskdef.json
+          --query 'taskDefinition.taskDefinitionArn' --output text)
+      - echo "Registered $NEW_TD_ARN"
+
+      - echo "Updating ECS service..."
+      - aws ecs update-service
+          --cluster "$ECS_CLUSTER"
+          --service "$ECS_SERVICE"
+          --task-definition "$NEW_TD_ARN"
+          --force-new-deployment > /dev/null
+
+      - echo "Waiting for service to stabilise..."
+      - aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+      - echo "Deploy complete."
+
+artifacts:
+  files:
+    - taskdef.json
+    - new-taskdef.json
+  discard-paths: yes
+
+cache:
+  paths:
+    - /root/.nuget/packages/**/*
