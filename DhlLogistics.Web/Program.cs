@@ -257,9 +257,26 @@ app.UseStaticFiles();
 
 app.UseCors("AllowAll");
 
-app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
+
+
+//testing the connection _framework
+
+app.MapGet("/diag", () =>
+{
+    var root = AppContext.BaseDirectory;
+
+    return Results.Ok(new
+    {
+        Root = root,
+        FrameworkExists =
+            Directory.Exists(Path.Combine(root, "_framework")),
+        Files = Directory.GetFiles(root, "*", SearchOption.TopDirectoryOnly)
+    });
+});
+//end testing websoket
 
 // ── Warm-up ping ────────────────────────────────────────────────────────────
 // Mobile app calls this anonymously on launch to spin up the Render free-tier
@@ -268,7 +285,7 @@ app.UseAuthorization();
 // Render boots, which is exactly the wait we're trying to move off the UI path.
 app.MapGet("/api/ping", () => Results.Ok(new { ok = true, at = DateTime.UtcNow }))
    .AllowAnonymous();
-
+app.MapGet("/health", () => Results.Ok("OK"));
 // ── Diagnostic endpoint (TEMP — remove after deployment is debugged) ────────
 // Lists what files actually exist on disk in the deployed container so we can
 // compare against the local publish output and isolate why static files 404.
