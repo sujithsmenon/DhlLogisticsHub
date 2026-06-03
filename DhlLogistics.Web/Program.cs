@@ -19,10 +19,10 @@ Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(
     "Ngo9BigBOggjHTQxAR8/V1JHaF5cWWdCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdlWXped3RVQmheU0R3V0VWYEo=");
 
 // ── Forwarded headers (Render's load balancer terminates TLS) ───────────────
-// MUST be configured via the options pattern so the *internal* allowlists
-// (including .NET 10's new KnownIPNetworks) are all cleared — clearing only
-// KnownNetworks/KnownProxies in the inline middleware options misses one in
-// .NET 10 and the headers get silently ignored, breaking the Blazor circuit.
+// Configured via the options pattern so the internal allowlists
+// (KnownNetworks / KnownProxies) are cleared — otherwise the forwarded
+// X-Forwarded-* headers get silently ignored, breaking the Blazor circuit
+// behind the load balancer.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
@@ -37,9 +37,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 //   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=...;Port=6543;Database=postgres;Username=postgres.<projectref>;Password=...;SSL Mode=Require;Trust Server Certificate=true"
 // In production, set env var ConnectionStrings__DefaultConnection.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-           .ConfigureWarnings(w => w.Ignore(
-               Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // ── Identity (cookie auth for Blazor) ────────────────────────────────────────
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
@@ -345,10 +343,8 @@ app.MapHub<NotificationHub>("/notificationhub");
 app.MapRazorPages();
 
 // ── Blazor ────────────────────────────────────────────────────────────────────
-// MapStaticAssets registers the endpoint-based static asset routes that
-// MapRazorComponents/AddInteractiveServerRenderMode depends on in .NET 10.
-// UseStaticFiles (above) is the middleware fallback. Having both is safe.
-app.MapStaticAssets();
+// Static assets are served by UseStaticFiles (above). .NET 8 has no
+// MapStaticAssets endpoint-routing API, so MapRazorComponents is mapped directly.
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

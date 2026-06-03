@@ -97,14 +97,14 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 }
 
 .sidebar-title {
-    color: #fff;
+    color: darkgoldenrod;
     font-size: 13px;
     font-weight: 600;
     line-height: 1.3;
 }
 .sidebar-sub {
-    color: rgba(255,255,255,.4);
-    font-size: 10px;
+    color: cornflowerblue;
+    font-size: 11px;
 }
 
 .sidebar-section {
@@ -521,7 +521,7 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 .e-grid .e-gridheader .e-headercell,
 .e-grid .e-gridheader .e-headercell .e-headercelldiv,
 .e-grid .e-gridheader .e-filterbarcell {
-    background-color: #e6f4f3 !important;
+   /* background-color: #e6f4f3 !important;*/
     color: #0E2A47 !important;
 }
 .e-grid .e-gridheader .e-sortfilterdiv { color: #198781; }

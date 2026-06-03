@@ -9,15 +9,15 @@
     <PackageReference Include="FirebaseAdmin" Version="3.5.0" />
     <PackageReference Include="itext7" Version="9.6.0" />
     <PackageReference Include="MailKit" Version="4.16.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.6" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.27" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.27" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.10" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.6">
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.27" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.27">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
     <PackageReference Include="Syncfusion.Blazor.Buttons" Version="33.1.49" />
     <PackageReference Include="Syncfusion.Blazor.Calendars" Version="33.1.49" />
     <PackageReference Include="Syncfusion.Blazor.Charts" Version="33.1.49" />
@@ -38,7 +38,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>

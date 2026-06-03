@@ -4,7 +4,7 @@
 #
 # Design choices:
 #   - Multi-stage: SDK image only used for build; runtime image is small.
-#   - Runtime base = chiseled `aspnet:10.0` — ~100 MB vs ~210 MB for the full
+#   - Runtime base = chiseled `aspnet:8.0` — ~100 MB vs ~210 MB for the full
 #     Debian image, no shell, no package manager, smaller CVE surface.
 #   - Non-root user (UID 1654, "app") baked into the chiseled image.
 #   - Listens on 8080 (matches ECS task definition + ALB target group).
@@ -18,7 +18,7 @@
 # ───────────────────────────────────────────────────────────────────────────
 # Stage 1 — Restore + build
 # ───────────────────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
@@ -49,7 +49,7 @@ RUN dotnet publish DhlLogistics.Web/DhlLogistics.Web.csproj \
 # ───────────────────────────────────────────────────────────────────────────
 # Stage 3 — Runtime (chiseled image, ~100 MB)
 # ───────────────────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS runtime
 WORKDIR /app
 
 # ECS sets these via the task definition, but defaults are useful for local runs.

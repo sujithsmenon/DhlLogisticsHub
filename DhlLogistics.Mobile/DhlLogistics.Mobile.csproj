@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
-        <TargetFrameworks>net10.0-android</TargetFrameworks>
-        <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+        <TargetFrameworks>net8.0-android</TargetFrameworks>
+        <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net8.0-ios;net8.0-maccatalyst</TargetFrameworks>
         <!-- Windows MAUI TFM intentionally omitted — needs the MSVC C++ workload (VS "Desktop development with C++").
-             Re-add net10.0-windows10.0.19041.0 here if you want a Windows desktop build of the app. -->
+             Re-add net8.0-windows10.0.19041.0 here if you want a Windows desktop build of the app. -->
 
         <!-- Note for MacCatalyst:
             The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -71,10 +71,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.27" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
     </ItemGroup>
 
     <!-- Firebase Cloud Messaging — Android only -->
@@ -88,7 +88,7 @@
 
     <!-- ── Android Release signing (Play Store) ────────────────────────────────
          Build with the AAB target Play Store wants:
-           dotnet publish DhlLogistics.Mobile -f net10.0-android -c Release \
+           dotnet publish DhlLogistics.Mobile -f net8.0-android -c Release \
              -p:AndroidKeyStore=true \
              -p:AndroidSigningKeyStore=$env:KEYSTORE_PATH \
              -p:AndroidSigningKeyAlias=$env:KEYSTORE_ALIAS \
