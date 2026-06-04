@@ -60,9 +60,8 @@ resource "aws_iam_role" "task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
 }
 
-# S3 access (AWSSDK.S3 — your bucket "dhl-logistics-pdfs").
-# Scope tightly to the named bucket if you create it; the loose pattern below
-# is fine for an early deployment.
+# S3 access (AWSSDK.S3 — the PDF bucket created in s3.tf, name = var.s3_bucket_name).
+# Scoped tightly to that one bucket and its objects.
 resource "aws_iam_role_policy" "task_s3" {
   name = "${local.name}-task-s3"
   role = aws_iam_role.task.id
@@ -79,8 +78,8 @@ resource "aws_iam_role_policy" "task_s3" {
           "s3:DeleteObject",
         ]
         Resource = [
-          "arn:aws:s3:::dhl-logistics-pdfs",
-          "arn:aws:s3:::dhl-logistics-pdfs/*",
+          aws_s3_bucket.pdfs.arn,
+          "${aws_s3_bucket.pdfs.arn}/*",
         ]
       },
     ]

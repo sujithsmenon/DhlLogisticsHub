@@ -8,7 +8,8 @@
 #     Debian image, no shell, no package manager, smaller CVE surface.
 #   - Non-root user (UID 1654, "app") baked into the chiseled image.
 #   - Listens on 8080 (matches ECS task definition + ALB target group).
-#   - HEALTHCHECK pings /api/ping (already exists in Program.cs).
+#   - No Docker HEALTHCHECK: the chiseled image has no shell/curl. Health is
+#     enforced by the ECS ALB target group (HTTP GET /api/ping). See bottom.
 #   - dotnet restore is a separate layer so adding source code doesn't bust
 #     the NuGet cache.
 #

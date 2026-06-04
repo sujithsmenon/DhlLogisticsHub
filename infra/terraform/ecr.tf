@@ -14,7 +14,7 @@ resource "aws_ecr_repository" "web" {
 }
 
 # Keep the last 20 SHA-tagged images, plus :latest. Older = deleted to control
-# storage cost ($0.10/GB/month — a single .NET 10 image is ~140 MB).
+# storage cost ($0.10/GB/month — a single .NET 8 chiseled image is ~110 MB).
 resource "aws_ecr_lifecycle_policy" "web" {
   repository = aws_ecr_repository.web.name
 

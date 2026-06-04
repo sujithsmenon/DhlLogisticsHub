@@ -3,26 +3,39 @@
 # terraform.tfvars is gitignored — NEVER commit secrets.
 ###############################################################################
 
-# Required — DNS + GitHub
-root_domain = "pvgtlogistics.com"      # must already be a Route53 hosted zone
-subdomain   = "app"                    # final FQDN: app.pvgtlogistics.com
-github_org  = "your-github-username"
+# ── DNS + GitHub ─────────────────────────────────────────────────────────────
+root_domain         = "pvgt.co.in" # must already be a Route 53 PUBLIC hosted zone
+subdomain           = ""           # "" = serve on the apex (https://pvgt.co.in)
+                                   #      set e.g. "app" for https://app.pvgt.co.in
+enable_www_redirect = true         # also create www.pvgt.co.in → 301 → apex (apex only)
+
+github_org  = "sujithsmenon"
 github_repo = "DhlLogisticsHub"
 
-# Required — secrets
-jwt_signing_key        = "REPLACE-WITH-32-CHAR-RANDOM-STRING-XXXXXXXX"
-syncfusion_license_key = "Ngo9BigBOggjHTQxAR8/V1JHaF5cWWdC..."
+# ── Required secret ──────────────────────────────────────────────────────────
+jwt_signing_key = "REPLACE-WITH-32+CHAR-RANDOM-STRING"
 
-# Optional — Web Push (leave empty if not used)
-webpush_subject     = "mailto:admin@pvgtlogistics.com"
-webpush_public_key  = ""
-webpush_private_key = ""
+# ── Optional secrets (leave empty to disable that feature) ───────────────────
+syncfusion_license_key = "Ngo9BigBOggjHTQxAR8/V1JHaF5cWWdCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdlWXped3RVQmheU0R3V0VWYEo=" # paste your Syncfusion Blazor license key
+webpush_subject        = "mailto:admin@pvgt.co.in"
+webpush_public_key     = ""
+webpush_private_key    = ""
 
-# Optional — overrides
-# region              = "ap-south-1"
-# environment         = "prod"
-# task_cpu            = 512
-# task_memory         = 1024
-# desired_count       = 2
-# db_instance_class   = "db.t4g.small"
-# db_multi_az         = true
+# Email ingestion (IMAP poll → auto-creates AWB shipments). Empty = disabled.
+email_username = "pvgtindia@gmail.com" # e.g. ops@pvgt.co.in
+email_password = "wapy knrp eokk hoif" # Gmail app-password or mailbox password
+# email_imap_host             = "imap.gmail.com"
+# email_imap_port             = 993
+# email_poll_interval_minutes = 5
+
+# ── S3 (PDF storage) — bucket name must be GLOBALLY unique ───────────────────
+# s3_bucket_name = "pvgt-logistics-pdfs"
+
+# ── Optional overrides ───────────────────────────────────────────────────────
+# region            = "ap-south-1"
+# environment       = "prod"
+# task_cpu          = 512
+# task_memory       = 1024
+# desired_count     = 2
+# db_instance_class = "db.t4g.small"
+# db_multi_az       = true

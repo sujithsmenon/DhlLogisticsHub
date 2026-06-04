@@ -31,14 +31,15 @@ variable "az_count" {
 
 # ── Domain / DNS ───────────────────────────────────────────────────────────
 variable "root_domain" {
-  description = "Root domain — must already have a Route 53 hosted zone in this account (e.g. pvgtlogistics.com)"
+  description = "Root domain — must already have a Route 53 hosted zone in this account"
   type        = string
+  default     = "pvgt.co.in"
 }
 
 variable "subdomain" {
-  description = "Subdomain to serve the app on. The full FQDN becomes <subdomain>.<root_domain>. Use '' to use the apex."
+  description = "Subdomain to serve the app on. The full FQDN becomes <subdomain>.<root_domain>. Use '' (empty) to serve on the apex/root domain."
   type        = string
-  default     = "app"
+  default     = ""
 }
 
 # ── Container ──────────────────────────────────────────────────────────────
@@ -165,9 +166,58 @@ variable "log_retention_days" {
 variable "github_org" {
   description = "Your GitHub org / username (the owner segment of the repo URL)"
   type        = string
+  default     = "sujithsmenon"
 }
 
 variable "github_repo" {
   description = "Repo name (without owner)"
   type        = string
+  default     = "DhlLogisticsHub"
+}
+
+# ── Domain extras ────────────────────────────────────────────────────────────
+variable "enable_www_redirect" {
+  description = "When serving the apex (subdomain=\"\"), also provision www.<root_domain> and 301-redirect it to the apex. Ignored when a subdomain is set."
+  type        = bool
+  default     = true
+}
+
+# ── S3 (PDF storage used by AWSSDK.S3) ───────────────────────────────────────
+variable "s3_bucket_name" {
+  description = "Globally-unique S3 bucket name for PDF storage. Must match appsettings 'Aws:BucketName' / the task-def Aws__BucketName env var."
+  type        = string
+  default     = "dhl-logistics-pdfs"
+}
+
+# ── Email ingestion (IMAP polling → auto-creates AWB shipments) ──────────────
+variable "email_imap_host" {
+  description = "IMAP host for the mailbox the app polls"
+  type        = string
+  default     = "imap.gmail.com"
+}
+
+variable "email_imap_port" {
+  description = "IMAP port (993 = implicit TLS)"
+  type        = number
+  default     = 993
+}
+
+variable "email_poll_interval_minutes" {
+  description = "How often EmailPollingService checks for new mail"
+  type        = number
+  default     = 5
+}
+
+variable "email_username" {
+  description = "IMAP mailbox username. Leave empty to disable email ingestion in prod."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "email_password" {
+  description = "IMAP mailbox password / app-password. Stored in Secrets Manager, never committed."
+  type        = string
+  sensitive   = true
+  default     = ""
 }

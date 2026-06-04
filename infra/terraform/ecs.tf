@@ -60,25 +60,32 @@ resource "aws_ecs_task_definition" "web" {
       ]
 
       environment = [
-        { name = "ASPNETCORE_URLS",          value = "http://0.0.0.0:${var.container_port}" },
-        { name = "ASPNETCORE_ENVIRONMENT",   value = "Production" },
+        { name = "ASPNETCORE_URLS",             value = "http://0.0.0.0:${var.container_port}" },
+        { name = "ASPNETCORE_ENVIRONMENT",      value = "Production" },
         { name = "DOTNET_RUNNING_IN_CONTAINER", value = "true" },
-        { name = "Aws__Region",              value = var.region },
-        { name = "Aws__BucketName",          value = "dhl-logistics-pdfs" },
-        { name = "Jwt__Issuer",              value = "DhlLogisticsHub" },
-        { name = "Jwt__Audience",            value = "DhlLogisticsApp" },
+        { name = "Aws__Region",                 value = var.region },
+        { name = "Aws__BucketName",             value = var.s3_bucket_name },
+        { name = "Jwt__Issuer",                 value = "DhlLogisticsHub" },
+        { name = "Jwt__Audience",               value = "DhlLogisticsApp" },
+        { name = "EmailSettings__ImapHost",            value = var.email_imap_host },
+        { name = "EmailSettings__ImapPort",            value = tostring(var.email_imap_port) },
+        { name = "EmailSettings__PollIntervalMinutes", value = tostring(var.email_poll_interval_minutes) },
       ]
 
       # Secrets pulled at task start from Secrets Manager. The value in each
       # `valueFrom` is "<secret-arn>:<json-key>::" for JSON-blob secrets, or
       # just "<secret-arn>" for plain-string secrets.
+      # ECS secret entries support only { name, valueFrom }. For the JSON-blob
+      # "app" secret, append ":<json-key>::" to pull a single key out.
       secrets = [
         { name = "ConnectionStrings__DefaultConnection", valueFrom = aws_secretsmanager_secret.db_url.arn },
-        { name = "Jwt__Key",                value = null, valueFrom = "${aws_secretsmanager_secret.app.arn}:Jwt__Key::" },
-        { name = "Syncfusion__LicenseKey",  value = null, valueFrom = "${aws_secretsmanager_secret.app.arn}:Syncfusion__LicenseKey::" },
-        { name = "WebPush__Subject",        value = null, valueFrom = "${aws_secretsmanager_secret.app.arn}:WebPush__Subject::" },
-        { name = "WebPush__PublicKey",      value = null, valueFrom = "${aws_secretsmanager_secret.app.arn}:WebPush__PublicKey::" },
-        { name = "WebPush__PrivateKey",     value = null, valueFrom = "${aws_secretsmanager_secret.app.arn}:WebPush__PrivateKey::" },
+        { name = "Jwt__Key",                valueFrom = "${aws_secretsmanager_secret.app.arn}:Jwt__Key::" },
+        { name = "Syncfusion__LicenseKey",  valueFrom = "${aws_secretsmanager_secret.app.arn}:Syncfusion__LicenseKey::" },
+        { name = "WebPush__Subject",        valueFrom = "${aws_secretsmanager_secret.app.arn}:WebPush__Subject::" },
+        { name = "WebPush__PublicKey",      valueFrom = "${aws_secretsmanager_secret.app.arn}:WebPush__PublicKey::" },
+        { name = "WebPush__PrivateKey",     valueFrom = "${aws_secretsmanager_secret.app.arn}:WebPush__PrivateKey::" },
+        { name = "EmailSettings__Username", valueFrom = "${aws_secretsmanager_secret.app.arn}:EmailSettings__Username::" },
+        { name = "EmailSettings__Password", valueFrom = "${aws_secretsmanager_secret.app.arn}:EmailSettings__Password::" },
       ]
 
       logConfiguration = {
@@ -90,18 +97,11 @@ resource "aws_ecs_task_definition" "web" {
         }
       }
 
-      # Container-level health check (independent of ALB). Uses /api/ping.
-      # ECS marks the task UNHEALTHY if this fails and replaces it.
-      healthCheck = {
-        command     = ["CMD-SHELL", "wget -q --spider http://localhost:${var.container_port}/api/ping || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 30
-      }
-      # NB: the chiseled base image has no wget. If you use it, REMOVE this
-      # block and rely on the ALB target-group health check, which already
-      # covers replacement of unhealthy tasks.
+      # No container-level healthCheck: the chiseled runtime image has no shell,
+      # so CMD-SHELL/wget/curl are unavailable. Task health is enforced by the
+      # ALB target group (HTTP GET /api/ping in alb.tf), which already drains and
+      # replaces unhealthy tasks. Adding a wget healthCheck here would fail every
+      # probe on the chiseled image and put ECS into a task kill-loop.
 
       stopTimeout = 30   # gives Blazor SignalR circuits time to drain
     }

@@ -15,8 +15,13 @@ using Syncfusion.Blazor;
 
 var builder = WebApplication.CreateBuilder(args);
 
-Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(
-    "Ngo9BigBOggjHTQxAR8/V1JHaF5cWWdCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdlWXped3RVQmheU0R3V0VWYEo=");
+// Syncfusion license key is read from configuration (key "Syncfusion:LicenseKey").
+// Production: ECS injects it from AWS Secrets Manager. Development: set it with
+//   dotnet user-secrets set "Syncfusion:LicenseKey" "<your-key>"
+// Never hardcode the key — a committed key is a leaked key.
+var syncfusionLicenseKey = builder.Configuration["Syncfusion:LicenseKey"];
+if (!string.IsNullOrWhiteSpace(syncfusionLicenseKey))
+    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(syncfusionLicenseKey);
 
 // ── Forwarded headers (Render's load balancer terminates TLS) ───────────────
 // Configured via the options pattern so the internal allowlists
@@ -190,8 +195,11 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-    const string adminEmail = "admin@dhl.com";
-    const string adminPassword = "Admin@1234";
+    // Seed admin credentials come from configuration, not source. Override in
+    // production via env vars Seed__AdminEmail / Seed__AdminPassword (e.g. from
+    // Secrets Manager) and change the password after first login.
+    var adminEmail    = builder.Configuration["Seed:AdminEmail"]    ?? "admin@dhl.com";
+    var adminPassword = builder.Configuration["Seed:AdminPassword"] ?? "Admin@1234";
     if (await userManager.FindByEmailAsync(adminEmail) is null)
     {
         var admin = new AppUser

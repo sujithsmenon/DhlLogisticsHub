@@ -46,10 +46,12 @@ resource "aws_secretsmanager_secret" "app" {
 resource "aws_secretsmanager_secret_version" "app" {
   secret_id = aws_secretsmanager_secret.app.id
   secret_string = jsonencode({
-    "Jwt__Key"             = var.jwt_signing_key
-    "Syncfusion__LicenseKey" = var.syncfusion_license_key
-    "WebPush__Subject"     = var.webpush_subject
-    "WebPush__PublicKey"   = var.webpush_public_key
-    "WebPush__PrivateKey"  = var.webpush_private_key
+    "Jwt__Key"                = var.jwt_signing_key
+    "Syncfusion__LicenseKey"  = var.syncfusion_license_key
+    "WebPush__Subject"        = var.webpush_subject
+    "WebPush__PublicKey"      = var.webpush_public_key
+    "WebPush__PrivateKey"     = var.webpush_private_key
+    "EmailSettings__Username" = var.email_username
+    "EmailSettings__Password" = var.email_password
   })
 }

@@ -23,3 +23,19 @@ resource "aws_route53_record" "app" {
     evaluate_target_health = true
   }
 }
+
+# www.<root_domain> → same ALB; the ALB 301-redirects it to the apex
+# (see aws_lb_listener_rule.www_redirect in alb.tf). Only created when serving
+# the apex with the www-redirect toggle on.
+resource "aws_route53_record" "www" {
+  count   = local.enable_www ? 1 : 0
+  zone_id = data.aws_route53_zone.root.zone_id
+  name    = local.www_fqdn
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.main.dns_name
+    zone_id                = aws_lb.main.zone_id
+    evaluate_target_health = true
+  }
+}

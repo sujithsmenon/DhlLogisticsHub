@@ -3,8 +3,9 @@
 ###############################################################################
 
 resource "aws_acm_certificate" "alb" {
-  domain_name       = local.fqdn
-  validation_method = "DNS"
+  domain_name               = local.fqdn
+  subject_alternative_names = local.cert_sans   # www.<root_domain> when serving the apex
+  validation_method         = "DNS"
 
   lifecycle {
     create_before_destroy = true

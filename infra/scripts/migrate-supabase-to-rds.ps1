@@ -59,10 +59,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Verify pg_dump is on PATH.
-$pgDump    = (Get-Command pg_dump    -ErrorAction SilentlyContinue)?.Source
-$pgRestore = (Get-Command pg_restore -ErrorAction SilentlyContinue)?.Source
-$psql      = (Get-Command psql       -ErrorAction SilentlyContinue)?.Source
+# Verify pg_dump is on PATH. (.Source on $null is null-safe in non-strict mode,
+# so this works in both Windows PowerShell 5.1 and PowerShell 7+. Avoid the
+# PS7-only ?. operator here — it's a parse error under 5.1.)
+$pgDump    = (Get-Command pg_dump    -ErrorAction SilentlyContinue).Source
+$pgRestore = (Get-Command pg_restore -ErrorAction SilentlyContinue).Source
+$psql      = (Get-Command psql       -ErrorAction SilentlyContinue).Source
 if (-not $pgDump -or -not $psql) {
     Write-Host "PostgreSQL client tools not on PATH." -ForegroundColor Red
     Write-Host "Install Postgres 16 client, then add 'C:\Program Files\PostgreSQL\16\bin' to PATH."

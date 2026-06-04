@@ -82,3 +82,31 @@ resource "aws_lb_listener" "https" {
     target_group_arn = aws_lb_target_group.web.arn
   }
 }
+
+# ── www → apex 301 redirect ──────────────────────────────────────────────────
+# When serving the apex, requests with Host: www.<root_domain> get a permanent
+# redirect to https://<root_domain>/<same-path>. www-over-HTTP hits the port-80
+# listener first (→ HTTPS, host preserved), then this rule. Path/query preserved.
+resource "aws_lb_listener_rule" "www_redirect" {
+  count        = local.enable_www ? 1 : 0
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 10
+
+  condition {
+    host_header {
+      values = [local.www_fqdn]
+    }
+  }
+
+  action {
+    type = "redirect"
+    redirect {
+      host        = var.root_domain
+      path        = "/#{path}"
+      query       = "#{query}"
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
