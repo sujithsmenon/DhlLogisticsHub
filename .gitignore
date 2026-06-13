@@ -373,3 +373,7 @@ currentprojectpopupwindowlook.png
 
 # Claude Code working dir
 .claude/
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

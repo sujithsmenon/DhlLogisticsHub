@@ -37,12 +37,58 @@
     <Folder Include="wwwroot\js\" />
   </ItemGroup>
 
+  <!-- Elastic Beanstalk (Windows / IIS platform) deployment manifest. Must sit at
+       the root of the publish bundle so EB's enact step deploys the app to IIS
+       instead of failing with "Could not find file 'C:\staging\manifest.xml'".
+       Use Update (not Include): the SDK already picks the file up as a default
+       Content item, so Include would duplicate it (build error NETSDK1022). Update
+       just sets the publish metadata on the existing item. -->
+  <ItemGroup>
+    <Content Update="aws-windows-deployment-manifest.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Elastic Beanstalk .ebextensions: publish to the bundle ROOT so EB processes
+       them on every instance (installs the IIS WebSocket feature). The SDK's default
+       item globs don't track this dot-folder, so there is no default item to Update —
+       Include creates the Content item explicitly (safe: nothing to duplicate, so no
+       NETSDK1022). CopyToPublishDirectory preserves the .ebextensions\ relative path
+       into the publish/bundle root. -->
+  <ItemGroup>
+    <Content Include=".ebextensions\**\*">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Deployment-manifest hook scripts (install-websockets.ps1). Publish Scripts\**
+       to the bundle ROOT so the manifest's preInstall/postInstall can find them.
+       A .ps1 in a non-dot folder is a default None item, so Update both item types
+       (duplicate-safe): whichever the file belongs to gets the publish metadata. -->
+  <ItemGroup>
+    <None Update="Scripts\**\*">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <Content Update="Scripts\**\*">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>a8d2f999-49bb-427f-92f6-1da5e2fd0c57</UserSecretsId>
+    <!-- Local publish output and EB bundle staging live under the project root.
+         Exclude them from every default item glob so a leftover publish/ folder
+         doesn't pollute the next build (e.g. BLAZOR106 from a stale *.razor.js,
+         or duplicate appsettings.json). They are pure build output. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;eb_bundle\**</DefaultItemExcludes>
   </PropertyGroup>
 
 </Project>

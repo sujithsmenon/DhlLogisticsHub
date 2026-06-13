@@ -15,19 +15,14 @@ using Syncfusion.Blazor;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Syncfusion license key is read from configuration (key "Syncfusion:LicenseKey").
-// Production: ECS injects it from AWS Secrets Manager. Development: set it with
-//   dotnet user-secrets set "Syncfusion:LicenseKey" "<your-key>"
-// Never hardcode the key — a committed key is a leaked key.
-var syncfusionLicenseKey = builder.Configuration["Syncfusion:LicenseKey"];
-if (!string.IsNullOrWhiteSpace(syncfusionLicenseKey))
-    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(syncfusionLicenseKey);
+// Syncfusion license registration and JWT key validation run after the host is
+// built (see below) so they can use the DI ILogger rather than Console.WriteLine.
 
-// ── Forwarded headers (Render's load balancer terminates TLS) ───────────────
-// Configured via the options pattern so the internal allowlists
-// (KnownNetworks / KnownProxies) are cleared — otherwise the forwarded
-// X-Forwarded-* headers get silently ignored, breaking the Blazor circuit
-// behind the load balancer.
+// ── Forwarded headers (upstream proxy / load balancer terminates TLS) ───────
+// On AWS the ALB (or an IIS HTTPS binding acting as reverse proxy) forwards
+// X-Forwarded-Proto/Host. Clearing the KnownNetworks / KnownProxies allowlists is
+// required or the forwarded headers are silently dropped — which breaks both the
+// Blazor circuit and HTTPS scheme detection behind the proxy.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
@@ -174,6 +169,37 @@ builder.Services.AddScoped<ReportService>();
 
 var app = builder.Build();
 
+// ── Syncfusion license registration (Task 2) ──────────────────────────────────
+// Read from configuration. Reading the key "Syncfusion:LicenseKey" automatically
+// covers BOTH forms: the appsettings.json key "Syncfusion:LicenseKey" AND the
+// environment variable "Syncfusion__LicenseKey" (ASP.NET Core maps __ → :). A
+// missing key only downgrades the UI to a trial banner — it must never crash.
+var syncfusionKey = app.Configuration["Syncfusion:LicenseKey"];
+if (!string.IsNullOrWhiteSpace(syncfusionKey))
+{
+    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(syncfusionKey);
+    app.Logger.LogInformation("Syncfusion license registered.");
+}
+else
+{
+    app.Logger.LogWarning("Syncfusion license key missing. Components will render with a trial banner.");
+}
+
+// ── JWT signing key validation (Task 3) ───────────────────────────────────────
+// The repo ships a placeholder key; production MUST override it via the Jwt__Key
+// environment variable. A short or placeholder key lets anyone forge bearer tokens
+// and impersonate any role. Logged as Critical (never thrown) so a misconfigured
+// deploy still boots and the warning is visible in the IIS stdout / EB logs.
+var jwtKey = app.Configuration["Jwt:Key"];
+var jwtKeyIsPlaceholder = !string.IsNullOrEmpty(jwtKey)
+    && jwtKey.StartsWith("CHANGE-THIS", StringComparison.OrdinalIgnoreCase);
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32 || jwtKeyIsPlaceholder)
+{
+    app.Logger.LogCritical(
+        "JWT signing key is missing, shorter than 32 characters, or still the committed placeholder. " +
+        "Mobile/API tokens are INSECURE until Jwt__Key is set to a strong secret. The application will continue running.");
+}
+
 // ── Firebase Admin SDK (FCM) ──────────────────────────────────────────────────
 // Place your firebase-adminsdk.json (downloaded from Firebase console) in the
 // project root and set "Firebase:CredentialFile" in appsettings.json.
@@ -248,11 +274,24 @@ app.UseForwardedHeaders();
 // MapRazorComponents but enabling explicitly avoids any race with hub mapping.
 app.UseWebSockets();
 
-// Render terminates TLS at the edge and forwards plain HTTP to the container,
-// so UseHttpsRedirection() inside the container would loop. Only enable it
-// outside containers (i.e. local dev).
-if (!app.Environment.IsProduction() || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")))
+// ── HTTPS enforcement (Task 1) ────────────────────────────────────────────────
+// HSTS in every non-Development environment. The Strict-Transport-Security header
+// is ignored by browsers when received over plain HTTP, so emitting it is safe even
+// while the environment is still HTTP-only — it simply activates once TLS is live.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+// Config-driven HTTPS redirect. Default false (appsettings.Production.json) so the
+// current HTTP-only environment keeps working; enabling it before an HTTPS listener
+// (ALB+ACM or IIS binding) exists would 307-loop to an unreachable https:// URL.
+// Set the EB env var Security__RequireHttps=true the moment TLS is in front.
+var requireHttps = app.Configuration.GetValue<bool>("Security:RequireHttps");
+if (requireHttps)
+{
     app.UseHttpsRedirection();
+}
 
 // Serve wwwroot/* + _framework/* (Blazor runtime) + _content/* (RCL assets).
 // Using UseStaticFiles (the .NET 8 / CBM-compatible pattern) instead of
@@ -268,33 +307,39 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 
-//testing the connection _framework
-
-app.MapGet("/diag", () =>
+// ── Diagnostic endpoints (Development only) ─────────────────────────────────
+// These expose the on-disk file layout and must NOT be reachable in production
+// (information disclosure). Gated to the Development environment so they vanish
+// from the deployed app entirely.
+if (app.Environment.IsDevelopment())
 {
-    var root = AppContext.BaseDirectory;
-
-    return Results.Ok(new
+    app.MapGet("/diag", () =>
     {
-        Root = root,
-        FrameworkExists =
-            Directory.Exists(Path.Combine(root, "_framework")),
-        Files = Directory.GetFiles(root, "*", SearchOption.TopDirectoryOnly)
-    });
-});
-//end testing websoket
+        var root = AppContext.BaseDirectory;
 
-// ── Warm-up ping ────────────────────────────────────────────────────────────
-// Mobile app calls this anonymously on launch to spin up the Render free-tier
-// container BEFORE the user reaches a data-loading screen. Returns instantly
-// once the container is warm; the first call after idle takes ~30-45s as
-// Render boots, which is exactly the wait we're trying to move off the UI path.
+        return Results.Ok(new
+        {
+            Root = root,
+            FrameworkExists =
+                Directory.Exists(Path.Combine(root, "_framework")),
+            Files = Directory.GetFiles(root, "*", SearchOption.TopDirectoryOnly)
+        });
+    });
+}
+
+// ── Warm-up / liveness ping ─────────────────────────────────────────────────
+// The mobile app calls this anonymously on launch to warm the app before the
+// first data-loading screen. Also serves as a lightweight liveness probe for the
+// EB / ALB health check (returns instantly once the worker process is up).
 app.MapGet("/api/ping", () => Results.Ok(new { ok = true, at = DateTime.UtcNow }))
    .AllowAnonymous();
 app.MapGet("/health", () => Results.Ok("OK"));
-// ── Diagnostic endpoint (TEMP — remove after deployment is debugged) ────────
-// Lists what files actually exist on disk in the deployed container so we can
-// compare against the local publish output and isolate why static files 404.
+// ── File-tree diagnostic (Development only) ─────────────────────────────────
+// Lists what files exist on disk so the local publish output can be compared
+// against the deployed app. AllowAnonymous + full path disclosure means this must
+// never run in production; gated to Development so it is not mapped there at all.
+if (app.Environment.IsDevelopment())
+{
 app.MapGet("/_diag/files", () =>
 {
     var contentRoot = AppContext.BaseDirectory;
@@ -328,6 +373,7 @@ app.MapGet("/_diag/files", () =>
     report.Append(Tree(webRoot, 0, 3));
     return Results.Text(report.ToString(), "text/plain");
 }).AllowAnonymous();
+}
 
 // ── API endpoints ─────────────────────────────────────────────────────────────
 app.MapAuthEndpoints();

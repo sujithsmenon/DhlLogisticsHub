@@ -89,8 +89,12 @@ public static class NotificationEndpoints
         });
 
         // GET /api/notifications/vapid-public-key  (needed by browser to subscribe)
+        // Return PLAIN TEXT, not Results.Ok (which JSON-encodes the string and wraps it
+        // in quotes). The browser reads this with response.text() and feeds it straight
+        // to atob(); JSON quotes break the "GENERATE…" placeholder guard in dhlpush.js
+        // and corrupt a real base64url key.
         app.MapGet("/api/notifications/vapid-public-key",
-            (IConfiguration cfg) => Results.Ok(cfg["WebPush:PublicKey"] ?? string.Empty))
+            (IConfiguration cfg) => Results.Text(cfg["WebPush:PublicKey"] ?? string.Empty))
            .AllowAnonymous();
     }
 

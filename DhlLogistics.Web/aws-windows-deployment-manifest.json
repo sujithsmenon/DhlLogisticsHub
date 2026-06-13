@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "deployments": {
+    "aspNetCoreWeb": [
+      {
+        "name": "dhl-logistics-web",
+        "scripts": {
+          "preInstall":  { "file": "Scripts\\install-websockets.ps1" },
+          "postInstall": { "file": "Scripts\\install-websockets.ps1" }
+        },
+        "parameters": {
+          "appBundle": ".",
+          "iisPath": "/",
+          "iisWebSite": "Default Web Site"
+        }
+      }
+    ]
+  }
+}
