@@ -39,6 +39,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// ── Navigation menu store (LOCAL SQL Server, separate from the Postgres app DB) ─
+// The sidebar is data-driven from a Menus table held in a local SQL Server instance.
+// Connection string "MenuConnection" (appsettings / User Secrets / env var
+// ConnectionStrings__MenuConnection). Registered as a factory so the interactive
+// NavMenu component can open a short-lived context per render.
+builder.Services.AddDbContextFactory<MenuDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("MenuConnection")));
+
 // ── Identity (cookie auth for Blazor) ────────────────────────────────────────
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
@@ -262,6 +270,19 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         Console.WriteLine($"[Permission Seed] skipped: {ex.Message}");
+    }
+
+    // Navigation menu schema + seed on the local SQL Server store (idempotent —
+    // EnsureCreated builds the table, the seed inserts only when it's empty).
+    try
+    {
+        var menuFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<DhlLogistics.Web.Database.MenuDbContext>>();
+        await DhlLogistics.Web.Database.MenuSeed.SeedAsync(menuFactory);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Menu Seed] skipped: {ex.Message}");
     }
 }
 

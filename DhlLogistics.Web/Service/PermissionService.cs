@@ -53,6 +53,35 @@ public class PermissionService
                         && p.IsGranted);
     }
 
+    /// <summary>
+    /// All page-paths the user may View, used to filter the navigation menu in one
+    /// query instead of one round-trip per menu item. Returns <c>null</c> for Admin,
+    /// meaning "every page is viewable" (mirrors the Admin bypass in
+    /// <see cref="CheckPermissionAsync"/>). Returns an empty set for anonymous /
+    /// role-less users.
+    /// </summary>
+    public async Task<HashSet<string>?> GetViewablePagePathsAsync(ClaimsPrincipal? user)
+    {
+        if (user?.Identity?.IsAuthenticated != true) return new();
+        if (user.IsInRole("Admin")) return null;   // null = all allowed
+
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return new();
+
+        var roles = await GetUserRolesAsync(userId);
+        if (roles.Count == 0) return new();
+
+        var paths = await _db.RolePagePermissions
+            .Where(p => roles.Contains(p.RoleId)
+                     && p.Permission == Permission.View
+                     && p.IsGranted)
+            .Select(p => p.PagePath)
+            .Distinct()
+            .ToListAsync();
+
+        return paths.ToHashSet();
+    }
+
     /// <summary>All permissions a role has on a given page.</summary>
     public async Task<List<Permission>> GetGrantedPermissionsAsync(string roleId, string pagePath)
     {

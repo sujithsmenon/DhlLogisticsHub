@@ -1,0 +1,372 @@
+info: DhlLogistics.Web[0]
+      Syncfusion license registered.
+crit: DhlLogistics.Web[0]
+      JWT signing key is missing, shorter than 32 characters, or still the committed placeholder. Mobile/API tokens are INSECURE until Jwt__Key is set to a strong secret. The application will continue running.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (158ms) [Parameters=[@__normalizedName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ConcurrencyStamp", a."Name", a."NormalizedName"
+      FROM "AspNetRoles" AS a
+      WHERE a."NormalizedName" = @__normalizedName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[@__normalizedName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ConcurrencyStamp", a."Name", a."NormalizedName"
+      FROM "AspNetRoles" AS a
+      WHERE a."NormalizedName" = @__normalizedName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (137ms) [Parameters=[@__normalizedName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ConcurrencyStamp", a."Name", a."NormalizedName"
+      FROM "AspNetRoles" AS a
+      WHERE a."NormalizedName" = @__normalizedName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (137ms) [Parameters=[@__normalizedName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ConcurrencyStamp", a."Name", a."NormalizedName"
+      FROM "AspNetRoles" AS a
+      WHERE a."NormalizedName" = @__normalizedName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[@__normalizedEmail_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."AccessFailedCount", a."ConcurrencyStamp", a."CreatedAt", a."Email", a."EmailConfirmed", a."FcmToken", a."FullName", a."IsActive", a."LockoutEnabled", a."LockoutEnd", a."NormalizedEmail", a."NormalizedUserName", a."PasswordHash", a."PhoneNumber", a."PhoneNumberConfirmed", a."Role", a."SecurityStamp", a."TwoFactorEnabled", a."UserName", a."VehicleId"
+      FROM "AspNetUsers" AS a
+      WHERE a."NormalizedEmail" = @__normalizedEmail_0
+      LIMIT 2
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "Regions" AS r)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "States" AS s)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "Countries" AS c)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "Currencies" AS c)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (139ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "Ports" AS p)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "ContainerSizes" AS c)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "Sacs" AS s)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "ChargeCodes" AS c)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "VehicleDocumentTypes" AS v)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "DriverDocumentTypes" AS d)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "StaffDepartments" AS s)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "StaffDesignations" AS s)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "Commodities" AS c)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (141ms) [Parameters=[@__role_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT r."PagePath", r."Permission"
+      FROM "RolePagePermissions" AS r
+      WHERE r."RoleId" = @__role_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (140ms) [Parameters=[@__role_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT r."PagePath", r."Permission"
+      FROM "RolePagePermissions" AS r
+      WHERE r."RoleId" = @__role_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (140ms) [Parameters=[@__role_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT r."PagePath", r."Permission"
+      FROM "RolePagePermissions" AS r
+      WHERE r."RoleId" = @__role_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (141ms) [Parameters=[@__role_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT r."PagePath", r."Permission"
+      FROM "RolePagePermissions" AS r
+      WHERE r."RoleId" = @__role_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (11ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (38ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      
+      IF EXISTS
+          (SELECT *
+           FROM [sys].[objects] o
+           WHERE [o].[type] = 'U'
+           AND [o].[is_ms_shipped] = 0
+           AND NOT EXISTS (SELECT *
+               FROM [sys].[extended_properties] AS [ep]
+               WHERE [ep].[major_id] = [o].[object_id]
+                   AND [ep].[minor_id] = 0
+                   AND [ep].[class] = 1
+                   AND [ep].[name] = N'microsoft_database_tools_support'
+          )
+      )
+      SELECT 1 ELSE SELECT 0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (3ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT CASE
+          WHEN EXISTS (
+              SELECT 1
+              FROM [Menus] AS [m]) THEN CAST(1 AS bit)
+          ELSE CAST(0 AS bit)
+      END
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (15ms) [Parameters=[@p0='?' (DbType = Boolean), @p1='?' (DbType = Boolean), @p2='?' (Size = 16), @p3='?' (DbType = Boolean), @p4='?' (DbType = Boolean), @p5='?' (Size = 100), @p6='?' (Size = 200), @p7='?' (DbType = Int32), @p8='?' (DbType = Boolean), @p9='?' (DbType = Int32), @p10='?' (DbType = Boolean), @p11='?' (DbType = Boolean), @p12='?' (Size = 16), @p13='?' (DbType = Boolean), @p14='?' (DbType = Boolean), @p15='?' (Size = 100), @p16='?' (Size = 200), @p17='?' (DbType = Int32), @p18='?' (DbType = Boolean), @p19='?' (DbType = Int32), @p20='?' (DbType = Boolean), @p21='?' (DbType = Boolean), @p22='?' (Size = 16), @p23='?' (DbType = Boolean), @p24='?' (DbType = Boolean), @p25='?' (Size = 100), @p26='?' (Size = 200), @p27='?' (DbType = Int32), @p28='?' (DbType = Boolean), @p29='?' (DbType = Int32), @p30='?' (DbType = Boolean), @p31='?' (DbType = Boolean), @p32='?' (Size = 16), @p33='?' (DbType = Boolean), @p34='?' (DbType = Boolean), @p35='?' (Size = 100), @p36='?' (Size = 200), @p37='?' (DbType = Int32), @p38='?' (DbType = Boolean), @p39='?' (DbType = Int32), @p40='?' (DbType = Boolean), @p41='?' (DbType = Boolean), @p42='?' (Size = 16), @p43='?' (DbType = Boolean), @p44='?' (DbType = Boolean), @p45='?' (Size = 100), @p46='?' (Size = 200), @p47='?' (DbType = Int32), @p48='?' (DbType = Boolean), @p49='?' (DbType = Int32), @p50='?' (DbType = Boolean), @p51='?' (DbType = Boolean), @p52='?' (Size = 16), @p53='?' (DbType = Boolean), @p54='?' (DbType = Boolean), @p55='?' (Size = 100), @p56='?' (Size = 200), @p57='?' (DbType = Int32), @p58='?' (DbType = Boolean), @p59='?' (DbType = Int32), @p60='?' (DbType = Boolean), @p61='?' (DbType = Boolean), @p62='?' (Size = 16), @p63='?' (DbType = Boolean), @p64='?' (DbType = Boolean), @p65='?' (Size = 100), @p66='?' (Size = 200), @p67='?' (DbType = Int32), @p68='?' (DbType = Boolean), @p69='?' (DbType = Int32), @p70='?' (DbType = Boolean), @p71='?' (DbType = Boolean), @p72='?' (Size = 16), @p73='?' (DbType = Boolean), @p74='?' (DbType = Boolean), @p75='?' (Size = 100), @p76='?' (Size = 200), @p77='?' (DbType = Int32), @p78='?' (DbType = Boolean), @p79='?' (DbType = Int32), @p80='?' (DbType = Boolean), @p81='?' (DbType = Boolean), @p82='?' (Size = 16), @p83='?' (DbType = Boolean), @p84='?' (DbType = Boolean), @p85='?' (Size = 100), @p86='?' (Size = 200), @p87='?' (DbType = Int32), @p88='?' (DbType = Boolean), @p89='?' (DbType = Int32), @p90='?' (DbType = Boolean), @p91='?' (DbType = Boolean), @p92='?' (Size = 16), @p93='?' (DbType = Boolean), @p94='?' (DbType = Boolean), @p95='?' (Size = 100), @p96='?' (Size = 200), @p97='?' (DbType = Int32), @p98='?' (DbType = Boolean), @p99='?' (DbType = Int32), @p100='?' (DbType = Boolean), @p101='?' (DbType = Boolean), @p102='?' (Size = 16), @p103='?' (DbType = Boolean), @p104='?' (DbType = Boolean), @p105='?' (Size = 100), @p106='?' (Size = 200), @p107='?' (DbType = Int32), @p108='?' (DbType = Boolean), @p109='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      MERGE [Menus] USING (
+      VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, 0),
+      (@p10, @p11, @p12, @p13, @p14, @p15, @p16, @p17, @p18, @p19, 1),
+      (@p20, @p21, @p22, @p23, @p24, @p25, @p26, @p27, @p28, @p29, 2),
+      (@p30, @p31, @p32, @p33, @p34, @p35, @p36, @p37, @p38, @p39, 3),
+      (@p40, @p41, @p42, @p43, @p44, @p45, @p46, @p47, @p48, @p49, 4),
+      (@p50, @p51, @p52, @p53, @p54, @p55, @p56, @p57, @p58, @p59, 5),
+      (@p60, @p61, @p62, @p63, @p64, @p65, @p66, @p67, @p68, @p69, 6),
+      (@p70, @p71, @p72, @p73, @p74, @p75, @p76, @p77, @p78, @p79, 7),
+      (@p80, @p81, @p82, @p83, @p84, @p85, @p86, @p87, @p88, @p89, 8),
+      (@p90, @p91, @p92, @p93, @p94, @p95, @p96, @p97, @p98, @p99, 9),
+      (@p100, @p101, @p102, @p103, @p104, @p105, @p106, @p107, @p108, @p109, 10)) AS i ([Active], [DefaultOpen], [Icon], [IsDashboard], [MatchAll], [MenuName], [PageName], [ParentId], [RequiresPermission], [ShowOrder], _Position) ON 1=0
+      WHEN NOT MATCHED THEN
+      INSERT ([Active], [DefaultOpen], [Icon], [IsDashboard], [MatchAll], [MenuName], [PageName], [ParentId], [RequiresPermission], [ShowOrder])
+      VALUES (i.[Active], i.[DefaultOpen], i.[Icon], i.[IsDashboard], i.[MatchAll], i.[MenuName], i.[PageName], i.[ParentId], i.[RequiresPermission], i.[ShowOrder])
+      OUTPUT INSERTED.[MenuId], i._Position;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (23ms) [Parameters=[@p0='?' (DbType = Boolean), @p1='?' (DbType = Boolean), @p2='?' (Size = 16), @p3='?' (DbType = Boolean), @p4='?' (DbType = Boolean), @p5='?' (Size = 100), @p6='?' (Size = 200), @p7='?' (DbType = Int32), @p8='?' (DbType = Boolean), @p9='?' (DbType = Int32), @p10='?' (DbType = Boolean), @p11='?' (DbType = Boolean), @p12='?' (Size = 16), @p13='?' (DbType = Boolean), @p14='?' (DbType = Boolean), @p15='?' (Size = 100), @p16='?' (Size = 200), @p17='?' (DbType = Int32), @p18='?' (DbType = Boolean), @p19='?' (DbType = Int32), @p20='?' (DbType = Boolean), @p21='?' (DbType = Boolean), @p22='?' (Size = 16), @p23='?' (DbType = Boolean), @p24='?' (DbType = Boolean), @p25='?' (Size = 100), @p26='?' (Size = 200), @p27='?' (DbType = Int32), @p28='?' (DbType = Boolean), @p29='?' (DbType = Int32), @p30='?' (DbType = Boolean), @p31='?' (DbType = Boolean), @p32='?' (Size = 16), @p33='?' (DbType = Boolean), @p34='?' (DbType = Boolean), @p35='?' (Size = 100), @p36='?' (Size = 200), @p37='?' (DbType = Int32), @p38='?' (DbType = Boolean), @p39='?' (DbType = Int32), @p40='?' (DbType = Boolean), @p41='?' (DbType = Boolean), @p42='?' (Size = 16), @p43='?' (DbType = Boolean), @p44='?' (DbType = Boolean), @p45='?' (Size = 100), @p46='?' (Size = 200), @p47='?' (DbType = Int32), @p48='?' (DbType = Boolean), @p49='?' (DbType = Int32), @p50='?' (DbType = Boolean), @p51='?' (DbType = Boolean), @p52='?' (Size = 16), @p53='?' (DbType = Boolean), @p54='?' (DbType = Boolean), @p55='?' (Size = 100), @p56='?' (Size = 200), @p57='?' (DbType = Int32), @p58='?' (DbType = Boolean), @p59='?' (DbType = Int32), @p60='?' (DbType = Boolean), @p61='?' (DbType = Boolean), @p62='?' (Size = 16), @p63='?' (DbType = Boolean), @p64='?' (DbType = Boolean), @p65='?' (Size = 100), @p66='?' (Size = 200), @p67='?' (DbType = Int32), @p68='?' (DbType = Boolean), @p69='?' (DbType = Int32), @p70='?' (DbType = Boolean), @p71='?' (DbType = Boolean), @p72='?' (Size = 16), @p73='?' (DbType = Boolean), @p74='?' (DbType = Boolean), @p75='?' (Size = 100), @p76='?' (Size = 200), @p77='?' (DbType = Int32), @p78='?' (DbType = Boolean), @p79='?' (DbType = Int32), @p80='?' (DbType = Boolean), @p81='?' (DbType = Boolean), @p82='?' (Size = 16), @p83='?' (DbType = Boolean), @p84='?' (DbType = Boolean), @p85='?' (Size = 100), @p86='?' (Size = 200), @p87='?' (DbType = Int32), @p88='?' (DbType = Boolean), @p89='?' (DbType = Int32), @p90='?' (DbType = Boolean), @p91='?' (DbType = Boolean), @p92='?' (Size = 16), @p93='?' (DbType = Boolean), @p94='?' (DbType = Boolean), @p95='?' (Size = 100), @p96='?' (Size = 200), @p97='?' (DbType = Int32), @p98='?' (DbType = Boolean), @p99='?' (DbType = Int32), @p100='?' (DbType = Boolean), @p101='?' (DbType = Boolean), @p102='?' (Size = 16), @p103='?' (DbType = Boolean), @p104='?' (DbType = Boolean), @p105='?' (Size = 100), @p106='?' (Size = 200), @p107='?' (DbType = Int32), @p108='?' (DbType = Boolean), @p109='?' (DbType = Int32), @p110='?' (DbType = Boolean), @p111='?' (DbType = Boolean), @p112='?' (Size = 16), @p113='?' (DbType = Boolean), @p114='?' (DbType = Boolean), @p115='?' (Size = 100), @p116='?' (Size = 200), @p117='?' (DbType = Int32), @p118='?' (DbType = Boolean), @p119='?' (DbType = Int32), @p120='?' (DbType = Boolean), @p121='?' (DbType = Boolean), @p122='?' (Size = 16), @p123='?' (DbType = Boolean), @p124='?' (DbType = Boolean), @p125='?' (Size = 100), @p126='?' (Size = 200), @p127='?' (DbType = Int32), @p128='?' (DbType = Boolean), @p129='?' (DbType = Int32), @p130='?' (DbType = Boolean), @p131='?' (DbType = Boolean), @p132='?' (Size = 16), @p133='?' (DbType = Boolean), @p134='?' (DbType = Boolean), @p135='?' (Size = 100), @p136='?' (Size = 200), @p137='?' (DbType = Int32), @p138='?' (DbType = Boolean), @p139='?' (DbType = Int32), @p140='?' (DbType = Boolean), @p141='?' (DbType = Boolean), @p142='?' (Size = 16), @p143='?' (DbType = Boolean), @p144='?' (DbType = Boolean), @p145='?' (Size = 100), @p146='?' (Size = 200), @p147='?' (DbType = Int32), @p148='?' (DbType = Boolean), @p149='?' (DbType = Int32), @p150='?' (DbType = Boolean), @p151='?' (DbType = Boolean), @p152='?' (Size = 16), @p153='?' (DbType = Boolean), @p154='?' (DbType = Boolean), @p155='?' (Size = 100), @p156='?' (Size = 200), @p157='?' (DbType = Int32), @p158='?' (DbType = Boolean), @p159='?' (DbType = Int32), @p160='?' (DbType = Boolean), @p161='?' (DbType = Boolean), @p162='?' (Size = 16), @p163='?' (DbType = Boolean), @p164='?' (DbType = Boolean), @p165='?' (Size = 100), @p166='?' (Size = 200), @p167='?' (DbType = Int32), @p168='?' (DbType = Boolean), @p169='?' (DbType = Int32), @p170='?' (DbType = Boolean), @p171='?' (DbType = Boolean), @p172='?' (Size = 16), @p173='?' (DbType = Boolean), @p174='?' (DbType = Boolean), @p175='?' (Size = 100), @p176='?' (Size = 200), @p177='?' (DbType = Int32), @p178='?' (DbType = Boolean), @p179='?' (DbType = Int32), @p180='?' (DbType = Boolean), @p181='?' (DbType = Boolean), @p182='?' (Size = 16), @p183='?' (DbType = Boolean), @p184='?' (DbType = Boolean), @p185='?' (Size = 100), @p186='?' (Size = 200), @p187='?' (DbType = Int32), @p188='?' (DbType = Boolean), @p189='?' (DbType = Int32), @p190='?' (DbType = Boolean), @p191='?' (DbType = Boolean), @p192='?' (Size = 16), @p193='?' (DbType = Boolean), @p194='?' (DbType = Boolean), @p195='?' (Size = 100), @p196='?' (Size = 200), @p197='?' (DbType = Int32), @p198='?' (DbType = Boolean), @p199='?' (DbType = Int32), @p200='?' (DbType = Boolean), @p201='?' (DbType = Boolean), @p202='?' (Size = 16), @p203='?' (DbType = Boolean), @p204='?' (DbType = Boolean), @p205='?' (Size = 100), @p206='?' (Size = 200), @p207='?' (DbType = Int32), @p208='?' (DbType = Boolean), @p209='?' (DbType = Int32), @p210='?' (DbType = Boolean), @p211='?' (DbType = Boolean), @p212='?' (Size = 16), @p213='?' (DbType = Boolean), @p214='?' (DbType = Boolean), @p215='?' (Size = 100), @p216='?' (Size = 200), @p217='?' (DbType = Int32), @p218='?' (DbType = Boolean), @p219='?' (DbType = Int32), @p220='?' (DbType = Boolean), @p221='?' (DbType = Boolean), @p222='?' (Size = 16), @p223='?' (DbType = Boolean), @p224='?' (DbType = Boolean), @p225='?' (Size = 100), @p226='?' (Size = 200), @p227='?' (DbType = Int32), @p228='?' (DbType = Boolean), @p229='?' (DbType = Int32), @p230='?' (DbType = Boolean), @p231='?' (DbType = Boolean), @p232='?' (Size = 16), @p233='?' (DbType = Boolean), @p234='?' (DbType = Boolean), @p235='?' (Size = 100), @p236='?' (Size = 200), @p237='?' (DbType = Int32), @p238='?' (DbType = Boolean), @p239='?' (DbType = Int32), @p240='?' (DbType = Boolean), @p241='?' (DbType = Boolean), @p242='?' (Size = 16), @p243='?' (DbType = Boolean), @p244='?' (DbType = Boolean), @p245='?' (Size = 100), @p246='?' (Size = 200), @p247='?' (DbType = Int32), @p248='?' (DbType = Boolean), @p249='?' (DbType = Int32), @p250='?' (DbType = Boolean), @p251='?' (DbType = Boolean), @p252='?' (Size = 16), @p253='?' (DbType = Boolean), @p254='?' (DbType = Boolean), @p255='?' (Size = 100), @p256='?' (Size = 200), @p257='?' (DbType = Int32), @p258='?' (DbType = Boolean), @p259='?' (DbType = Int32), @p260='?' (DbType = Boolean), @p261='?' (DbType = Boolean), @p262='?' (Size = 16), @p263='?' (DbType = Boolean), @p264='?' (DbType = Boolean), @p265='?' (Size = 100), @p266='?' (Size = 200), @p267='?' (DbType = Int32), @p268='?' (DbType = Boolean), @p269='?' (DbType = Int32), @p270='?' (DbType = Boolean), @p271='?' (DbType = Boolean), @p272='?' (Size = 16), @p273='?' (DbType = Boolean), @p274='?' (DbType = Boolean), @p275='?' (Size = 100), @p276='?' (Size = 200), @p277='?' (DbType = Int32), @p278='?' (DbType = Boolean), @p279='?' (DbType = Int32), @p280='?' (DbType = Boolean), @p281='?' (DbType = Boolean), @p282='?' (Size = 16), @p283='?' (DbType = Boolean), @p284='?' (DbType = Boolean), @p285='?' (Size = 100), @p286='?' (Size = 200), @p287='?' (DbType = Int32), @p288='?' (DbType = Boolean), @p289='?' (DbType = Int32), @p290='?' (DbType = Boolean), @p291='?' (DbType = Boolean), @p292='?' (Size = 16), @p293='?' (DbType = Boolean), @p294='?' (DbType = Boolean), @p295='?' (Size = 100), @p296='?' (Size = 200), @p297='?' (DbType = Int32), @p298='?' (DbType = Boolean), @p299='?' (DbType = Int32), @p300='?' (DbType = Boolean), @p301='?' (DbType = Boolean), @p302='?' (Size = 16), @p303='?' (DbType = Boolean), @p304='?' (DbType = Boolean), @p305='?' (Size = 100), @p306='?' (Size = 200), @p307='?' (DbType = Int32), @p308='?' (DbType = Boolean), @p309='?' (DbType = Int32), @p310='?' (DbType = Boolean), @p311='?' (DbType = Boolean), @p312='?' (Size = 16), @p313='?' (DbType = Boolean), @p314='?' (DbType = Boolean), @p315='?' (Size = 100), @p316='?' (Size = 200), @p317='?' (DbType = Int32), @p318='?' (DbType = Boolean), @p319='?' (DbType = Int32), @p320='?' (DbType = Boolean), @p321='?' (DbType = Boolean), @p322='?' (Size = 16), @p323='?' (DbType = Boolean), @p324='?' (DbType = Boolean), @p325='?' (Size = 100), @p326='?' (Size = 200), @p327='?' (DbType = Int32), @p328='?' (DbType = Boolean), @p329='?' (DbType = Int32), @p330='?' (DbType = Boolean), @p331='?' (DbType = Boolean), @p332='?' (Size = 16), @p333='?' (DbType = Boolean), @p334='?' (DbType = Boolean), @p335='?' (Size = 100), @p336='?' (Size = 200), @p337='?' (DbType = Int32), @p338='?' (DbType = Boolean), @p339='?' (DbType = Int32), @p340='?' (DbType = Boolean), @p341='?' (DbType = Boolean), @p342='?' (Size = 16), @p343='?' (DbType = Boolean), @p344='?' (DbType = Boolean), @p345='?' (Size = 100), @p346='?' (Size = 200), @p347='?' (DbType = Int32), @p348='?' (DbType = Boolean), @p349='?' (DbType = Int32), @p350='?' (DbType = Boolean), @p351='?' (DbType = Boolean), @p352='?' (Size = 16), @p353='?' (DbType = Boolean), @p354='?' (DbType = Boolean), @p355='?' (Size = 100), @p356='?' (Size = 200), @p357='?' (DbType = Int32), @p358='?' (DbType = Boolean), @p359='?' (DbType = Int32), @p360='?' (DbType = Boolean), @p361='?' (DbType = Boolean), @p362='?' (Size = 16), @p363='?' (DbType = Boolean), @p364='?' (DbType = Boolean), @p365='?' (Size = 100), @p366='?' (Size = 200), @p367='?' (DbType = Int32), @p368='?' (DbType = Boolean), @p369='?' (DbType = Int32), @p370='?' (DbType = Boolean), @p371='?' (DbType = Boolean), @p372='?' (Size = 16), @p373='?' (DbType = Boolean), @p374='?' (DbType = Boolean), @p375='?' (Size = 100), @p376='?' (Size = 200), @p377='?' (DbType = Int32), @p378='?' (DbType = Boolean), @p379='?' (DbType = Int32), @p380='?' (DbType = Boolean), @p381='?' (DbType = Boolean), @p382='?' (Size = 16), @p383='?' (DbType = Boolean), @p384='?' (DbType = Boolean), @p385='?' (Size = 100), @p386='?' (Size = 200), @p387='?' (DbType = Int32), @p388='?' (DbType = Boolean), @p389='?' (DbType = Int32), @p390='?' (DbType = Boolean), @p391='?' (DbType = Boolean), @p392='?' (Size = 16), @p393='?' (DbType = Boolean), @p394='?' (DbType = Boolean), @p395='?' (Size = 100), @p396='?' (Size = 200), @p397='?' (DbType = Int32), @p398='?' (DbType = Boolean), @p399='?' (DbType = Int32), @p400='?' (DbType = Boolean), @p401='?' (DbType = Boolean), @p402='?' (Size = 16), @p403='?' (DbType = Boolean), @p404='?' (DbType = Boolean), @p405='?' (Size = 100), @p406='?' (Size = 200), @p407='?' (DbType = Int32), @p408='?' (DbType = Boolean), @p409='?' (DbType = Int32), @p410='?' (DbType = Boolean), @p411='?' (DbType = Boolean), @p412='?' (Size = 16), @p413='?' (DbType = Boolean), @p414='?' (DbType = Boolean), @p415='?' (Size = 100), @p416='?' (Size = 200), @p417='?' (DbType = Int32), @p418='?' (DbType = Boolean), @p419='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      MERGE [Menus] USING (
+      VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, 0),
+      (@p10, @p11, @p12, @p13, @p14, @p15, @p16, @p17, @p18, @p19, 1),
+      (@p20, @p21, @p22, @p23, @p24, @p25, @p26, @p27, @p28, @p29, 2),
+      (@p30, @p31, @p32, @p33, @p34, @p35, @p36, @p37, @p38, @p39, 3),
+      (@p40, @p41, @p42, @p43, @p44, @p45, @p46, @p47, @p48, @p49, 4),
+      (@p50, @p51, @p52, @p53, @p54, @p55, @p56, @p57, @p58, @p59, 5),
+      (@p60, @p61, @p62, @p63, @p64, @p65, @p66, @p67, @p68, @p69, 6),
+      (@p70, @p71, @p72, @p73, @p74, @p75, @p76, @p77, @p78, @p79, 7),
+      (@p80, @p81, @p82, @p83, @p84, @p85, @p86, @p87, @p88, @p89, 8),
+      (@p90, @p91, @p92, @p93, @p94, @p95, @p96, @p97, @p98, @p99, 9),
+      (@p100, @p101, @p102, @p103, @p104, @p105, @p106, @p107, @p108, @p109, 10),
+      (@p110, @p111, @p112, @p113, @p114, @p115, @p116, @p117, @p118, @p119, 11),
+      (@p120, @p121, @p122, @p123, @p124, @p125, @p126, @p127, @p128, @p129, 12),
+      (@p130, @p131, @p132, @p133, @p134, @p135, @p136, @p137, @p138, @p139, 13),
+      (@p140, @p141, @p142, @p143, @p144, @p145, @p146, @p147, @p148, @p149, 14),
+      (@p150, @p151, @p152, @p153, @p154, @p155, @p156, @p157, @p158, @p159, 15),
+      (@p160, @p161, @p162, @p163, @p164, @p165, @p166, @p167, @p168, @p169, 16),
+      (@p170, @p171, @p172, @p173, @p174, @p175, @p176, @p177, @p178, @p179, 17),
+      (@p180, @p181, @p182, @p183, @p184, @p185, @p186, @p187, @p188, @p189, 18),
+      (@p190, @p191, @p192, @p193, @p194, @p195, @p196, @p197, @p198, @p199, 19),
+      (@p200, @p201, @p202, @p203, @p204, @p205, @p206, @p207, @p208, @p209, 20),
+      (@p210, @p211, @p212, @p213, @p214, @p215, @p216, @p217, @p218, @p219, 21),
+      (@p220, @p221, @p222, @p223, @p224, @p225, @p226, @p227, @p228, @p229, 22),
+      (@p230, @p231, @p232, @p233, @p234, @p235, @p236, @p237, @p238, @p239, 23),
+      (@p240, @p241, @p242, @p243, @p244, @p245, @p246, @p247, @p248, @p249, 24),
+      (@p250, @p251, @p252, @p253, @p254, @p255, @p256, @p257, @p258, @p259, 25),
+      (@p260, @p261, @p262, @p263, @p264, @p265, @p266, @p267, @p268, @p269, 26),
+      (@p270, @p271, @p272, @p273, @p274, @p275, @p276, @p277, @p278, @p279, 27),
+      (@p280, @p281, @p282, @p283, @p284, @p285, @p286, @p287, @p288, @p289, 28),
+      (@p290, @p291, @p292, @p293, @p294, @p295, @p296, @p297, @p298, @p299, 29),
+      (@p300, @p301, @p302, @p303, @p304, @p305, @p306, @p307, @p308, @p309, 30),
+      (@p310, @p311, @p312, @p313, @p314, @p315, @p316, @p317, @p318, @p319, 31),
+      (@p320, @p321, @p322, @p323, @p324, @p325, @p326, @p327, @p328, @p329, 32),
+      (@p330, @p331, @p332, @p333, @p334, @p335, @p336, @p337, @p338, @p339, 33),
+      (@p340, @p341, @p342, @p343, @p344, @p345, @p346, @p347, @p348, @p349, 34),
+      (@p350, @p351, @p352, @p353, @p354, @p355, @p356, @p357, @p358, @p359, 35),
+      (@p360, @p361, @p362, @p363, @p364, @p365, @p366, @p367, @p368, @p369, 36),
+      (@p370, @p371, @p372, @p373, @p374, @p375, @p376, @p377, @p378, @p379, 37),
+      (@p380, @p381, @p382, @p383, @p384, @p385, @p386, @p387, @p388, @p389, 38),
+      (@p390, @p391, @p392, @p393, @p394, @p395, @p396, @p397, @p398, @p399, 39),
+      (@p400, @p401, @p402, @p403, @p404, @p405, @p406, @p407, @p408, @p409, 40),
+      (@p410, @p411, @p412, @p413, @p414, @p415, @p416, @p417, @p418, @p419, 41)) AS i ([Active], [DefaultOpen], [Icon], [IsDashboard], [MatchAll], [MenuName], [PageName], [ParentId], [RequiresPermission], [ShowOrder], _Position) ON 1=0
+      WHEN NOT MATCHED THEN
+      INSERT ([Active], [DefaultOpen], [Icon], [IsDashboard], [MatchAll], [MenuName], [PageName], [ParentId], [RequiresPermission], [ShowOrder])
+      VALUES (i.[Active], i.[DefaultOpen], i.[Icon], i.[IsDashboard], i.[MatchAll], i.[MenuName], i.[PageName], i.[ParentId], i.[RequiresPermission], i.[ShowOrder])
+      OUTPUT INSERTED.[MenuId], i._Position;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (4ms) [Parameters=[@p0='?' (DbType = Boolean), @p1='?' (DbType = Boolean), @p2='?' (Size = 16), @p3='?' (DbType = Boolean), @p4='?' (DbType = Boolean), @p5='?' (Size = 100), @p6='?' (Size = 200), @p7='?' (DbType = Int32), @p8='?' (DbType = Boolean), @p9='?' (DbType = Int32), @p10='?' (DbType = Boolean), @p11='?' (DbType = Boolean), @p12='?' (Size = 16), @p13='?' (DbType = Boolean), @p14='?' (DbType = Boolean), @p15='?' (Size = 100), @p16='?' (Size = 200), @p17='?' (DbType = Int32), @p18='?' (DbType = Boolean), @p19='?' (DbType = Int32), @p20='?' (DbType = Boolean), @p21='?' (DbType = Boolean), @p22='?' (Size = 16), @p23='?' (DbType = Boolean), @p24='?' (DbType = Boolean), @p25='?' (Size = 100), @p26='?' (Size = 200), @p27='?' (DbType = Int32), @p28='?' (DbType = Boolean), @p29='?' (DbType = Int32), @p30='?' (DbType = Boolean), @p31='?' (DbType = Boolean), @p32='?' (Size = 16), @p33='?' (DbType = Boolean), @p34='?' (DbType = Boolean), @p35='?' (Size = 100), @p36='?' (Size = 200), @p37='?' (DbType = Int32), @p38='?' (DbType = Boolean), @p39='?' (DbType = Int32), @p40='?' (DbType = Boolean), @p41='?' (DbType = Boolean), @p42='?' (Size = 16), @p43='?' (DbType = Boolean), @p44='?' (DbType = Boolean), @p45='?' (Size = 100), @p46='?' (Size = 200), @p47='?' (DbType = Int32), @p48='?' (DbType = Boolean), @p49='?' (DbType = Int32), @p50='?' (DbType = Boolean), @p51='?' (DbType = Boolean), @p52='?' (Size = 16), @p53='?' (DbType = Boolean), @p54='?' (DbType = Boolean), @p55='?' (Size = 100), @p56='?' (Size = 200), @p57='?' (DbType = Int32), @p58='?' (DbType = Boolean), @p59='?' (DbType = Int32), @p60='?' (DbType = Boolean), @p61='?' (DbType = Boolean), @p62='?' (Size = 16), @p63='?' (DbType = Boolean), @p64='?' (DbType = Boolean), @p65='?' (Size = 100), @p66='?' (Size = 200), @p67='?' (DbType = Int32), @p68='?' (DbType = Boolean), @p69='?' (DbType = Int32), @p70='?' (DbType = Boolean), @p71='?' (DbType = Boolean), @p72='?' (Size = 16), @p73='?' (DbType = Boolean), @p74='?' (DbType = Boolean), @p75='?' (Size = 100), @p76='?' (Size = 200), @p77='?' (DbType = Int32), @p78='?' (DbType = Boolean), @p79='?' (DbType = Int32), @p80='?' (DbType = Boolean), @p81='?' (DbType = Boolean), @p82='?' (Size = 16), @p83='?' (DbType = Boolean), @p84='?' (DbType = Boolean), @p85='?' (Size = 100), @p86='?' (Size = 200), @p87='?' (DbType = Int32), @p88='?' (DbType = Boolean), @p89='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      MERGE [Menus] USING (
+      VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, 0),
+      (@p10, @p11, @p12, @p13, @p14, @p15, @p16, @p17, @p18, @p19, 1),
+      (@p20, @p21, @p22, @p23, @p24, @p25, @p26, @p27, @p28, @p29, 2),
+      (@p30, @p31, @p32, @p33, @p34, @p35, @p36, @p37, @p38, @p39, 3),
+      (@p40, @p41, @p42, @p43, @p44, @p45, @p46, @p47, @p48, @p49, 4),
+      (@p50, @p51, @p52, @p53, @p54, @p55, @p56, @p57, @p58, @p59, 5),
+      (@p60, @p61, @p62, @p63, @p64, @p65, @p66, @p67, @p68, @p69, 6),
+      (@p70, @p71, @p72, @p73, @p74, @p75, @p76, @p77, @p78, @p79, 7),
+      (@p80, @p81, @p82, @p83, @p84, @p85, @p86, @p87, @p88, @p89, 8)) AS i ([Active], [DefaultOpen], [Icon], [IsDashboard], [MatchAll], [MenuName], [PageName], [ParentId], [RequiresPermission], [ShowOrder], _Position) ON 1=0
+      WHEN NOT MATCHED THEN
+      INSERT ([Active], [DefaultOpen], [Icon], [IsDashboard], [MatchAll], [MenuName], [PageName], [ParentId], [RequiresPermission], [ShowOrder])
+      VALUES (i.[Active], i.[DefaultOpen], i.[Icon], i.[IsDashboard], i.[MatchAll], i.[MenuName], i.[PageName], i.[ParentId], i.[RequiresPermission], i.[ShowOrder])
+      OUTPUT INSERTED.[MenuId], i._Position;
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5199
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: E:\Sujith\DHL\DhlLogisticsHub\DhlLogistics.Web
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (139ms) [Parameters=[@__normalizedUserName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."AccessFailedCount", a."ConcurrencyStamp", a."CreatedAt", a."Email", a."EmailConfirmed", a."FcmToken", a."FullName", a."IsActive", a."LockoutEnabled", a."LockoutEnd", a."NormalizedEmail", a."NormalizedUserName", a."PasswordHash", a."PhoneNumber", a."PhoneNumberConfirmed", a."Role", a."SecurityStamp", a."TwoFactorEnabled", a."UserName", a."VehicleId"
+      FROM "AspNetUsers" AS a
+      WHERE a."NormalizedUserName" = @__normalizedUserName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (143ms) [Parameters=[@__user_Id_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ClaimType", a."ClaimValue", a."UserId"
+      FROM "AspNetUserClaims" AS a
+      WHERE a."UserId" = @__user_Id_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (152ms) [Parameters=[@__userId_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a0."Name"
+      FROM "AspNetUserRoles" AS a
+      INNER JOIN "AspNetRoles" AS a0 ON a."RoleId" = a0."Id"
+      WHERE a."UserId" = @__userId_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (136ms) [Parameters=[@__normalizedName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ConcurrencyStamp", a."Name", a."NormalizedName"
+      FROM "AspNetRoles" AS a
+      WHERE a."NormalizedName" = @__normalizedName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (139ms) [Parameters=[@__role_Id_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."ClaimType", a."ClaimValue"
+      FROM "AspNetRoleClaims" AS a
+      WHERE a."RoleId" = @__role_Id_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (4ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT [m].[MenuId], [m].[Active], [m].[DefaultOpen], [m].[Icon], [m].[IsDashboard], [m].[MatchAll], [m].[MenuName], [m].[PageName], [m].[ParentId], [m].[RequiresPermission], [m].[ShowOrder]
+      FROM [Menus] AS [m]
+      WHERE [m].[Active] = CAST(1 AS bit)
+      ORDER BY [m].[ShowOrder]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (145ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Containers" AS c
+      WHERE c."Status" = 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (146ms) [Parameters=[@__now_Month_0='?' (DbType = Int32), @__now_Year_1='?' (DbType = Int32)], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Jobs" AS j
+      WHERE j."Status" = 4 AND j."StoredAt" IS NOT NULL AND date_part('month', j."StoredAt" AT TIME ZONE 'UTC')::int = @__now_Month_0 AND date_part('year', j."StoredAt" AT TIME ZONE 'UTC')::int = @__now_Year_1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (137ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Jobs" AS j
+      WHERE j."Status" IN (0, 1)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (141ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Clients" AS c
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (145ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='120']
+      SELECT t."Id", t."AssignedAt", t."AssignedExecutiveId", t."AssignedVehicleId", t."ClientName", t."CreatedAt", t."Destination", t."DhlReference", t."JobCode", t."PickedUpAt", t."PickupAddress", t."PickupCity", t."PickupDate", t."Status", t."StoredAt", t."VolumeCbm", t."WeightKg", v."Id", v."IsActive", v."PlateNumber", v."VehicleType"
+      FROM (
+          SELECT j."Id", j."AssignedAt", j."AssignedExecutiveId", j."AssignedVehicleId", j."ClientName", j."CreatedAt", j."Destination", j."DhlReference", j."JobCode", j."PickedUpAt", j."PickupAddress", j."PickupCity", j."PickupDate", j."Status", j."StoredAt", j."VolumeCbm", j."WeightKg"
+          FROM "Jobs" AS j
+          ORDER BY j."CreatedAt" DESC
+          LIMIT @__p_0
+      ) AS t
+      LEFT JOIN "Vehicles" AS v ON t."AssignedVehicleId" = v."Id"
+      ORDER BY t."CreatedAt" DESC
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (140ms) [Parameters=[@__normalizedUserName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."AccessFailedCount", a."ConcurrencyStamp", a."CreatedAt", a."Email", a."EmailConfirmed", a."FcmToken", a."FullName", a."IsActive", a."LockoutEnabled", a."LockoutEnd", a."NormalizedEmail", a."NormalizedUserName", a."PasswordHash", a."PhoneNumber", a."PhoneNumberConfirmed", a."Role", a."SecurityStamp", a."TwoFactorEnabled", a."UserName", a."VehicleId"
+      FROM "AspNetUsers" AS a
+      WHERE a."NormalizedUserName" = @__normalizedUserName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[@__user_Id_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ClaimType", a."ClaimValue", a."UserId"
+      FROM "AspNetUserClaims" AS a
+      WHERE a."UserId" = @__user_Id_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[@__userId_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a0."Name"
+      FROM "AspNetUserRoles" AS a
+      INNER JOIN "AspNetRoles" AS a0 ON a."RoleId" = a0."Id"
+      WHERE a."UserId" = @__userId_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[@__normalizedName_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."Id", a."ConcurrencyStamp", a."Name", a."NormalizedName"
+      FROM "AspNetRoles" AS a
+      WHERE a."NormalizedName" = @__normalizedName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[@__role_Id_0='?'], CommandType='Text', CommandTimeout='120']
+      SELECT a."ClaimType", a."ClaimValue"
+      FROM "AspNetRoleClaims" AS a
+      WHERE a."RoleId" = @__role_Id_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT [m].[MenuId], [m].[Active], [m].[DefaultOpen], [m].[Icon], [m].[IsDashboard], [m].[MatchAll], [m].[MenuName], [m].[PageName], [m].[ParentId], [m].[RequiresPermission], [m].[ShowOrder]
+      FROM [Menus] AS [m]
+      WHERE [m].[Active] = CAST(1 AS bit)
+      ORDER BY [m].[ShowOrder]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Containers" AS c
+      WHERE c."Status" = 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (137ms) [Parameters=[@__now_Month_0='?' (DbType = Int32), @__now_Year_1='?' (DbType = Int32)], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Jobs" AS j
+      WHERE j."Status" = 4 AND j."StoredAt" IS NOT NULL AND date_part('month', j."StoredAt" AT TIME ZONE 'UTC')::int = @__now_Month_0 AND date_part('year', j."StoredAt" AT TIME ZONE 'UTC')::int = @__now_Year_1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Jobs" AS j
+      WHERE j."Status" IN (0, 1)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[], CommandType='Text', CommandTimeout='120']
+      SELECT count(*)::int
+      FROM "Clients" AS c
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (138ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='120']
+      SELECT t."Id", t."AssignedAt", t."AssignedExecutiveId", t."AssignedVehicleId", t."ClientName", t."CreatedAt", t."Destination", t."DhlReference", t."JobCode", t."PickedUpAt", t."PickupAddress", t."PickupCity", t."PickupDate", t."Status", t."StoredAt", t."VolumeCbm", t."WeightKg", v."Id", v."IsActive", v."PlateNumber", v."VehicleType"
+      FROM (
+          SELECT j."Id", j."AssignedAt", j."AssignedExecutiveId", j."AssignedVehicleId", j."ClientName", j."CreatedAt", j."Destination", j."DhlReference", j."JobCode", j."PickedUpAt", j."PickupAddress", j."PickupCity", j."PickupDate", j."Status", j."StoredAt", j."VolumeCbm", j."WeightKg"
+          FROM "Jobs" AS j
+          ORDER BY j."CreatedAt" DESC
+          LIMIT @__p_0
+      ) AS t
+      LEFT JOIN "Vehicles" AS v ON t."AssignedVehicleId" = v."Id"
+      ORDER BY t."CreatedAt" DESC
