@@ -1,0 +1,153 @@
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Syncfusion.Blazor.TreeGrid
+@using DhlLogistics.Web.Model
+
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="card">
+        <div class="card-header"><b>User Permissions — @UserName</b></div>
+        <div class="card-body">
+            <p class="muted" style="font-size:11px;margin-bottom:8px;">
+                Greyed, ticked cells are granted by the user's roles and can't be removed here — edit the role to change them.
+            </p>
+            <SfTreeGrid @ref="tree" DataSource="@TreeData"
+                        IdMapping="MenuId" ParentIdMapping="ParentId"
+                        TreeColumnIndex="0" AutoCheckHierarchy="true"
+                        CssClass="e-small" EnableStickyHeader="true">
+                <TreeGridEvents TValue="MenuPermissionTreeRow" RowDataBound="OnRowDataBound"></TreeGridEvents>
+                <TreeGridColumns>
+                    <TreeGridColumn Field="MenuName" HeaderText="Menu" Width="260">
+                        <Template>
+                            @{
+                                var r = (context as MenuPermissionTreeRow)!;
+                                var icon = r.IsPage ? "e-icons e-changes-track" : "e-icons e-field-settings";
+                            }
+                            <span class="e-icons @icon"></span>
+                            <span>@r.MenuName</span>
+                        </Template>
+                    </TreeGridColumn>
+
+                    @foreach (var action in MenuPermissionTreeRow.Actions)
+                    {
+                        var act = action;
+                        <TreeGridColumn Field="@act.ToString()" HeaderText="@act.ToString()" Width="80">
+                            <Template>
+                                @{
+                                    var r = (context as MenuPermissionTreeRow)!;
+                                    var roleLocked = r.PagePath is not null && RolePermissionMap.Contains(PermissionService.ClaimValue(r.PagePath, act));
+                                    var enabled = r.IsPage && !roleLocked && (act == Permission.View || r.View);
+                                }
+                                <SfCheckBox TChecked="bool"
+                                            Checked="@r.Get(act)"
+                                            Enabled="@enabled"
+                                            ValueChange="@(args => OnPermissionChanged(r, act, args.Checked))">
+                                </SfCheckBox>
+                            </Template>
+                        </TreeGridColumn>
+                    }
+                </TreeGridColumns>
+            </SfTreeGrid>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }        // userId (AspNetUsers.Id)
+    [Parameter] public string? UserName { get; set; }
+
+    private SfTreeGrid<MenuPermissionTreeRow>? tree;
+    private List<MenuPermissionTreeRow> TreeData = new();
+    private HashSet<string> RolePermissionMap = new();  // claim values granted via the user's roles
+    private bool loader;
+
+    protected override async Task OnInitializedAsync()
+    {
+        loader = true;
+        try { TreeData = await LoadTreeAsync(Id!); }
+        finally { loader = false; }
+    }
+
+    private void OnRowDataBound(RowDataBoundEventArgs<MenuPermissionTreeRow> args)
+    {
+        if (!args.Data.IsPage)
+            args.Row.AddClass(new[] { "highlight-group" });
+    }
+
+    private async Task<List<MenuPermissionTreeRow>> LoadTreeAsync(string userId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var menus = await db.Menus.AsNoTracking()
+            .Where(m => m.Active).OrderBy(m => m.ShowOrder).ToListAsync();
+
+        var userClaims = (await db.UserClaims
+            .Where(c => c.UserId == userId && c.ClaimType == PermissionService.PermissionClaimType)
+            .Select(c => c.ClaimValue!).ToListAsync())
+            .ToHashSet();
+
+        var roleIds = await db.UserRoles.Where(r => r.UserId == userId).Select(r => r.RoleId).ToListAsync();
+        RolePermissionMap = (await db.RoleClaims
+            .Where(rc => roleIds.Contains(rc.RoleId) && rc.ClaimType == PermissionService.PermissionClaimType)
+            .Select(rc => rc.ClaimValue!).ToListAsync())
+            .ToHashSet();
+
+        return MenuPermissionTreeHelper.Build(menus, (path, perm) =>
+        {
+            var value = PermissionService.ClaimValue(path, perm);
+            return userClaims.Contains(value) || RolePermissionMap.Contains(value);
+        });
+    }
+
+    private async Task OnPermissionChanged(MenuPermissionTreeRow row, Permission field, bool value)
+    {
+        if (row.PagePath is not null && RolePermissionMap.Contains(PermissionService.ClaimValue(row.PagePath, field)))
+            return; // role-enforced, not user-editable
+
+        MenuPermissionTreeHelper.SetField(row, field, value);
+
+        var affected = new List<MenuPermissionTreeRow> { row };
+        affected.AddRange(field == Permission.View && !value
+            ? MenuPermissionTreeHelper.ClearChildren(TreeData, row.MenuId)
+            : MenuPermissionTreeHelper.CascadeChildren(TreeData, row.MenuId, field, value));
+
+        MenuPermissionTreeHelper.UpdateParent(TreeData, row.ParentId, field);
+
+        await SaveNodesAsync(Id!, affected);
+        if (tree is not null) await tree.RefreshAsync();
+    }
+
+    private async Task SaveNodesAsync(string userId, List<MenuPermissionTreeRow> rows)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        foreach (var r in rows.Where(r => r.IsPage && r.PagePath is not null))
+        {
+            var prefix = $"Permissions.{r.PagePath}.";
+            // Remove only USER-level claims for this page; never touch role claims.
+            var existing = await db.UserClaims
+                .Where(c => c.UserId == userId
+                         && c.ClaimType == PermissionService.PermissionClaimType
+                         && c.ClaimValue!.StartsWith(prefix))
+                .ToListAsync();
+            db.UserClaims.RemoveRange(existing);
+
+            foreach (var a in MenuPermissionTreeRow.Actions)
+            {
+                var value = PermissionService.ClaimValue(r.PagePath!, a);
+                // Persist only checked actions that aren't already granted by a role.
+                if (r.Get(a) && !RolePermissionMap.Contains(value))
+                    db.UserClaims.Add(new IdentityUserClaim<string>
+                    {
+                        UserId = userId,
+                        ClaimType = PermissionService.PermissionClaimType,
+                        ClaimValue = value,
+                    });
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+}

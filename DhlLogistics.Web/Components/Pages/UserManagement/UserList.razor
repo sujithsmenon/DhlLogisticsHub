@@ -1,0 +1,406 @@
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject UserManager<AppUser> UserManager
+@inject IToastService ToastService
+@inject SfDialogService DialogService
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="card">
+        <div class="card-header"><b>Users List</b></div>
+        <div class="card-body">
+            <SfGrid ID="UsersGrid" @ref="Grid" DataSource="@UsersWithRoles" TValue="UserWithRolesViewModel"
+                    CssClass="e-small" AllowPaging="true" AllowSorting="true" RowHeight="28" Width="100%"
+                    Toolbar="@Toolbaritems">
+                <GridEditSettings AllowEditing="true" Mode="Syncfusion.Blazor.Grids.EditMode.Dialog">
+                    <Template>
+                        @{
+                            var cont = (context as UserWithRolesViewModel)!;
+                        }
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Username</label>
+                                <SfTextBox @bind-Value="@cont.UserName" CssClass="e-small" Enabled="false" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Email</label>
+                                <SfTextBox @bind-Value="@cont.Email" CssClass="e-small" Enabled="false" />
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-Custom-label">Roles</label>
+                                <SfMultiSelect CssClass="e-small" @bind-Value="@cont.Roles" DataSource="@AllRoles" TValue="string[]" TItem="string"></SfMultiSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Activities</label>
+                                <SfMultiSelect CssClass="e-small" Mode="VisualMode.CheckBox" ShowSelectAll="true"
+                                               @bind-Value="@cont.Activities" DataSource="@AllActivities" TValue="string[]" TItem="string"></SfMultiSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Branches</label>
+                                <SfMultiSelect CssClass="e-small" Mode="VisualMode.CheckBox" ShowSelectAll="true"
+                                               @bind-Value="@cont.Branches" DataSource="@AllBranches" TValue="string[]" TItem="string"></SfMultiSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">Staff</label>
+                                <SfComboBox CssClass="e-small" @bind-Value="@cont.StaffId" DataSource="@StaffList" TValue="int?" TItem="Staff"
+                                            ValueField="Id" TextField="FullName" Placeholder="Select Staff" AllowFiltering="true" ShowClearButton="true">
+                                </SfComboBox>
+                            </div>
+                            <div class="col-md-6 mb-3" style="display:flex;align-items:flex-end;">
+                                <SfCheckBox @bind-Checked="@cont.EmailConfirmed">Confirm User Access</SfCheckBox>
+                            </div>
+                        </div>
+                    </Template>
+                </GridEditSettings>
+                <GridEvents OnToolbarClick="ToolbarClick" OnActionBegin="GridActions" CommandClicked="CommandClickedHandler" TValue="UserWithRolesViewModel"></GridEvents>
+                <GridPageSettings PageSize="15" PageSizes="true"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn HeaderText="Manage" Width="120" TextAlign="Syncfusion.Blazor.Grids.TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                        <GridCommandColumns>
+                            <GridCommandColumn Type="CommandButtonType.Edit" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-edit", CssClass = "e-flat" })"></GridCommandColumn>
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-properties-1", CssClass = "e-flat" })" Title="Permissions"></GridCommandColumn>
+                        </GridCommandColumns>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(UserWithRolesViewModel.UserName)" HeaderText="Username" Width="220" IsPrimaryKey="true"></GridColumn>
+                    <GridColumn Field="@nameof(UserWithRolesViewModel.Email)" HeaderText="Email" Width="220"></GridColumn>
+                    <GridColumn HeaderText="Roles" Width="220">
+                        <Template>
+                            @{
+                                var d = (context as UserWithRolesViewModel)!.Roles;
+                                if (d is { Length: > 0 })
+                                {
+                                    @foreach (var role in d) { <span class="badge bg-secondary m-1">@role</span> }
+                                }
+                                else { <span class="muted">—</span> }
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field="StaffName" HeaderText="Staff" Width="160"></GridColumn>
+                    <GridColumn Field="@nameof(UserWithRolesViewModel.EmailConfirmed)" HeaderText="Access" Width="90" TextAlign="TextAlign.Center" DisplayAsCheckBox="true"></GridColumn>
+                </GridColumns>
+            </SfGrid>
+
+            <!-- Permissions dialog -->
+            <SfDialog Width="980px" Height="560px" ShowCloseIcon="true" IsModal="true" @bind-Visible="@permDialogVisible">
+                <DialogTemplates>
+                    <Header>User Permissions</Header>
+                    <Content>
+                        @if (permDialogVisible)
+                        {
+                            <UserPermissions Id="@SelectedUserId" UserName="@SelectedUserName" />
+                        }
+                    </Content>
+                </DialogTemplates>
+                <DialogAnimationSettings Effect="DialogEffect.None"></DialogAnimationSettings>
+            </SfDialog>
+
+            <!-- Add user dialog -->
+            <SfDialog Width="420px" ShowCloseIcon="true" IsModal="true" @bind-Visible="@addDialogVisible">
+                <DialogTemplates>
+                    <Header>Add New User</Header>
+                    <Content>
+                        <div class="mb-3">
+                            <label class="form-Custom-label">Full Name</label>
+                            <SfTextBox @bind-Value="@newFullName" CssClass="e-small" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-Custom-label">Email</label>
+                            <SfTextBox @bind-Value="@newEmail" Type="InputType.Email" CssClass="e-small" Placeholder="user@example.com" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-Custom-label">Password</label>
+                            <SfTextBox @bind-Value="@newPassword" Type="InputType.Password" CssClass="e-small" Placeholder="Min 8 chars, incl. a digit" />
+                        </div>
+                    </Content>
+                </DialogTemplates>
+                <DialogButtons>
+                    <DialogButton Content="Create" IsPrimary="true" OnClick="@CreateUserAsync" />
+                    <DialogButton Content="Cancel" OnClick="@(() => addDialogVisible = false)" />
+                </DialogButtons>
+            </SfDialog>
+        </div>
+    </div>
+</div>
+
+<ToastComponent />
+
+@code {
+    public class UserWithRolesViewModel
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string? UserName { get; set; }
+        public string? Email { get; set; }
+        public string[] Roles { get; set; } = Array.Empty<string>();
+        public string[] Activities { get; set; } = Array.Empty<string>();
+        public string[] Branches { get; set; } = Array.Empty<string>();
+        public bool EmailConfirmed { get; set; }
+        public int? StaffId { get; set; }
+        public string? StaffName { get; set; }
+    }
+
+    private SfGrid<UserWithRolesViewModel>? Grid;
+    private List<UserWithRolesViewModel> UsersWithRoles = new();
+    private string[] AllRoles = Array.Empty<string>();
+    private string[] AllActivities = Array.Empty<string>();
+    private string[] AllBranches = Array.Empty<string>();
+    private List<Staff> StaffList = new();
+    private bool loader;
+
+    private readonly List<object> Toolbaritems = new()
+    {
+        new ItemModel { Text = "Add New User", TooltipText = "Add New User", PrefixIcon = "e-add", Id = "AddNew" },
+        "Search",
+    };
+
+    // Permissions dialog
+    private bool permDialogVisible;
+    private string? SelectedUserId;
+    private string? SelectedUserName;
+
+    // Add user dialog
+    private bool addDialogVisible;
+    private string newFullName = "";
+    private string newEmail = "";
+    private string newPassword = "";
+
+    protected override async Task OnInitializedAsync() => await LoadInitialData();
+
+    private async Task LoadInitialData()
+    {
+        loader = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            AllRoles      = await db.Roles.Where(r => r.Name != null).Select(r => r.Name!).OrderBy(n => n).ToArrayAsync();
+            AllActivities = await db.ShipmentActivities.Where(a => a.IsActive).Select(a => a.ActivityName).OrderBy(n => n).ToArrayAsync();
+            AllBranches   = await db.CompanyBranches.Where(b => b.IsActive).Select(b => b.BranchName).OrderBy(n => n).ToArrayAsync();
+            StaffList     = await db.Staff.Where(s => s.IsActive).OrderBy(s => s.FullName).ToListAsync();
+
+            var users      = await db.Users.AsNoTracking().ToListAsync();
+            var userRoles  = await db.UserRoles.ToListAsync();
+            var roles      = await db.Roles.ToListAsync();
+            var regUsers   = await db.RegisterdUsers.AsNoTracking().ToListAsync();
+            var actLinks   = await db.UserShipmentActivityPermissions.ToListAsync();
+            var activities = await db.ShipmentActivities.ToListAsync();
+            var brLinks    = await db.UserCompanyBranchPermissions.ToListAsync();
+            var branches   = await db.CompanyBranches.ToListAsync();
+
+            UsersWithRoles = users.Select(u =>
+            {
+                var reg = regUsers.FirstOrDefault(r => r.AspNetUserId == u.Id);
+                var staff = reg?.StaffId is int sid ? StaffList.FirstOrDefault(s => s.Id == sid) : null;
+                return new UserWithRolesViewModel
+                {
+                    UserId = u.Id,
+                    UserName = u.UserName,
+                    Email = u.Email,
+                    EmailConfirmed = u.EmailConfirmed,
+                    Roles = userRoles.Where(ur => ur.UserId == u.Id)
+                                     .Join(roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+                                     .ToArray(),
+                    Activities = reg is null ? Array.Empty<string>()
+                        : actLinks.Where(a => a.UserId == reg.UserId)
+                                  .Join(activities, a => a.ActivityId, x => x.Id, (a, x) => x.ActivityName)
+                                  .ToArray(),
+                    Branches = reg is null ? Array.Empty<string>()
+                        : brLinks.Where(b => b.UserId == reg.UserId)
+                                 .Join(branches, b => b.BranchId, x => x.Id, (b, x) => x.BranchName)
+                                 .ToArray(),
+                    StaffId = reg?.StaffId,
+                    StaffName = staff?.FullName,
+                };
+            }).OrderBy(o => o.UserName).ToList();
+        }
+        finally
+        {
+            loader = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (args.Item.Id == "AddNew" || args.Item.Text == "Add New User")
+        {
+            newFullName = newEmail = newPassword = "";
+            addDialogVisible = true;
+        }
+    }
+
+    private async Task CreateUserAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newFullName) || string.IsNullOrWhiteSpace(newEmail) || string.IsNullOrWhiteSpace(newPassword))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Full name, email and password are required.", CssClass = "e-toast-danger" });
+            return;
+        }
+
+        loader = true;
+        AppUser? user = null;
+        try
+        {
+            var email = newEmail.Trim();
+
+            // Block obvious duplicates up-front (Identity also enforces this, but a
+            // friendly toast beats a raw "DuplicateUserName" error description).
+            if (await UserManager.FindByEmailAsync(email) is not null)
+            {
+                ToastService.Show(new() { Title = "Validation", Content = $"A user with email '{email}' already exists.", CssClass = "e-toast-danger" });
+                return;
+            }
+
+            user = new AppUser
+            {
+                UserName = email,
+                Email = email,
+                FullName = newFullName.Trim(),
+                Role = "Viewer",
+                IsActive = true,
+                EmailConfirmed = true,   // admin-created accounts are active immediately
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            var result = await UserManager.CreateAsync(user, newPassword);
+            if (!result.Succeeded)
+            {
+                user = null;   // nothing was persisted
+                ToastService.Show(new() { Title = "Error!", Content = string.Join("; ", result.Errors.Select(e => e.Description)), CssClass = "e-toast-danger" });
+                return;
+            }
+
+            // Give the new account its default Identity role so it shows up in the
+            // grid's Roles column (which reads AspNetUserRoles, not the legacy Role column).
+            await UserManager.AddToRoleAsync(user, "Viewer");
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.RegisterdUsers.Add(new RegisterdUser
+            {
+                AspNetUserId = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                FullName = user.FullName,
+            });
+            await db.SaveChangesAsync();
+
+            addDialogVisible = false;
+            ToastService.Show(new() { Title = "Success!", Content = "User created.", CssClass = "e-toast-success" });
+            await LoadInitialData();
+            if (Grid is not null) await Grid.Refresh();
+        }
+        catch (Exception ex)
+        {
+            // Roll back the Identity user if the profile/role step failed, so we don't
+            // leave an orphaned AspNetUsers row that can't be created again.
+            if (user is not null)
+            {
+                try { await UserManager.DeleteAsync(user); } catch { /* best-effort cleanup */ }
+            }
+            ToastService.Show(new() { Title = "Error!", Content = ex.InnerException?.Message ?? ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally
+        {
+            loader = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CommandClickedHandler(CommandClickEventArgs<UserWithRolesViewModel> args)
+    {
+        if (args.CommandColumn.Type == CommandButtonType.None && args.CommandColumn.Title == "Permissions")
+        {
+            SelectedUserId = args.RowData.UserId;
+            SelectedUserName = args.RowData.UserName;
+            permDialogVisible = true;
+        }
+    }
+
+    private async Task GridActions(ActionEventArgs<UserWithRolesViewModel> args)
+    {
+        if (args.RequestType != Syncfusion.Blazor.Grids.Action.Save || args.Action != "Edit") return;
+
+        loader = true;
+        args.Cancel = true;
+        try
+        {
+            var vm = args.Data;
+            await using var db = await DbFactory.CreateDbContextAsync();
+            await using var tx = await db.Database.BeginTransactionAsync();
+
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == vm.UserId);
+            if (user is null) throw new InvalidOperationException("User not found.");
+
+            user.EmailConfirmed = vm.EmailConfirmed;
+            user.Role = vm.Roles.FirstOrDefault() ?? user.Role;   // keep legacy single-role column in sync
+
+            // RegisterdUser profile (created on demand so activity/branch links can attach).
+            var reg = await db.RegisterdUsers.FirstOrDefaultAsync(r => r.AspNetUserId == user.Id);
+            if (reg is null)
+            {
+                reg = new RegisterdUser
+                {
+                    AspNetUserId = user.Id,
+                    UserName = user.UserName,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    StaffId = vm.StaffId,
+                };
+                db.RegisterdUsers.Add(reg);
+                await db.SaveChangesAsync();   // assigns reg.UserId
+            }
+            else
+            {
+                reg.StaffId = vm.StaffId;
+            }
+
+            // Roles → AspNetUserRoles
+            var oldRoles = await db.UserRoles.Where(ur => ur.UserId == user.Id).ToListAsync();
+            db.UserRoles.RemoveRange(oldRoles);
+            foreach (var roleName in vm.Roles)
+            {
+                var role = await db.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
+                if (role is not null)
+                    db.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = role.Id });
+            }
+
+            // Activities
+            var oldAct = await db.UserShipmentActivityPermissions.Where(a => a.UserId == reg.UserId).ToListAsync();
+            db.UserShipmentActivityPermissions.RemoveRange(oldAct);
+            foreach (var name in vm.Activities)
+            {
+                var act = await db.ShipmentActivities.FirstOrDefaultAsync(a => a.ActivityName == name);
+                if (act is not null)
+                    db.UserShipmentActivityPermissions.Add(new UserShipmentActivityPermission { UserId = reg.UserId, ActivityId = act.Id });
+            }
+
+            // Branches
+            var oldBr = await db.UserCompanyBranchPermissions.Where(b => b.UserId == reg.UserId).ToListAsync();
+            db.UserCompanyBranchPermissions.RemoveRange(oldBr);
+            foreach (var name in vm.Branches)
+            {
+                var br = await db.CompanyBranches.FirstOrDefaultAsync(b => b.BranchName == name);
+                if (br is not null)
+                    db.UserCompanyBranchPermissions.Add(new UserCompanyBranchPermission { UserId = reg.UserId, BranchId = br.Id });
+            }
+
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            if (Grid is not null) await Grid.CloseEditAsync();
+            await LoadInitialData();
+            if (Grid is not null) await Grid.Refresh();
+            ToastService.Show(new() { Title = "Success!", Content = "User updated.", CssClass = "e-toast-success" });
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.InnerException?.Message ?? ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally
+        {
+            loader = false;
+            StateHasChanged();
+        }
+    }
+}

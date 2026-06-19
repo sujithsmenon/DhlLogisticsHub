@@ -36,16 +36,23 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 // Connection string lives in User Secrets in Development:
 //   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=...;Port=6543;Database=postgres;Username=postgres.<projectref>;Password=...;SSL Mode=Require;Trust Server Certificate=true"
 // In production, set env var ConnectionStrings__DefaultConnection.
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Single source of options: register the factory (configures Npgsql once) and derive
+// the scoped AppDbContext from it. This serves BOTH the interactive user-management
+// grids/trees (which call IDbContextFactory<AppDbContext>.CreateDbContext directly) and
+// the rest of the app + Identity stores (which inject a scoped AppDbContext). Avoids the
+// fragile dual AddDbContext + AddDbContextFactory registration, which could leave the
+// scoped context without a connection string.
+var dbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseNpgsql(dbConnectionString));
+builder.Services.AddScoped<AppDbContext>(sp =>
+    sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
-// ── Navigation menu store (LOCAL SQL Server, separate from the Postgres app DB) ─
-// The sidebar is data-driven from a Menus table held in a local SQL Server instance.
-// Connection string "MenuConnection" (appsettings / User Secrets / env var
-// ConnectionStrings__MenuConnection). Registered as a factory so the interactive
-// NavMenu component can open a short-lived context per render.
-builder.Services.AddDbContextFactory<MenuDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("MenuConnection")));
+// ── Navigation menu ──────────────────────────────────────────────────────────
+// The sidebar is data-driven from a Menus table. It now lives in the main Supabase
+// Postgres DB (AppDbContext) — previously a separate local SQL Server store, which
+// AWS Elastic Beanstalk could not reach. NavMenu / permission trees open a short-lived
+// AppDbContext via the factory registered above.
 
 // ── Identity (cookie auth for Blazor) ────────────────────────────────────────
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
@@ -55,6 +62,9 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
     options.SignIn.RequireConfirmedAccount = false;
 })
 .AddEntityFrameworkStores<AppDbContext>()
+// Keep "Permission" claims OUT of the auth cookie (they're evaluated live from the DB).
+// Without this the cookie overflows the HTTP header limit → 431 locally / 502 on the ALB.
+.AddClaimsPrincipalFactory<DhlLogistics.Web.Service.AppUserClaimsPrincipalFactory>()
 .AddDefaultTokenProviders();
 
 // ── JWT Bearer (for mobile/API) ───────────────────────────────────────────────
@@ -238,16 +248,39 @@ using (var scope = app.Services.CreateScope())
     {
         var admin = new AppUser
         {
-            UserName   = adminEmail,
-            Email      = adminEmail,
-            FullName   = "Administrator",
-            Role       = "Admin",
-            IsActive   = true,
-            CreatedAt  = DateTime.UtcNow,
+            UserName       = adminEmail,
+            Email          = adminEmail,
+            FullName       = "Administrator",
+            Role           = "Admin",
+            IsActive       = true,
+            EmailConfirmed = true,
+            CreatedAt      = DateTime.UtcNow,
         };
         var result = await userManager.CreateAsync(admin, adminPassword);
         if (result.Succeeded)
             await userManager.AddToRoleAsync(admin, "Admin");
+    }
+
+    // Ensure a RegisterdUser profile exists for the admin (CBM user-management parity).
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<DhlLogistics.Web.Database.AppDbContext>();
+        var admin = await userManager.FindByEmailAsync(adminEmail);
+        if (admin is not null && !await db.RegisterdUsers.AnyAsync(r => r.AspNetUserId == admin.Id))
+        {
+            db.RegisterdUsers.Add(new DhlLogistics.Shared.Models.RegisterdUser
+            {
+                AspNetUserId = admin.Id,
+                UserName     = admin.UserName,
+                Email        = admin.Email,
+                FullName     = admin.FullName,
+            });
+            await db.SaveChangesAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Admin RegisterdUser Seed] skipped: {ex.Message}");
     }
 
     // M2 master seed data (idempotent — skipped per-entity if rows already exist)
@@ -272,13 +305,15 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"[Permission Seed] skipped: {ex.Message}");
     }
 
-    // Navigation menu schema + seed on the local SQL Server store (idempotent —
-    // EnsureCreated builds the table, the seed inserts only when it's empty).
+    // Navigation menu seed (Postgres, idempotent — schema from migration, seed inserts
+    // only when the Menus table is empty).
     try
     {
         var menuFactory = scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<DhlLogistics.Web.Database.MenuDbContext>>();
+            .GetRequiredService<IDbContextFactory<DhlLogistics.Web.Database.AppDbContext>>();
         await DhlLogistics.Web.Database.MenuSeed.SeedAsync(menuFactory);
+        // Repoint legacy Users/Roles menu entries to the new /usermanagement page.
+        await DhlLogistics.Web.Database.MenuSeed.FixupAsync(menuFactory);
     }
     catch (Exception ex)
     {

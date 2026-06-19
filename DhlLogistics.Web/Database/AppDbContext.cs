@@ -4,6 +4,7 @@ using DhlLogistics.Shared.Models;
 using DhlLogistics.Web.Model;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 public class AppDbContext : IdentityDbContext<AppUser>
 {
@@ -63,6 +64,11 @@ public class AppDbContext : IdentityDbContext<AppUser>
     // ── M3 Permissions ───────────────────────────────────────────────────────
     public DbSet<RolePagePermission> RolePagePermissions => Set<RolePagePermission>();
 
+    // ── CBM User Management (profile + activity/branch scoping) ───────────────
+    public DbSet<RegisterdUser> RegisterdUsers => Set<RegisterdUser>();
+    public DbSet<UserShipmentActivityPermission> UserShipmentActivityPermissions => Set<UserShipmentActivityPermission>();
+    public DbSet<UserCompanyBranchPermission>    UserCompanyBranchPermissions    => Set<UserCompanyBranchPermission>();
+
     // ── M4 Job Orders ────────────────────────────────────────────────────────
     public DbSet<JobOrder>         JobOrders         => Set<JobOrder>();
     public DbSet<JobOrderEvent>    JobOrderEvents    => Set<JobOrderEvent>();
@@ -79,6 +85,10 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<Voucher>       Vouchers       => Set<Voucher>();
     public DbSet<VoucherLine>   VoucherLines   => Set<VoucherLine>();
     public DbSet<VoucherEvent>  VoucherEvents  => Set<VoucherEvent>();
+
+    // ── Navigation menu (consolidated into Postgres so it works on AWS; was a
+    //    separate local SQL Server store via the now-removed MenuDbContext) ──────
+    public DbSet<Menu> Menus => Set<Menu>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -145,6 +155,34 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasIndex(p => new { p.RoleId, p.PagePath, p.Permission }).IsUnique();
         mb.Entity<RolePagePermission>()
             .HasIndex(p => new { p.RoleId, p.PagePath });
+
+        // ── CBM User Management ──────────────────────────────────────────────
+        // RegisterdUser: surrogate PK UserId, one profile per AspNetUsers row.
+        mb.Entity<RegisterdUser>(e =>
+        {
+            e.HasKey(r => r.UserId);
+            e.HasIndex(r => r.AspNetUserId).IsUnique();
+            e.HasOne(r => r.Staff).WithMany().HasForeignKey(r => r.StaffId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        mb.Entity<UserShipmentActivityPermission>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.ActivityId }).IsUnique();
+            e.HasOne<RegisterdUser>().WithMany().HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ShipmentActivity>().WithMany().HasForeignKey(x => x.ActivityId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<UserCompanyBranchPermission>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.BranchId }).IsUnique();
+            e.HasOne<RegisterdUser>().WithMany().HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<CompanyBranch>().WithMany().HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // ── M4 Job Orders ────────────────────────────────────────────────────
         mb.Entity<JobOrder>().Property(j => j.LclUnits).HasPrecision(12, 3);
@@ -277,5 +315,43 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasOne(e => e.Voucher).WithMany(v => v.Events).HasForeignKey(e => e.VoucherId)
             .OnDelete(DeleteBehavior.Cascade);
         mb.Entity<VoucherEvent>().HasIndex(e => new { e.VoucherId, e.At });
+
+        // ── Navigation menu (Postgres) ───────────────────────────────────────
+        mb.Entity<Menu>(e =>
+        {
+            e.ToTable("Menus");
+            e.HasKey(m => m.MenuId);
+            e.Property(m => m.MenuName).HasMaxLength(100).IsRequired();
+            e.Property(m => m.Icon).HasMaxLength(16);
+            e.Property(m => m.PageName).HasMaxLength(200);
+            e.HasIndex(m => m.ParentId);
+            e.HasIndex(m => m.ShowOrder);
+        });
+
+        // ── DateTime → UTC value converters ──────────────────────────────────
+        // Npgsql maps DateTime to 'timestamp with time zone', which only accepts
+        // Kind=Utc. Values from Syncfusion date/time pickers are Local/Unspecified and
+        // would throw "Cannot write DateTime with Kind=Local...". A SaveChanges-time
+        // relabel does NOT work: EF's DateTime value comparer ignores Kind, so changing
+        // CurrentValue to the same ticks is treated as "no change" and skipped.
+        // A value converter runs at the provider boundary (after change tracking) so it
+        // always applies. SpecifyKind (not ToUniversalTime) preserves the picked
+        // wall-clock value; reads relabel the incoming value as Utc.
+        var utcConverter = new ValueConverter<DateTime, DateTime>(
+            v => v.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        var utcNullableConverter = new ValueConverter<DateTime?, DateTime?>(
+            v => v.HasValue ? (v.Value.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc)) : v,
+            v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        foreach (var entityType in mb.Model.GetEntityTypes())
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime))
+                    property.SetValueConverter(utcConverter);
+                else if (property.ClrType == typeof(DateTime?))
+                    property.SetValueConverter(utcNullableConverter);
+            }
     }
+
 }

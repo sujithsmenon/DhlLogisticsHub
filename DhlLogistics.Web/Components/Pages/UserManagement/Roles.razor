@@ -1,0 +1,168 @@
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject IToastService ToastService
+@inject SfDialogService DialogService
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="card">
+        <div class="card-header"><b>Roles List</b></div>
+        <div class="card-body">
+            <SfGrid ID="RolesGrid" @ref="Grid" DataSource="@model" TValue="IdentityRole"
+                    GridLines="GridLine.Both" AllowPaging="true" AllowSorting="true"
+                    CssClass="e-small" RowHeight="30" Width="100%"
+                    Toolbar="@(new List<string>() { "Add", "Search" })">
+                <GridEditSettings AllowAdding="true" AllowEditing="true" AllowDeleting="true"
+                                  Mode="Syncfusion.Blazor.Grids.EditMode.Dialog" ShowDeleteConfirmDialog="true">
+                    <Template>
+                        @{
+                            var cont = (context as IdentityRole)!;
+                        }
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-Custom-label">Role Name:</label>
+                                <SfTextBox @bind-Value="@cont.Name" CssClass="e-small" />
+                            </div>
+                        </div>
+                    </Template>
+                </GridEditSettings>
+                <GridEvents OnActionBegin="GridActions" CommandClicked="CommandClickedHandler" TValue="IdentityRole"></GridEvents>
+                <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar"></GridFilterSettings>
+                <GridPageSettings PageSize="15" PageSizes="true"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn HeaderText="Manage" Width="120" TextAlign="Syncfusion.Blazor.Grids.TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                        <GridCommandColumns>
+                            <GridCommandColumn Type="CommandButtonType.Edit" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-edit", CssClass = "e-flat" })"></GridCommandColumn>
+                            <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-delete", CssClass = "e-flat" })"></GridCommandColumn>
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-properties-1", CssClass = "e-flat" })" Title="Permissions"></GridCommandColumn>
+                        </GridCommandColumns>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(IdentityRole.Id)" HeaderText="Id" IsPrimaryKey="true" Visible="false"></GridColumn>
+                    <GridColumn Field="@nameof(IdentityRole.Name)" HeaderText="Name"></GridColumn>
+                </GridColumns>
+            </SfGrid>
+
+            <SfDialog Width="980px" Height="560px" ShowCloseIcon="true" IsModal="true" @bind-Visible="@dialogVisible">
+                <DialogTemplates>
+                    <Header>Role Permissions</Header>
+                    <Content>
+                        @if (dialogVisible)
+                        {
+                            <RolePermissions Id="@RoleId" RoleName="@RoleName" />
+                        }
+                    </Content>
+                </DialogTemplates>
+                <DialogAnimationSettings Effect="DialogEffect.None"></DialogAnimationSettings>
+            </SfDialog>
+        </div>
+    </div>
+</div>
+
+@code {
+    private SfGrid<IdentityRole>? Grid;
+    private List<IdentityRole> model = new();
+    private bool loader;
+
+    private bool dialogVisible;
+    public string? RoleId { get; set; }
+    public string? RoleName { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loader = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            model = await db.Roles.OrderBy(r => r.Name).ToListAsync();
+        }
+        finally
+        {
+            loader = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CommandClickedHandler(CommandClickEventArgs<IdentityRole> args)
+    {
+        if (args.CommandColumn.Type == CommandButtonType.None && args.CommandColumn.Title == "Permissions")
+        {
+            RoleId = args.RowData.Id;
+            RoleName = args.RowData.Name;
+            dialogVisible = true;
+        }
+    }
+
+    private async Task GridActions(ActionEventArgs<IdentityRole> args)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            if (args.RequestType == Syncfusion.Blazor.Grids.Action.Save)
+            {
+                if (string.IsNullOrWhiteSpace(args.Data.Name))
+                {
+                    args.Cancel = true;
+                    ToastService.Show(new() { Title = "Warning", Content = "Role name is required.", CssClass = "e-toast-warning" });
+                    return;
+                }
+
+                args.Cancel = true;
+                var name = args.Data.Name.Trim();
+
+                if (args.Action == "Add")
+                {
+                    if (await db.Roles.AnyAsync(r => r.Name == name))
+                    {
+                        ToastService.Show(new() { Title = "Warning", Content = $"Role '{name}' already exists.", CssClass = "e-toast-warning" });
+                        return;
+                    }
+                    db.Roles.Add(new IdentityRole(name) { NormalizedName = name.ToUpperInvariant() });
+                    await db.SaveChangesAsync();
+                    ToastService.Show(new() { Title = "Success!", Content = "Role created.", CssClass = "e-toast-success" });
+                }
+                else // Edit
+                {
+                    var entity = await db.Roles.FindAsync(args.Data.Id);
+                    if (entity is null) throw new ArgumentException("Role not found.");
+                    entity.Name = name;
+                    entity.NormalizedName = name.ToUpperInvariant();
+                    await db.SaveChangesAsync();
+                    ToastService.Show(new() { Title = "Success!", Content = "Role updated.", CssClass = "e-toast-success" });
+                }
+
+                if (Grid is not null) await Grid.CloseEditAsync();
+                await LoadAsync();
+                if (Grid is not null) await Grid.Refresh();
+            }
+            else if (args.RequestType == Syncfusion.Blazor.Grids.Action.Delete)
+            {
+                args.Cancel = true;
+                var entity = await db.Roles.FindAsync(args.Data.Id);
+                if (entity is null) throw new ArgumentException("Role not found.");
+
+                // Clean up role claims + user-role links so no orphans remain.
+                var roleClaims = await db.RoleClaims.Where(c => c.RoleId == entity.Id).ToListAsync();
+                db.RoleClaims.RemoveRange(roleClaims);
+                var userRoles = await db.UserRoles.Where(ur => ur.RoleId == entity.Id).ToListAsync();
+                db.UserRoles.RemoveRange(userRoles);
+                db.Roles.Remove(entity);
+                await db.SaveChangesAsync();
+
+                ToastService.Show(new() { Title = "Success!", Content = "Role deleted.", CssClass = "e-toast-success" });
+                await LoadAsync();
+                if (Grid is not null) await Grid.Refresh();
+            }
+        }
+        catch (Exception ex)
+        {
+            args.Cancel = true;
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            ToastService.Show(new() { Title = "Error!", Content = msg, CssClass = "e-toast-danger" });
+        }
+    }
+}

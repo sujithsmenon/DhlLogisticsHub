@@ -3,6 +3,7 @@ using System;
 using DhlLogistics.Web.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DhlLogistics.Web.Database.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260619031124_AddCbmUserManagement")]
+    partial class AddCbmUserManagement
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2242,57 +2245,6 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("FcmRegistrations");
-                });
-
-            modelBuilder.Entity("DhlLogistics.Web.Model.Menu", b =>
-                {
-                    b.Property<int>("MenuId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("MenuId"));
-
-                    b.Property<bool>("Active")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("DefaultOpen")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Icon")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<bool>("IsDashboard")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("MatchAll")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("MenuName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("PageName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int?>("ParentId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("RequiresPermission")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("ShowOrder")
-                        .HasColumnType("integer");
-
-                    b.HasKey("MenuId");
-
-                    b.HasIndex("ParentId");
-
-                    b.HasIndex("ShowOrder");
-
-                    b.ToTable("Menus", (string)null);
                 });
 
             modelBuilder.Entity("DhlLogistics.Web.Model.WebPushSubscription", b =>

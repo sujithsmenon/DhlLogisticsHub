@@ -3,10 +3,12 @@
 @using DhlLogistics.Web.Model
 @using DhlLogistics.Web.Service
 
-@inject IDbContextFactory<MenuDbContext> MenuFactory
+@inject IDbContextFactory<AppDbContext> MenuFactory
 @inject AuthenticationStateProvider AuthStateProvider
 @inject PermissionService Perm
+@inject NavigationManager Nav
 @inject ILogger<NavMenu> Logger
+@implements IDisposable
 
 <nav class="sidebar-nav">
 
@@ -62,6 +64,25 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Re-evaluate permissions on every navigation so menu changes (granting/revoking
+        // a page's View claim) show up without a full re-login. The sidebar lives in the
+        // layout and is otherwise initialised only once per circuit.
+        Nav.LocationChanged += OnLocationChanged;
+        await ReloadAsync();
+        _loaded = true;
+    }
+
+    private bool _disposed;
+    private bool _reloading;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _ = ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        // Skip overlapping reloads (LocationChanged is fire-and-forget) and any reload
+        // after the component is gone, so a navigation never renders into a disposed tree.
+        if (_disposed || _reloading) return;
+        _reloading = true;
         try
         {
             await LoadMenuAsync();
@@ -70,12 +91,19 @@
         {
             // A missing / unreachable menu SQL Server must never take down the whole
             // layout — degrade to an empty sidebar and log for diagnosis.
-            Logger.LogError(ex, "Failed to load navigation menu from MenuConnection.");
+            Logger.LogError(ex, "Failed to load navigation menu from the database.");
         }
         finally
         {
-            _loaded = true;
+            _reloading = false;
+            if (!_disposed) await InvokeAsync(StateHasChanged);
         }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Nav.LocationChanged -= OnLocationChanged;
     }
 
     private async Task LoadMenuAsync()

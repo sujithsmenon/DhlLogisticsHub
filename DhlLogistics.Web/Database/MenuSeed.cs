@@ -16,13 +16,11 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public static class MenuSeed
 {
-    public static async Task SeedAsync(IDbContextFactory<MenuDbContext> factory)
+    public static async Task SeedAsync(IDbContextFactory<AppDbContext> factory)
     {
         await using var db = await factory.CreateDbContextAsync();
 
-        // Standalone single-table store — create from the model, no migrations.
-        await db.Database.EnsureCreatedAsync();
-
+        // Schema is created by the AppDbContext migration (Postgres). Seed only if empty.
         if (await db.Menus.AnyAsync()) return;   // already seeded / hand-edited
 
         int order = 0;
@@ -90,7 +88,7 @@ public static class MenuSeed
         Child(masters, "Clients",             "🏢", "masters/clients");
         Child(masters, "Transporters",        "🚚", "masters/transporters");
         Child(masters, "Containers",          "📦", "masters/containers");
-        Child(masters, "Users",               "👤", "masters/users");
+        Child(masters, "User Management",     "👤", "usermanagement");
         Child(masters, "Container Sizes",     "📐", "masters/container-sizes");
         Child(masters, "Commodities",         "📦", "masters/commodities");
         Child(masters, "Vessels",             "🚢", "masters/vessels");
@@ -107,7 +105,6 @@ public static class MenuSeed
         Child(ops, "Jobs",          "📋", "jobs");
         Child(ops, "Live Tracking", "🗺", "tracking");
         Child(ops, "Cargo",         "📦", "cargo");
-        Child(ops, "Roles",         "🔑", "admin/permissions");
 
         // ── Billing ──────────────────────────────────────────────────────────
         var billing = Group("Billing", "🧾");
@@ -178,5 +175,36 @@ public static class MenuSeed
         }
         db.Menus.AddRange(allChildren);
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Idempotent fixup for menu databases that were already seeded before the CBM
+    /// user-management migration: repoints the old "Users" (/masters/users) entry to
+    /// the new /usermanagement page and hides the standalone "Roles" (/admin/permissions)
+    /// entry, which /usermanagement now covers. Safe to run on every startup.
+    /// </summary>
+    public static async Task FixupAsync(IDbContextFactory<AppDbContext> factory)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        if (!await db.Menus.AnyAsync()) return;   // nothing seeded yet — SeedAsync handles it
+
+        var changed = false;
+
+        var usersMenu = await db.Menus.FirstOrDefaultAsync(m => m.PageName == "masters/users");
+        if (usersMenu is not null)
+        {
+            usersMenu.PageName = "usermanagement";
+            usersMenu.MenuName = "User Management";
+            changed = true;
+        }
+
+        var rolesMenu = await db.Menus.FirstOrDefaultAsync(m => m.PageName == "admin/permissions");
+        if (rolesMenu is not null)
+        {
+            rolesMenu.Active = false;   // superseded by the Roles tab in /usermanagement
+            changed = true;
+        }
+
+        if (changed) await db.SaveChangesAsync();
     }
 }

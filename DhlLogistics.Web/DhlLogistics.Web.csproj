@@ -17,7 +17,6 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.27" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
     <PackageReference Include="Syncfusion.Blazor.Buttons" Version="33.1.49" />
     <PackageReference Include="Syncfusion.Blazor.Calendars" Version="33.1.49" />
@@ -31,6 +30,7 @@
     <PackageReference Include="Syncfusion.Blazor.ProgressBar" Version="33.1.49" />
     <PackageReference Include="Syncfusion.Blazor.Spinner" Version="33.1.49" />
     <PackageReference Include="Syncfusion.Blazor.Themes" Version="33.1.49" />
+    <PackageReference Include="Syncfusion.Blazor.TreeGrid" Version="33.1.49" />
     <PackageReference Include="WebPush" Version="1.0.12" />
   </ItemGroup>
 

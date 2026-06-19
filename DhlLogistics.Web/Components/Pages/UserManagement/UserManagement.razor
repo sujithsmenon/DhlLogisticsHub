@@ -1,0 +1,35 @@
+@page "/usermanagement"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<HeadContent>
+    <link rel="stylesheet" href="default.css" />
+</HeadContent>
+
+<style>
+    .e-treegrid .highlight-group { background-color: #c6eefd66; }
+    .um-card .e-tab .e-content { padding-top: 8px; }
+</style>
+
+<div class="card um-card">
+    <div class="card-header"><b>User Management</b></div>
+    <div class="card-body">
+        <SfTab>
+            <TabAnimationSettings>
+                <TabAnimationPrevious Effect="Syncfusion.Blazor.AnimationEffect.None"></TabAnimationPrevious>
+                <TabAnimationNext Effect="Syncfusion.Blazor.AnimationEffect.None"></TabAnimationNext>
+            </TabAnimationSettings>
+            <TabItems>
+                <TabItem>
+                    <ChildContent><TabHeader Text="Users"></TabHeader></ChildContent>
+                    <ContentTemplate><UserList /></ContentTemplate>
+                </TabItem>
+                <TabItem>
+                    <ChildContent><TabHeader Text="Roles"></TabHeader></ChildContent>
+                    <ContentTemplate><Roles /></ContentTemplate>
+                </TabItem>
+            </TabItems>
+        </SfTab>
+    </div>
+</div>
