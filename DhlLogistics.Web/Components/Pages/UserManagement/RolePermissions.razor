@@ -4,6 +4,8 @@
 @using DhlLogistics.Web.Model
 
 @inject IDbContextFactory<AppDbContext> DbFactory
+@inject IToastService ToastService
+@inject ILogger<RolePermissions> Logger
 
 <div class="main-div">
     <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
@@ -49,6 +51,8 @@
     </div>
 </div>
 
+<ToastComponent />
+
 @code {
     [Parameter] public string? Id { get; set; }       // RoleId (IdentityRole.Id)
     [Parameter] public string? RoleName { get; set; }
@@ -56,6 +60,7 @@
     private SfTreeGrid<MenuPermissionTreeRow>? tree;
     private List<MenuPermissionTreeRow> TreeData = new();
     private bool loader;
+    private bool _saving;   // prevents overlapping/duplicate saves while one is in flight
 
     protected override async Task OnInitializedAsync()
     {
@@ -88,17 +93,38 @@
 
     private async Task OnPermissionChanged(MenuPermissionTreeRow row, Permission field, bool value)
     {
-        MenuPermissionTreeHelper.SetField(row, field, value);
+        // Ignore re-entrant clicks until the current save has fully committed. Without
+        // this guard a second toggle could start a new context/save before the first
+        // finished, and an unhandled exception there tore down the Blazor circuit
+        // ("An unhandled error has occurred.") with no toast and no save.
+        if (_saving) return;
+        _saving = true;
+        try
+        {
+            MenuPermissionTreeHelper.SetField(row, field, value);
 
-        var affected = new List<MenuPermissionTreeRow> { row };
-        affected.AddRange(field == Permission.View && !value
-            ? MenuPermissionTreeHelper.ClearChildren(TreeData, row.MenuId)
-            : MenuPermissionTreeHelper.CascadeChildren(TreeData, row.MenuId, field, value));
+            var affected = new List<MenuPermissionTreeRow> { row };
+            affected.AddRange(field == Permission.View && !value
+                ? MenuPermissionTreeHelper.ClearChildren(TreeData, row.MenuId)
+                : MenuPermissionTreeHelper.CascadeChildren(TreeData, row.MenuId, field, value));
 
-        MenuPermissionTreeHelper.UpdateParent(TreeData, row.ParentId, field);
+            MenuPermissionTreeHelper.UpdateParent(TreeData, row.ParentId, field);
 
-        await SaveNodesAsync(Id!, affected);
-        if (tree is not null) await tree.RefreshAsync();
+            // Save MUST complete before the grid refresh so the UI reflects committed state.
+            await SaveNodesAsync(Id!, affected);
+            if (tree is not null) await tree.RefreshAsync();
+
+            ToastService.Show(new() { Title = "Saved", Content = "Permissions updated.", CssClass = "e-toast-success" });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Permission save failed for role {RoleId}", Id);
+            ToastService.Show(new() { Title = "Error!", Content = ex.InnerException?.Message ?? ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private async Task SaveNodesAsync(string roleId, List<MenuPermissionTreeRow> rows)

@@ -4,6 +4,7 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject IToastService ToastService
 @inject SfDialogService DialogService
+@inject ILogger<Roles> Logger
 
 <div class="main-div">
     <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
@@ -123,15 +124,18 @@
                     }
                     db.Roles.Add(new IdentityRole(name) { NormalizedName = name.ToUpperInvariant() });
                     await db.SaveChangesAsync();
+                    Logger.LogInformation("Role created: {RoleName}", name);
                     ToastService.Show(new() { Title = "Success!", Content = "Role created.", CssClass = "e-toast-success" });
                 }
                 else // Edit
                 {
                     var entity = await db.Roles.FindAsync(args.Data.Id);
                     if (entity is null) throw new ArgumentException("Role not found.");
+                    var oldName = entity.Name;
                     entity.Name = name;
                     entity.NormalizedName = name.ToUpperInvariant();
                     await db.SaveChangesAsync();
+                    Logger.LogInformation("Role renamed: {OldName} -> {NewName}", oldName, name);
                     ToastService.Show(new() { Title = "Success!", Content = "Role updated.", CssClass = "e-toast-success" });
                 }
 
@@ -145,14 +149,28 @@
                 var entity = await db.Roles.FindAsync(args.Data.Id);
                 if (entity is null) throw new ArgumentException("Role not found.");
 
-                // Clean up role claims + user-role links so no orphans remain.
+                // Guard built-in roles — removing these breaks auth/seeding.
+                var builtIn = new[] { "Admin", "Manager", "Executive", "Viewer" };
+                if (builtIn.Contains(entity.Name))
+                {
+                    ToastService.Show(new() { Title = "Blocked", Content = $"Built-in role '{entity.Name}' cannot be deleted.", CssClass = "e-toast-warning" });
+                    return;
+                }
+
+                // Guard roles still assigned to users — prevents silently stripping access.
+                if (await db.UserRoles.AnyAsync(ur => ur.RoleId == entity.Id))
+                {
+                    ToastService.Show(new() { Title = "Blocked", Content = "Role is assigned to one or more users. Reassign them first.", CssClass = "e-toast-warning" });
+                    return;
+                }
+
+                // Clean up role claims so no orphans remain.
                 var roleClaims = await db.RoleClaims.Where(c => c.RoleId == entity.Id).ToListAsync();
                 db.RoleClaims.RemoveRange(roleClaims);
-                var userRoles = await db.UserRoles.Where(ur => ur.RoleId == entity.Id).ToListAsync();
-                db.UserRoles.RemoveRange(userRoles);
                 db.Roles.Remove(entity);
                 await db.SaveChangesAsync();
 
+                Logger.LogInformation("Role deleted: {RoleName}", entity.Name);
                 ToastService.Show(new() { Title = "Success!", Content = "Role deleted.", CssClass = "e-toast-success" });
                 await LoadAsync();
                 if (Grid is not null) await Grid.Refresh();
