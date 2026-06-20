@@ -57,10 +57,11 @@
                 <GridEvents OnToolbarClick="ToolbarClick" OnActionBegin="GridActions" CommandClicked="CommandClickedHandler" TValue="UserWithRolesViewModel"></GridEvents>
                 <GridPageSettings PageSize="15" PageSizes="true"></GridPageSettings>
                 <GridColumns>
-                    <GridColumn HeaderText="Manage" Width="120" TextAlign="Syncfusion.Blazor.Grids.TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                    <GridColumn HeaderText="Manage" Width="150" TextAlign="Syncfusion.Blazor.Grids.TextAlign.Center" AllowReordering="false" AllowResizing="false">
                         <GridCommandColumns>
                             <GridCommandColumn Type="CommandButtonType.Edit" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-edit", CssClass = "e-flat" })"></GridCommandColumn>
                             <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-properties-1", CssClass = "e-flat" })" Title="Permissions"></GridCommandColumn>
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-lock", CssClass = "e-flat" })" Title="Change Password"></GridCommandColumn>
                         </GridCommandColumns>
                     </GridColumn>
                     <GridColumn Field="@nameof(UserWithRolesViewModel.UserName)" HeaderText="Username" Width="220" IsPrimaryKey="true"></GridColumn>
@@ -120,6 +121,31 @@
                     <DialogButton Content="Cancel" OnClick="@(() => addDialogVisible = false)" />
                 </DialogButtons>
             </SfDialog>
+
+            <!-- Change password dialog -->
+            <SfDialog Width="420px" ShowCloseIcon="true" IsModal="true" @bind-Visible="@pwdDialogVisible">
+                <DialogTemplates>
+                    <Header>Change Password</Header>
+                    <Content>
+                        <div class="mb-3">
+                            <label class="form-Custom-label">User</label>
+                            <SfTextBox Value="@pwdUserName" CssClass="e-small" Enabled="false" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-Custom-label">New Password</label>
+                            <SfTextBox @bind-Value="@newPwd" Type="InputType.Password" CssClass="e-small" Placeholder="Min 8 chars, incl. a digit" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-Custom-label">Confirm Password</label>
+                            <SfTextBox @bind-Value="@confirmPwd" Type="InputType.Password" CssClass="e-small" Placeholder="Re-enter password" />
+                        </div>
+                    </Content>
+                </DialogTemplates>
+                <DialogButtons>
+                    <DialogButton Content="Save" IsPrimary="true" OnClick="@ChangePasswordAsync" />
+                    <DialogButton Content="Cancel" OnClick="@(() => pwdDialogVisible = false)" />
+                </DialogButtons>
+            </SfDialog>
         </div>
     </div>
 </div>
@@ -164,6 +190,13 @@
     private string newFullName = "";
     private string newEmail = "";
     private string newPassword = "";
+
+    // Change password dialog
+    private bool pwdDialogVisible;
+    private string? pwdUserId;
+    private string? pwdUserName;
+    private string newPwd = "";
+    private string confirmPwd = "";
 
     protected override async Task OnInitializedAsync() => await LoadInitialData();
 
@@ -314,6 +347,63 @@
             SelectedUserId = args.RowData.UserId;
             SelectedUserName = args.RowData.UserName;
             permDialogVisible = true;
+        }
+        else if (args.CommandColumn.Type == CommandButtonType.None && args.CommandColumn.Title == "Change Password")
+        {
+            pwdUserId = args.RowData.UserId;
+            pwdUserName = args.RowData.UserName;
+            newPwd = confirmPwd = "";
+            pwdDialogVisible = true;
+        }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        if (string.IsNullOrWhiteSpace(pwdUserId))
+            return;
+
+        if (string.IsNullOrWhiteSpace(newPwd) || string.IsNullOrWhiteSpace(confirmPwd))
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "New password and confirmation are required.", CssClass = "e-toast-danger" });
+            return;
+        }
+        if (newPwd != confirmPwd)
+        {
+            ToastService.Show(new() { Title = "Validation", Content = "Passwords do not match.", CssClass = "e-toast-danger" });
+            return;
+        }
+
+        loader = true;
+        try
+        {
+            var user = await UserManager.FindByIdAsync(pwdUserId);
+            if (user is null)
+            {
+                ToastService.Show(new() { Title = "Error!", Content = "User not found.", CssClass = "e-toast-danger" });
+                return;
+            }
+
+            // Admin reset: generate a reset token so password validators (length, digit, …)
+            // are still enforced, then apply the new password.
+            var token = await UserManager.GeneratePasswordResetTokenAsync(user);
+            var result = await UserManager.ResetPasswordAsync(user, token, newPwd);
+            if (!result.Succeeded)
+            {
+                ToastService.Show(new() { Title = "Error!", Content = string.Join("; ", result.Errors.Select(e => e.Description)), CssClass = "e-toast-danger" });
+                return;
+            }
+
+            pwdDialogVisible = false;
+            ToastService.Show(new() { Title = "Success!", Content = $"Password updated for {user.UserName}.", CssClass = "e-toast-success" });
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.InnerException?.Message ?? ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally
+        {
+            loader = false;
+            StateHasChanged();
         }
     }
 
