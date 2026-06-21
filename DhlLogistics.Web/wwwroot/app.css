@@ -22,11 +22,39 @@
     --text:     #0E2A47;
     --muted:    #6B7280;
 
-    --sidebar-w: 230px;
+    --sidebar-w:           260px;   /* desktop expanded rail */
+    --sidebar-w-collapsed: 70px;    /* desktop mini rail */
     --topbar-h:  56px;
     --radius:    10px;
     --shadow:    0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
     --mono:      'SF Mono', 'Fira Code', monospace;
+
+    /* ── Premium canvas behind the glass elements ─────────────────────────── */
+    --app-bg: radial-gradient(1200px 620px at 0% -5%, #e9f0fb 0%, rgba(233,240,251,0) 60%),
+              linear-gradient(135deg, #eef2f8 0%, #e6ebf4 100%);
+
+    /* ── Glassmorphism surfaces (light) ───────────────────────────────────── */
+    --glass-bg:      rgba(255,255,255,.72);
+    --glass-border:  rgba(255,255,255,.55);
+    --glass-shadow:  0 8px 32px rgba(15,23,42,.10);
+    --card-glass:    rgba(255,255,255,.86);
+
+    /* ── Sidebar tokens (light) — high contrast on the frosted rail ───────── */
+    --sidebar-bg:         rgba(255,255,255,.70);
+    --sidebar-text:       #2a3850;
+    --sidebar-strong:     #0E2A47;
+    --sidebar-muted:      #5b6b86;
+    --sidebar-section:    #8a97ad;
+    --sidebar-hover:      rgba(14,42,71,.07);
+    --sidebar-border:     rgba(14,42,71,.10);
+    --sidebar-active-bg:  linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%);
+    --sidebar-active-text:#ffffff;
+
+    /* ── Tooltips + scrollbars ────────────────────────────────────────────── */
+    --tooltip-bg:    #0E2A47;
+    --tooltip-text:  #ffffff;
+    --scroll-thumb:        rgba(14,42,71,.28);
+    --scroll-thumb-hover:  rgba(14,42,71,.45);
 }
 
 /* ── Dark mode token overrides ───────────────────────────────────────────── */
@@ -39,8 +67,36 @@
     --text:     #F1F5F9;
     --muted:    #94A3B8;
     --shadow:   0 1px 4px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+
+    /* Premium canvas (dark) */
+    --app-bg: radial-gradient(1200px 620px at 0% -5%, #13233c 0%, rgba(19,35,60,0) 60%),
+              linear-gradient(135deg, #0b1220 0%, #0e1a2c 100%);
+
+    /* Glass surfaces (dark) */
+    --glass-bg:      rgba(20,28,44,.62);
+    --glass-border:  rgba(255,255,255,.08);
+    --glass-shadow:  0 8px 32px rgba(0,0,0,.45);
+    --card-glass:    rgba(30,41,59,.82);
+
+    /* Sidebar tokens (dark) — light text stays readable on the frosted rail */
+    --sidebar-bg:         rgba(15,23,40,.62);
+    --sidebar-text:       #cdd9ec;
+    --sidebar-strong:     #f1f5f9;
+    --sidebar-muted:      #8ea2c0;
+    --sidebar-section:    #64748b;
+    --sidebar-hover:      rgba(255,255,255,.07);
+    --sidebar-border:     rgba(255,255,255,.08);
+    --sidebar-active-bg:  linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%);
+    --sidebar-active-text:#ffffff;
+
+    /* Tooltips + scrollbars (dark) */
+    --tooltip-bg:    #1e293b;
+    --tooltip-text:  #f1f5f9;
+    --scroll-thumb:        rgba(255,255,255,.22);
+    --scroll-thumb-hover:  rgba(255,255,255,.38);
 }
 [data-dark="true"] body { background: var(--surface); color: var(--text); }
+[data-dark="true"] .dhl-shell { background: var(--app-bg); }
 [data-dark="true"] .dhl-input,
 [data-dark="true"] input[type="text"],
 [data-dark="true"] input[type="number"],
@@ -56,155 +112,72 @@
 [data-dark="true"] .dhl-input::placeholder { color: #64748B; }
 [data-dark="true"] .data-row:hover,
 [data-dark="true"] .data-row.selected { background: rgba(255,255,255,.05); }
-[data-dark="true"] .e-sidebar,
-[data-dark="true"] .dhl-sf-sidebar { background: #111827 !important; }
+[data-dark="true"] .e-sidebar { background: #111827 !important; }
 
 /* ── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; /* margin: 0; padding: 0; */ }
 html, body { height: 100%; overflow: hidden; }
 body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-       background: var(--surface); color: var(--text); font-size: 14px; }
+       background: var(--app-bg); color: var(--text); font-size: 14px; }
 
-/* ── Shell — SfSidebar manages its own column; shell is flex ──────────────── */
-.dhl-shell { height: 100vh; display: flex; overflow: hidden; position: relative; }
-.dhl-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); min-width: 0; }
+/* ── Shell — flex row: <Sidebar/> + <.dhl-main>. The gradient canvas sits here
+      so the frosted sidebar / topbar glass have something to blur over. ─────── */
+.dhl-shell { height: 100vh; display: flex; overflow: hidden; position: relative; background: var(--app-bg); }
+.dhl-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: transparent; min-width: 0; }
 
-/* ── Sidebar inner content (rendered inside SfSidebar) ────────────────────── */
-.sidebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 10px 10px;
-    border-bottom: 1px solid rgba(255,255,255,.08);
-    overflow: hidden;
-}
-
-/* PVGT logo block: transparent brand logo on white pill */
-.sidebar-logo-block {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #FFFFFF;
+/* ── Custom scrollbars — thin, transparent track, glass thumb, auto-hide ──────
+      Chrome/Edge: WebKit pseudo-elements (thumb only appears on hover of the
+      scroll container = auto-hide). Firefox: scrollbar-width/color. ─────────── */
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover { scrollbar-color: var(--scroll-thumb) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+    background: transparent;
     border-radius: 8px;
-    padding: 5px 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    transition: background .2s;
 }
-.sidebar-logo-img {
-    display: block;
-    height: 28px;
-    width: auto;
-    max-width: 70px;
+*:hover::-webkit-scrollbar-thumb { background: var(--scroll-thumb); background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); background-clip: padding-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+/* ── Reusable glass surface utility ───────────────────────────────────────── */
+.glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
 }
 
-.sidebar-title {
-    color: deepskyblue;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.3;
-}
-.sidebar-sub {
-    color: cornflowerblue;
-    font-size: 11px;
-}
-
-.sidebar-section {
-    padding: 12px 8px 3px;
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: rgba(255,255,255,.3);
-}
-
-.sidebar-nav { flex: 1; overflow-y: auto; padding: 4px 5px; }
-
-.nav-item-dhl { display: block; margin-bottom: 1px; }
-.nav-link-dhl {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 8px;
-    border-radius: 6px;
-    /* color: rgba(255,255,255,.6); */
-    text-decoration: none;
-    font-size: 11.5px;
-    font-weight: 500;
-    white-space: nowrap;
-    transition: background .15s, color .15s;
-}
-.nav-link-dhl:hover  { background: rgba(255,255,255,.08); color: #fff; }
-.nav-link-dhl.active {
-    background: var(--red);
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(212,5,17,.35);
-}
-.nav-icon { font-size: 13px; width: 16px; text-align: center; flex-shrink: 0; }
-
-/* Collapsible nav groups (parent menus with children) */
-.nav-group { margin-bottom: 1px; }
-.nav-group > summary {
-    list-style: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 8px;
-    border-radius: 6px;
-    font-size: 11.5px;
-    font-weight: 600;
-    /*color: rgba(255,255,255,.85);*/
-    transition: background .15s;
-    user-select: none;
-}
-.nav-group > summary::-webkit-details-marker { display: none; }
-.nav-group > summary::marker { content: ""; }
-.nav-group > summary:hover { background: rgba(255,255,255,.08); }
-.nav-group[open] > summary { background: rgba(255,255,255,.04); /*color: #fff; */}
-.nav-group .nav-caret {
-    margin-left: auto;
-    font-size: 9px;
-    transition: transform .15s;
-}
-.nav-group[open] .nav-caret { transform: rotate(90deg); }
-.nav-group-body {
-    padding: 2px 0 4px 18px;
-    border-left: 1px solid rgba(255,255,255,.06);
-    margin-left: 14px;
-}
-.nav-group-body .nav-link-dhl {
-    font-size: 11px;
-    padding: 5px 8px;
-}
-
-.sidebar-footer {
-    padding: 10px;
-    border-top: 1px solid rgba(255,255,255,.08);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+/* ── Avatar (used by the sidebar footer AND the topbar user button) ───────── */
 .avatar {
     width: 32px; height: 32px;
-    background: var(--red);
+    background: linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%);
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     color: #fff; font-weight: 700; font-size: 13px;
     flex-shrink: 0;
 }
-.sidebar-user-name  { /* font-size: 12px; */ font-weight: 600; /* color: #fff; */ color: blue; }
-.sidebar-user-role  { font-size: 10px; color: rgba(255,255,255,.4); }
 
-/* ── Top bar ─────────────────────────────────────────────────────────────── */
+/* ── Top bar (glass) ──────────────────────────────────────────────────────── */
 .dhl-topbar {
     height: var(--topbar-h);
-    background: var(--card);
-    border-bottom: 1px solid var(--border);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    border-bottom: 1px solid var(--glass-border);
+    box-shadow: 0 4px 20px rgba(15,23,42,.06);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 20px;
     flex-shrink: 0;
     gap: 12px;
+    position: relative;   /* activate z-index so the user dropdown sits above the click-outside backdrop */
+    z-index: 30;
 }
 .topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -223,6 +196,7 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
     flex: 1;
     overflow-y: auto;
     padding: 24px;
+    background: transparent;   /* let the gradient canvas show between cards */
 }
 
 /* ── KPI cards ────────────────────────────────────────────────────────────── */
@@ -233,14 +207,17 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
     margin-bottom: 24px;
 }
 .kpi-card {
-    background: var(--card);
+    background: var(--card-glass);
+    -webkit-backdrop-filter: blur(16px) saturate(135%);
+    backdrop-filter: blur(16px) saturate(135%);
+    border: 1px solid var(--glass-border);
+    border-left: 4px solid transparent;
     border-radius: var(--radius);
     padding: 18px 20px;
     display: flex;
     align-items: center;
     gap: 14px;
-    box-shadow: var(--shadow);
-    border-left: 4px solid transparent;
+    box-shadow: var(--glass-shadow);
 }
 .kpi-card.red    { border-color: var(--red); }
 .kpi-card.green  { border-color: var(--green); }
@@ -258,9 +235,12 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
 .card {
-    background: var(--card);
+    background: var(--card-glass);
+    -webkit-backdrop-filter: blur(16px) saturate(135%);
+    backdrop-filter: blur(16px) saturate(135%);
+    border: 1px solid var(--glass-border);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
+    box-shadow: var(--glass-shadow);
     /* overflow: hidden removed — allows Syncfusion dialog popups to escape card bounds */
 }
 .card-head {
@@ -696,3 +676,197 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
     background: rgba(192,57,43,.18); border: 1px solid #c0392b;
     border-radius: 5px; padding: .5rem .75rem; font-size: .85rem;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DARK MODE — DIALOGS & FORMS
+   The app ships only the LIGHT Syncfusion theme (bootstrap5.css) and default.css
+   hard-codes light dialog chrome. These overrides give every popup dialog/form a
+   professional dark surface in dark mode. Everything is scoped to
+   [data-dark="true"] so LIGHT MODE IS COMPLETELY UNCHANGED.
+   Dark palette: surface #1E293B · panel #16263B · input #0F172A · border #334155
+                 visible-border #475569 · text #F1F5F9 · label #E2E8F0 · error #F87171
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Custom modal surfaces (.modal-* — override default.css !important) ────── */
+[data-dark="true"] .modal-contentnew {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+    color: #F1F5F9;
+}
+[data-dark="true"] .modal-header {
+    background-color: #16263B !important;
+    border-bottom: 1px solid #334155 !important;
+}
+[data-dark="true"] .modal-title { color: #F1F5F9 !important; }
+[data-dark="true"] .modal-body  { color: #F1F5F9; }
+[data-dark="true"] .modal-footer {
+    background-color: #16263B !important;
+    border-top: 1px solid #334155;
+}
+[data-dark="true"] .modal-header .btn-close,
+[data-dark="true"] .btn-close { color: #E2E8F0 !important; opacity: .85 !important; }
+
+/* ── 2. Syncfusion SfDialog chrome (.e-dialog) ───────────────────────────────── */
+[data-dark="true"] .e-dialog {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+    color: #F1F5F9 !important;
+}
+[data-dark="true"] .e-dialog .e-dlg-header-content {
+    background-color: #16263B !important;
+    border-bottom: 1px solid #334155 !important;
+}
+[data-dark="true"] .e-dialog .e-dlg-header,
+[data-dark="true"] .e-dialog .e-dlg-header-content .e-dlg-header,
+[data-dark="true"] .e-dialog .e-dlg-content { color: #F1F5F9 !important; }
+[data-dark="true"] .e-dialog .e-dlg-content { background-color: #1E293B !important; }
+[data-dark="true"] .e-dialog .e-footer-content {
+    background-color: #16263B !important;
+    border-top: 1px solid #334155;
+}
+[data-dark="true"] .e-dialog .e-dlg-closeicon-btn .e-icons { color: #CBD5E1 !important; }
+[data-dark="true"] .e-dlg-overlay { background-color: rgba(2,6,23,.65) !important; }
+
+/* ── 3. Labels — high contrast (WCAG AA) ─────────────────────────────────────── */
+[data-dark="true"] .form-Custom-label,
+[data-dark="true"] .master-field label,
+[data-dark="true"] .mfr-field label,
+[data-dark="true"] .e-dialog label,
+[data-dark="true"] .modal-contentnew label { color: #E2E8F0 !important; }
+
+/* ── 4. Inputs / textareas / Syncfusion input wrappers ───────────────────────── */
+[data-dark="true"] .e-input-group,
+[data-dark="true"] .e-input-group.e-control-wrapper,
+[data-dark="true"] .e-float-input,
+[data-dark="true"] .e-input-group.e-control-wrapper.e-input-focus {
+    background: #0F172A !important;
+    border-color: #475569 !important;
+    color: #F1F5F9 !important;
+}
+[data-dark="true"] .e-input-group .e-input,
+[data-dark="true"] .e-input-group input.e-input,
+[data-dark="true"] .e-input-group textarea.e-input,
+[data-dark="true"] .e-input-group .e-input-value,
+[data-dark="true"] input.e-input,
+[data-dark="true"] textarea.e-input {
+    background: transparent !important;
+    color: #F1F5F9 !important;
+    color-scheme: dark;
+}
+[data-dark="true"] .e-input-group .e-input::placeholder,
+[data-dark="true"] input.e-input::placeholder,
+[data-dark="true"] textarea.e-input::placeholder { color: #8595AC !important; opacity: 1 !important; }
+/* Focus highlight (border + Syncfusion underline) */
+[data-dark="true"] .e-input-group.e-input-focus,
+[data-dark="true"] .e-input-group.e-control-wrapper.e-input-focus {
+    border-color: #3B82F6 !important;
+    box-shadow: 0 0 0 2px rgba(59,130,246,.25) !important;
+}
+[data-dark="true"] .e-input-group:not(.e-disabled) .e-input-group-icon { color: #CBD5E1 !important; }
+
+/* ── 5a. Dropdown / ComboBox popups (rendered at body level) ─────────────────── */
+[data-dark="true"] .e-popup.e-ddl,
+[data-dark="true"] .e-dropdownbase,
+[data-dark="true"] .e-popup .e-dropdownbase,
+[data-dark="true"] .e-ddl.e-popup .e-content {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+    color: #F1F5F9 !important;
+}
+[data-dark="true"] .e-dropdownbase .e-list-item,
+[data-dark="true"] .e-ddl.e-popup .e-list-item { background-color: transparent !important; color: #E2E8F0 !important; }
+[data-dark="true"] .e-dropdownbase .e-list-item.e-hover,
+[data-dark="true"] .e-dropdownbase .e-list-item.e-navigation,
+[data-dark="true"] .e-dropdownbase .e-list-item.e-focus { background-color: #334155 !important; color: #F8FAFC !important; }
+[data-dark="true"] .e-dropdownbase .e-list-item.e-active { background-color: #2563EB !important; color: #FFFFFF !important; }
+[data-dark="true"] .e-ddl.e-popup .e-filter-parent { background-color: #16263B !important; border-bottom: 1px solid #334155 !important; }
+[data-dark="true"] .e-dropdownbase .e-nodata { color: #94A3B8 !important; }
+
+/* ── 5b. DatePicker / Calendar popup ─────────────────────────────────────────── */
+[data-dark="true"] .e-datepicker.e-popup-wrapper,
+[data-dark="true"] .e-calendar {
+    background-color: #1E293B !important;
+    border: 1px solid #334155 !important;
+    color: #F1F5F9 !important;
+}
+[data-dark="true"] .e-calendar .e-header .e-title,
+[data-dark="true"] .e-calendar .e-content td span.e-day,
+[data-dark="true"] .e-calendar .e-content th { color: #E2E8F0 !important; }
+[data-dark="true"] .e-calendar .e-header .e-icon-container .e-icons,
+[data-dark="true"] .e-calendar .e-header .e-prev .e-icons,
+[data-dark="true"] .e-calendar .e-header .e-next .e-icons { color: #CBD5E1 !important; }
+[data-dark="true"] .e-calendar .e-content td.e-today span.e-day { border-color: #3B82F6 !important; color: #60A5FA !important; }
+[data-dark="true"] .e-calendar .e-content td.e-selected span.e-day { background-color: #2563EB !important; color: #FFFFFF !important; }
+[data-dark="true"] .e-calendar .e-content td.e-focused-date span.e-day,
+[data-dark="true"] .e-calendar .e-content td:hover span.e-day { background-color: #334155 !important; }
+
+/* ── 5c. NumericTextBox spinners ─────────────────────────────────────────────── */
+[data-dark="true"] .e-input-group .e-spin-up .e-icons,
+[data-dark="true"] .e-input-group .e-spin-down .e-icons { color: #CBD5E1 !important; }
+
+/* ── 5d. CheckBox ────────────────────────────────────────────────────────────── */
+[data-dark="true"] .e-checkbox-wrapper .e-label,
+[data-dark="true"] .e-css.e-checkbox-wrapper .e-label { color: #E2E8F0 !important; }
+[data-dark="true"] .e-checkbox-wrapper .e-frame,
+[data-dark="true"] .e-css.e-checkbox-wrapper .e-frame {
+    background-color: #0F172A !important;
+    border: 1px solid #475569 !important;
+}
+[data-dark="true"] .e-checkbox-wrapper .e-frame.e-check,
+[data-dark="true"] .e-checkbox-wrapper .e-frame.e-stop {
+    background-color: #2563EB !important;
+    border-color: #2563EB !important;
+    color: #FFFFFF !important;
+}
+
+/* ── 6. Footer buttons — secondary (Cancel) dark; primary (Save) stays blue ──── */
+[data-dark="true"] .modal-footer .e-btn:not(.e-primary):not(.e-flat),
+[data-dark="true"] .e-footer-content .e-btn:not(.e-primary):not(.e-flat) {
+    background-color: #334155 !important;
+    border: 1px solid #475569 !important;
+    color: #E2E8F0 !important;
+}
+[data-dark="true"] .modal-footer .e-btn:not(.e-primary):not(.e-flat):hover,
+[data-dark="true"] .e-footer-content .e-btn:not(.e-primary):not(.e-flat):hover {
+    background-color: #3E4C63 !important;
+    border-color: #64748B !important;
+}
+[data-dark="true"] .modal-footer .e-btn:focus-visible,
+[data-dark="true"] .e-footer-content .e-btn:focus-visible { outline: 2px solid #3B82F6 !important; outline-offset: 1px; }
+[data-dark="true"] .modal-footer .e-btn .e-icons,
+[data-dark="true"] .e-footer-content .e-btn:not(.e-primary) .e-icons { color: inherit !important; }
+
+/* ── 7. Validation / required indicators — visible on dark ───────────────────── */
+[data-dark="true"] .validation-message,
+[data-dark="true"] .e-error,
+[data-dark="true"] .field-validation-error { color: #F87171 !important; }
+[data-dark="true"] .req { color: #F87171 !important; }
+[data-dark="true"] .form-error {
+    background: rgba(248,113,113,.14) !important;
+    border: 1px solid #F87171 !important;
+    color: #FCA5A5 !important;
+}
+[data-dark="true"] .e-input-group.e-error,
+[data-dark="true"] .e-input-group.e-control-wrapper.e-error { border-color: #F87171 !important; }
+
+/* ── 8. Grids shown INSIDE dialogs (scoped — list-page grids unaffected) ─────── */
+[data-dark="true"] .e-dialog .e-grid,
+[data-dark="true"] .modal-contentnew .e-grid {
+    background-color: #1E293B !important;
+    color: #E2E8F0 !important;
+    border-color: #334155 !important;
+}
+[data-dark="true"] .e-dialog .e-grid .e-content,
+[data-dark="true"] .modal-contentnew .e-grid .e-content,
+[data-dark="true"] .e-dialog .e-grid .e-table,
+[data-dark="true"] .modal-contentnew .e-grid .e-table { background-color: #1E293B !important; }
+[data-dark="true"] .e-dialog .e-grid .e-row .e-rowcell,
+[data-dark="true"] .modal-contentnew .e-grid .e-row .e-rowcell {
+    background-color: #1E293B !important;
+    color: #E2E8F0 !important;
+    border-color: #334155 !important;
+}
+[data-dark="true"] .e-dialog .e-grid .e-altrow .e-rowcell,
+[data-dark="true"] .modal-contentnew .e-grid .e-altrow .e-rowcell { background-color: #19273C !important; }
+[data-dark="true"] .e-dialog .e-grid .e-row:hover .e-rowcell,
+[data-dark="true"] .modal-contentnew .e-grid .e-row:hover .e-rowcell { background-color: #243349 !important; }

@@ -1,0 +1,90 @@
+@using DhlLogistics.Web.Model
+
+@*
+    SidebarItem — renders a single top-level navigation node.
+
+      • Group (has children) → an accordion: a <button> header that toggles a
+        collapsible body of child links. Open/close is owned by the parent
+        <Sidebar> (so only one group is ever open), passed in via @Open.
+      • Leaf (no children)   → a single link.
+
+    Accessibility: the group header is a real <button> (Enter/Space toggle for
+    free) carrying aria-expanded + aria-controls; the body is a labelled region.
+    Links carry aria-current="page" when active. When the rail is collapsed every
+    row exposes a CSS tooltip (data-tip) and a native title.
+*@
+
+@if (Node.IsGroup)
+{
+    var bodyId = $"navgrp-{Node.Menu.MenuId}";
+
+    <div class="nav-group @(Open ? "open" : "") @(GroupActive ? "has-active" : "")">
+        <button type="button"
+                class="nav-group-toggle @(GroupActive ? "active" : "")"
+                aria-expanded="@(Open ? "true" : "false")"
+                aria-controls="@bodyId"
+                data-tip="@Node.Menu.MenuName"
+                title="@(Collapsed ? Node.Menu.MenuName : null)"
+                @onclick="OnToggle">
+            <span class="nav-icon" aria-hidden="true">@Node.Menu.Icon</span>
+            <span class="nav-label">@Node.Menu.MenuName</span>
+            <span class="nav-caret" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                     stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 6 15 12 9 18" />
+                </svg>
+            </span>
+        </button>
+
+        <div id="@bodyId" class="nav-group-body @(Open ? "open" : "")" role="region"
+             aria-label="@Node.Menu.MenuName">
+            <div class="nav-group-body-inner">
+                @foreach (var child in Node.Children)
+                {
+                    var active = IsActive(child.Menu);
+                    <a class="nav-link-dhl nav-child @(active ? "active" : "")"
+                       href="@Href(child.Menu)"
+                       aria-current="@(active ? "page" : null)">
+                        <span class="nav-icon" aria-hidden="true">@child.Menu.Icon</span>
+                        <span class="nav-label">@child.Menu.MenuName</span>
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    var active = IsActive(Node.Menu);
+    <a class="nav-link-dhl nav-top @(active ? "active" : "")"
+       href="@Href(Node.Menu)"
+       aria-current="@(active ? "page" : null)"
+       data-tip="@Node.Menu.MenuName"
+       title="@(Collapsed ? Node.Menu.MenuName : null)">
+        <span class="nav-icon" aria-hidden="true">@Node.Menu.Icon</span>
+        <span class="nav-label">@Node.Menu.MenuName</span>
+    </a>
+}
+
+@code {
+    /// <summary>The node to render (group or leaf).</summary>
+    [Parameter, EditorRequired] public MenuNode Node { get; set; } = default!;
+
+    /// <summary>Whether this group's body is expanded (ignored for leaves).</summary>
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>Desktop mini-rail mode (icons only).</summary>
+    [Parameter] public bool Collapsed { get; set; }
+
+    /// <summary>True when this group contains the active route (drives the group highlight).</summary>
+    [Parameter] public bool GroupActive { get; set; }
+
+    /// <summary>Resolves whether a given menu entry is the active route.</summary>
+    [Parameter, EditorRequired] public Func<Menu, bool> IsActive { get; set; } = default!;
+
+    /// <summary>Raised when the group header is clicked.</summary>
+    [Parameter] public EventCallback OnToggle { get; set; }
+
+    private static string Href(Menu m) => "/" + (m.PageName ?? string.Empty).TrimStart('/');
+}

@@ -6,4 +6,6 @@ public class DailyReportData
     public int TotalShippedThisMonth { get; set; }
     public int TotalPendingPickups { get; set; }
     public int TotalActiveClients { get; set; }
+    public int TotalInTransit { get; set; }
+    public int TotalActiveExecutives { get; set; }
 }

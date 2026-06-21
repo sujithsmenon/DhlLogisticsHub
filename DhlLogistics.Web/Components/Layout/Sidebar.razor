@@ -1,0 +1,228 @@
+@using Microsoft.EntityFrameworkCore
+@using DhlLogistics.Web.Database
+@using DhlLogistics.Web.Model
+@using DhlLogistics.Web.Service
+
+@inject IDbContextFactory<AppDbContext> MenuFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject PermissionService Perm
+@inject NavigationManager Nav
+@inject ILogger<Sidebar> Logger
+@implements IDisposable
+
+@*
+    Sidebar — the glassmorphism navigation rail.
+
+      • Data-driven from the Menus table, permission-filtered per user (role-based
+        visibility preserved exactly as the old NavMenu did).
+      • Accordion: only ONE group open at a time (_openId). Navigating into a group's
+        child auto-expands that group (and collapses the others) while preserving the
+        active highlight.
+      • The whole rail collapses to a 70px icon rail (@Collapsed) or slides in as a
+        mobile drawer — both handled by CSS classes on the shell + .sidebar-collapsed.
+*@
+
+<aside class="dhl-sidebar" aria-label="Primary navigation">
+
+    <!-- Brand -->
+    <a class="sidebar-brand" href="/" aria-label="PVGT Logistics — home">
+        <span class="sidebar-logo-block">
+            <img src="img/pvgt-logo.png" alt="PVGT Logistics" class="sidebar-logo-img" />
+        </span>
+        <span class="sidebar-brand-text">
+            <span class="sidebar-title">PVGT Logistics</span>
+            <span class="sidebar-sub">Your Trust &amp; Satisfaction</span>
+        </span>
+    </a>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav" aria-label="Primary">
+        @if (!_loaded)
+        {
+            <div class="sidebar-skeleton">
+                @for (var i = 0; i < 6; i++)
+                {
+                    <div class="skeleton-row"></div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="sidebar-section">Navigation</div>
+
+            @foreach (var node in _roots)
+            {
+                <SidebarItem Node="node"
+                             Collapsed="Collapsed"
+                             Open="@(node.IsGroup && _openId == node.Menu.MenuId)"
+                             GroupActive="@(node.IsGroup && GroupContainsActive(node))"
+                             IsActive="IsActiveMenu"
+                             OnToggle="@(() => ToggleGroup(node.Menu.MenuId))" />
+            }
+        }
+    </nav>
+
+    <!-- Footer / signed-in user -->
+    <div class="sidebar-footer">
+        <div class="avatar" aria-hidden="true">@UserInitial</div>
+        <div class="sidebar-user">
+            <div class="sidebar-user-name" title="@UserName">@UserName</div>
+            <div class="sidebar-user-role">@UserRole</div>
+        </div>
+    </div>
+</aside>
+
+@code {
+    /// <summary>Desktop mini-rail (70px, icons only).</summary>
+    [Parameter] public bool Collapsed { get; set; }
+
+    [Parameter] public string UserName { get; set; } = "User";
+    [Parameter] public string UserRole { get; set; } = "Viewer";
+    [Parameter] public char UserInitial { get; set; } = 'U';
+
+    /// <summary>Raised when a group is clicked while collapsed — asks the shell to expand the rail.</summary>
+    [Parameter] public EventCallback OnRequestExpand { get; set; }
+
+    private bool _loaded;
+    private bool _disposed;
+    private List<MenuNode> _roots = new();
+    private int? _openId;
+    private string _currentRel = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        _currentRel = CurrentRelativePath();
+        try
+        {
+            await LoadMenuAsync();
+        }
+        catch (Exception ex)
+        {
+            // A missing / unreachable menu DB must never take down the whole layout —
+            // degrade to an empty rail and log for diagnosis.
+            Logger.LogError(ex, "Failed to load navigation menu from the database.");
+        }
+        OpenActiveGroup();
+        _loaded = true;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
+    // Re-evaluate active state / auto-expand on navigation. No DB reload (the menu is
+    // loaded once per circuit) so navigation stays cheap and re-renders are minimal.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (_disposed) return;
+        var prevRel = _currentRel;
+        var prevOpen = _openId;
+        _currentRel = CurrentRelativePath();
+        OpenActiveGroup();
+        // Only re-render when something the rail actually shows has changed.
+        if (_currentRel != prevRel || _openId != prevOpen)
+            _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleGroup(int id)
+    {
+        if (Collapsed)
+        {
+            // Can't show an accordion body in the 70px rail — expand it, then open the group.
+            _openId = id;
+            _ = OnRequestExpand.InvokeAsync();
+            return;
+        }
+        _openId = (_openId == id) ? null : id;   // one-open-at-a-time + click-again-to-close
+    }
+
+    // Open the group that owns the active route (collapsing the others). A standalone
+    // active leaf leaves the current open group untouched.
+    private void OpenActiveGroup()
+    {
+        foreach (var node in _roots.Where(n => n.IsGroup))
+        {
+            if (node.Children.Any(c => IsActiveMenu(c.Menu)))
+            {
+                _openId = node.Menu.MenuId;
+                return;
+            }
+        }
+    }
+
+    private bool GroupContainsActive(MenuNode group) => group.Children.Any(c => IsActiveMenu(c.Menu));
+
+    private string CurrentRelativePath()
+    {
+        var rel = Nav.ToBaseRelativePath(Nav.Uri);
+        var cut = rel.IndexOfAny(new[] { '?', '#' });
+        if (cut >= 0) rel = rel[..cut];
+        return rel.Trim('/');
+    }
+
+    private bool IsActiveMenu(Menu m)
+    {
+        var href = (m.PageName ?? string.Empty).Trim('/');
+        if (m.IsDashboard || m.MatchAll)
+            return string.Equals(_currentRel, href, StringComparison.OrdinalIgnoreCase);
+        if (href.Length == 0)
+            return _currentRel.Length == 0;
+        return _currentRel.Equals(href, StringComparison.OrdinalIgnoreCase)
+            || _currentRel.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── Menu load (permission-filtered) — same contract as the retired NavMenu ──────
+    private async Task LoadMenuAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated != true) return;
+
+        // Page-paths this user may View. null => Admin (everything visible).
+        var viewable = await Perm.GetViewablePagePathsAsync(user);
+
+        await using var db = await MenuFactory.CreateDbContextAsync();
+        var all = await db.Menus
+            .AsNoTracking()
+            .Where(m => m.Active)
+            .OrderBy(m => m.ShowOrder)
+            .ToListAsync();
+
+        bool CanView(Menu m)
+        {
+            if (m.IsDashboard || !m.RequiresPermission) return true;
+            if (string.IsNullOrEmpty(m.PageName)) return false;
+            return viewable is null
+                || viewable.Contains(PermissionService.Normalise(m.PageName));
+        }
+
+        var childrenByParent = all
+            .Where(m => m.ParentId != null)
+            .ToLookup(m => m.ParentId!.Value);
+
+        var roots = new List<MenuNode>();
+        foreach (var top in all.Where(m => m.ParentId == null))
+        {
+            if (string.IsNullOrEmpty(top.PageName))
+            {
+                // Group header: include only the children the user may see.
+                var node = new MenuNode { Menu = top };
+                foreach (var child in childrenByParent[top.MenuId])
+                    if (CanView(child))
+                        node.Children.Add(new MenuNode { Menu = child });
+
+                if (node.Children.Count > 0)   // hide an empty group entirely
+                    roots.Add(node);
+            }
+            else if (CanView(top))
+            {
+                roots.Add(new MenuNode { Menu = top });   // standalone leaf (Dashboard, Staff)
+            }
+        }
+
+        _roots = roots;
+    }
+}

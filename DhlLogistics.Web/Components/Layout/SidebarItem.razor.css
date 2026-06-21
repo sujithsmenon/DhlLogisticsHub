@@ -1,0 +1,174 @@
+/* ── SidebarItem — links, group headers, accordion body ───────────────────────
+   Colours come from the global theme tokens (--sidebar-*) in app.css, so every
+   row stays high-contrast in BOTH light and dark themes. */
+
+/* Shared row look (top-level link + group header + child link) */
+.nav-link-dhl,
+.nav-group-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 11px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--sidebar-text);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    line-height: 1.2;
+    text-decoration: none;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+    position: relative;
+    transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+}
+
+.nav-link-dhl:hover,
+.nav-group-toggle:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
+}
+
+.nav-link-dhl:focus-visible,
+.nav-group-toggle:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 1px;
+}
+
+.nav-icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.nav-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Active leaf — brand pill, white text, soft glow (great contrast both themes) */
+.nav-link-dhl.active {
+    background: var(--sidebar-active-bg);
+    color: var(--sidebar-active-text);
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(171, 25, 33, .35);
+}
+.nav-link-dhl.active:hover { color: var(--sidebar-active-text); }
+
+/* Group header that contains the active route — subtle tint + accent, not a full pill */
+.nav-group-toggle.active {
+    color: var(--sidebar-strong);
+    font-weight: 600;
+    background: var(--sidebar-hover);
+}
+.nav-group-toggle.active .nav-icon { color: var(--red); }
+
+/* Caret on the group header */
+.nav-caret {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    color: var(--sidebar-muted);
+    transition: transform .22s ease;
+}
+.nav-group.open .nav-caret { transform: rotate(90deg); }
+
+/* ── Accordion body — smooth height via grid-template-rows (no magic numbers) ── */
+.nav-group-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .25s ease;
+}
+.nav-group-body.open { grid-template-rows: 1fr; }
+
+.nav-group-body-inner {
+    overflow: hidden;
+    min-height: 0;
+    padding-left: 14px;
+    margin: 2px 0 2px 18px;
+    border-left: 1px solid var(--sidebar-border);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.nav-link-dhl.nav-child {
+    padding: 7px 10px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--sidebar-muted);
+}
+.nav-link-dhl.nav-child:hover { color: var(--sidebar-strong); }
+.nav-link-dhl.nav-child .nav-icon { font-size: 13px; width: 18px; height: 18px; }
+.nav-link-dhl.nav-child.active { color: var(--sidebar-active-text); }
+
+/* ── Collapsed mini-rail (desktop ≥769px). Shell owns the .sidebar-collapsed class.
+      Icons centred, labels/carets hidden, accordion bodies removed. ───────────── */
+.dhl-shell.sidebar-collapsed .nav-label,
+.dhl-shell.sidebar-collapsed .nav-caret {
+    display: none;
+}
+.dhl-shell.sidebar-collapsed .nav-link-dhl,
+.dhl-shell.sidebar-collapsed .nav-group-toggle {
+    justify-content: center;
+    padding: 10px 0;
+    gap: 0;
+}
+.dhl-shell.sidebar-collapsed .nav-group-body { display: none; }
+
+/* CSS tooltips when collapsed — no JS, appears on hover to the right of the rail */
+.dhl-shell.sidebar-collapsed [data-tip] { overflow: visible; }
+.dhl-shell.sidebar-collapsed [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 14px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 6px 10px;
+    border-radius: 7px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+    z-index: 60;
+    pointer-events: none;
+}
+.dhl-shell.sidebar-collapsed [data-tip]:hover::before {
+    content: "";
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background: var(--tooltip-bg);
+    z-index: 60;
+}
+
+/* On mobile the rail is a full drawer — never apply collapsed visuals. */
+@media (max-width: 768px) {
+    .dhl-shell.sidebar-collapsed .nav-label,
+    .dhl-shell.sidebar-collapsed .nav-caret { display: inline-flex; }
+    .dhl-shell.sidebar-collapsed .nav-label { display: block; }
+    .dhl-shell.sidebar-collapsed .nav-link-dhl,
+    .dhl-shell.sidebar-collapsed .nav-group-toggle {
+        justify-content: flex-start;
+        padding: 9px 11px;
+        gap: 10px;
+    }
+    .dhl-shell.sidebar-collapsed .nav-group-body { display: grid; }
+    .dhl-shell.sidebar-collapsed [data-tip]:hover::after,
+    .dhl-shell.sidebar-collapsed [data-tip]:hover::before { display: none; }
+}

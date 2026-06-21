@@ -137,6 +137,10 @@ builder.Services.AddScoped<DhlLogistics.Web.Components.Common.Spinner.SpinnerSer
 builder.Services.AddSignalR();
 
 // ── App services ──────────────────────────────────────────────────────────────
+// Light/Dark theme engine (per-circuit; mirrors the localStorage-driven <html> attr).
+builder.Services.AddScoped<DhlLogistics.Web.Service.ThemeService>();
+// Shared notifier for live dashboard counters (singleton — fires across all circuits).
+builder.Services.AddSingleton<DhlLogistics.Web.Service.DashboardState>();
 builder.Services.AddScoped<LogisticsService>();
 builder.Services.AddScoped<EmailReaderService>();
 builder.Services.AddScoped<PdfParserService>();

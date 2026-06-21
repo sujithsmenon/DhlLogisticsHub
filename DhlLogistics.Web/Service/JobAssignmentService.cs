@@ -7,11 +7,13 @@ public class JobAssignmentService
 {
     private readonly AppDbContext       _db;
     private readonly NotificationService _notify;
+    private readonly DashboardState      _dash;
 
-    public JobAssignmentService(AppDbContext db, NotificationService notify)
+    public JobAssignmentService(AppDbContext db, NotificationService notify, DashboardState dash)
     {
         _db     = db;
         _notify = notify;
+        _dash   = dash;
     }
 
     public async Task CreateJobFromEmailAsync(PickupInfo info, string emailSubject)
@@ -32,6 +34,7 @@ public class JobAssignmentService
 
         _db.Jobs.Add(job);
         await _db.SaveChangesAsync();
+        _dash.NotifyChanged();   // new Pending pickup → refresh dashboard counters
 
         // Push to all managers/admins
         await _notify.NotifyManagersAsync(
@@ -53,6 +56,7 @@ public class JobAssignmentService
         job.Status              = JobStatus.Assigned;
 
         await _db.SaveChangesAsync();
+        _dash.NotifyChanged();   // status change (Pending → Assigned) → refresh counters
 
         // Notify the executive their job is ready
         await _notify.NotifyUserAsync(

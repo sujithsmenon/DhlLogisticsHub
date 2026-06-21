@@ -7,6 +7,20 @@
     <title>PVGT Logistics LLP</title>
     <base href="/" />
 
+    <!-- No-flicker theme boot: apply the saved theme to <html> BEFORE first paint.
+         Runs synchronously while the head parses, so the page never flashes the
+         wrong theme on a hard refresh. Must stay inline and before the stylesheets. -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('dhl-theme') === 'dark' ? 'dark' : 'light';
+                var el = document.documentElement;
+                el.setAttribute('data-dark', t === 'dark' ? 'true' : 'false');
+                el.setAttribute('data-theme', t);
+            } catch (e) { /* private mode / storage disabled */ }
+        })();
+    </script>
+
     <!-- Bootstrap (required for modal/grid/cards) -->
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
 
@@ -39,6 +53,9 @@
     </div>
 	<ReconnectModal />
     <script src="_framework/blazor.web.js"></script>
+
+    <!-- Theme + layout interop (no external libraries) -->
+    <script src="js/theme.js"></script>
 
     <!-- Syncfusion JS -->
     <script src="_content/Syncfusion.Blazor.Core/scripts/syncfusion-blazor.min.js"

@@ -3,50 +3,28 @@
 @inject IJSRuntime JS
 @inject NotificationService NotifSvc
 @inject AuthenticationStateProvider AuthStateProvider
+@inject ThemeService Theme
+@inject LogisticsService Logistics
 @implements IAsyncDisposable
 
 @if (_ready)
 {
-<div class="dhl-shell @(_sidebarOpen ? "sidebar-open" : "sidebar-closed")" data-dark="@_darkMode.ToString().ToLower()">
+<div class="dhl-shell @(_collapsed ? "sidebar-collapsed" : "") @(_mobileOpen ? "sidebar-mobile-open" : "")">
 
-    <!-- ── Syncfusion Sidebar ────────────────────────────────────────────── -->
-    <SfSidebar @ref="_sidebar"
-               Width="191px"
-               DockSize="0px"
-               MediaQuery="(min-width: 768px)"
-               IsOpen="@_sidebarOpen"
-               Type="SidebarType.Push"
-               EnableDock="false"
-               CssClass="dhl-sf-sidebar"
-               IsOpenChanged="@OnSidebarStateChanged">
+    <!-- ── Glassmorphism sidebar (custom — no SfSidebar) ─────────────────────── -->
+    <Sidebar Collapsed="_collapsed"
+             UserName="@_userName"
+             UserRole="@_userRole"
+             UserInitial="@_userInitial"
+             OnRequestExpand="ExpandSidebar" />
 
-        <ChildContent>
-            <!-- Brand -->
-            <div class="sidebar-brand">
-                <div class="sidebar-logo-block">
-                    <img src="img/pvgt-logo.png" alt="PVGT Logistics" class="sidebar-logo-img" />
-                </div>
-                <div style="min-width:0;overflow:hidden;">
-                    <div class="sidebar-title" style="overflow:hidden;text-overflow:ellipsis;">PVGT Logistics</div>
-                    <div class="sidebar-sub">Your Trust &amp; Satisfaction</div>
-                </div>
-            </div>
+    <!-- Mobile drawer backdrop (only rendered when the drawer is open) -->
+    @if (_mobileOpen)
+    {
+        <div class="sidebar-backdrop" @onclick="CloseMobileSidebar"></div>
+    }
 
-            <!-- Nav links -->
-            <NavMenu />
-
-            <!-- Footer / user info -->
-            <div class="sidebar-footer">
-                <div class="avatar">@_userInitial</div>
-                <div>
-                    <div class="sidebar-user-name">@_userName</div>
-                    <div class="sidebar-user-role">@_userRole</div>
-                </div>
-            </div>
-        </ChildContent>
-    </SfSidebar>
-
-    <!-- ── Main area ─────────────────────────────────────────────────────── -->
+    <!-- ── Main area ─────────────────────────────────────────────────────────── -->
     <div class="dhl-main">
 
         <!-- Top bar -->
@@ -54,7 +32,8 @@
 
             <!-- Left: hamburger + title -->
             <div class="topbar-left">
-                <button class="hamburger-btn" @onclick="ToggleSidebar" title="Toggle menu">
+                <button class="hamburger-btn" @onclick="ToggleSidebar"
+                        aria-label="Toggle navigation" title="Toggle menu">
                     <span></span><span></span><span></span>
                 </button>
                 <span class="topbar-title">@_pageTitle</span>
@@ -64,16 +43,62 @@
             <div class="topbar-right">
 
                 <!-- Global search -->
-                <div class="topbar-search">
-                    <span class="search-icon">🔍</span>
-                    <input class="search-input" type="text" placeholder="Search shipments, jobs, customers…" />
+                <div class="search-wrap" @onclick:stopPropagation="true">
+                    <div class="topbar-search">
+                        <span class="search-icon" aria-hidden="true">🔍</span>
+                        <input class="search-input" type="text"
+                               placeholder="Search shipments, jobs, customers…"
+                               aria-label="Search"
+                               value="@_searchTerm"
+                               @oninput="OnSearchInput"
+                               @onfocus="OnSearchFocus" />
+                        @if (_searching)
+                        {
+                            <span class="search-spin" aria-hidden="true"></span>
+                        }
+                    </div>
+
+                    @if (_searchOpen && _searchTerm.Trim().Length >= 2)
+                    {
+                        <div class="search-results glass">
+                            @if (_searching && !_searchResults.Any())
+                            {
+                                <div class="search-empty">Searching…</div>
+                            }
+                            else if (!_searchResults.Any())
+                            {
+                                <div class="search-empty">No matches for “@_searchTerm”</div>
+                            }
+                            else
+                            {
+                                @foreach (var r in _searchResults)
+                                {
+                                    <div class="search-item" @onclick="() => OpenResult(r)">
+                                        <span class="search-type">@r.EntityType</span>
+                                        <div class="search-item-main">
+                                            <div class="search-item-title">@r.Title</div>
+                                            @if (!string.IsNullOrWhiteSpace(r.Subtitle))
+                                            {
+                                                <div class="search-item-sub">@r.Subtitle</div>
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(r.Status))
+                                        {
+                                            <span class="search-status">@r.Status</span>
+                                        }
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
                 </div>
 
                 <span class="tag mono">@DateTime.Now.ToString("dd MMM yyyy")</span>
 
                 <!-- Notification bell -->
                 <div class="notif-wrap">
-                    <button class="notif-btn" @onclick="TogglePanel" @onclick:stopPropagation="true">
+                    <button class="notif-btn" @onclick="TogglePanel" @onclick:stopPropagation="true"
+                            aria-label="Notifications">
                         🔔
                         @if (_unread > 0)
                         {
@@ -83,7 +108,7 @@
 
                     @if (_panelOpen)
                     {
-                        <div class="notif-panel">
+                        <div class="notif-panel glass">
                             <div class="notif-panel-head">
                                 <span>Notifications</span>
                                 @if (_notifications.Any())
@@ -117,15 +142,16 @@
 
                 <!-- User avatar dropdown -->
                 <div class="user-menu-wrap">
-                    <button class="user-avatar-btn" @onclick="ToggleUserMenu" @onclick:stopPropagation="true">
+                    <button class="user-avatar-btn" @onclick="ToggleUserMenu" @onclick:stopPropagation="true"
+                            aria-haspopup="true" aria-expanded="@(_userMenuOpen ? "true" : "false")">
                         <div class="avatar">@_userInitial</div>
                         <span class="user-name-label">@_userName</span>
-                        <span class="chevron">▾</span>
+                        <span class="chevron" aria-hidden="true">▾</span>
                     </button>
 
                     @if (_userMenuOpen)
                     {
-                        <div class="user-dropdown">
+                        <div class="user-dropdown glass">
 
                             <!-- User info header -->
                             <div class="user-dd-info">
@@ -141,7 +167,7 @@
                             <!-- Theme selector -->
                             <div class="user-dd-theme">
                                 <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;">Display</span>
-                                <div class="theme-segmented">
+                                <div class="theme-segmented" role="group" aria-label="Theme">
                                     <button class="theme-seg-btn @(!_darkMode ? "active" : "")"
                                             @onclick="() => SetTheme(false)">
                                         ☀ Light
@@ -172,7 +198,7 @@
         </header>
 
         <!-- Transparent backdrop — closes open panels when user clicks outside them -->
-        @if (_panelOpen || _userMenuOpen)
+        @if (_panelOpen || _userMenuOpen || _searchOpen)
         {
             <div class="panels-backdrop" @onclick="CloseAllPanels"></div>
         }
@@ -206,48 +232,72 @@
 }
 
 <style>
-/* ── Syncfusion sidebar skin ───────────────────────────────────────────────── */
-.dhl-sf-sidebar,
-.dhl-sf-sidebar .e-content-animation {
-    background: var(--sidebar) !important;
-    border-right: none !important;
-    box-shadow: 2px 0 16px rgba(0,0,0,.25) !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-}
-.dhl-sf-sidebar .e-content-animation { width: 100% !important; }
-
-/* ── Shell layout (SfSidebar manages left column; we just handle right) ─────── */
-.dhl-shell { height: 100vh; display: flex; overflow: hidden; position: relative; }
-.dhl-main  { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); min-width: 0; }
-
 /* ── Hamburger ──────────────────────────────────────────────────────────────── */
 .topbar-left { display: flex; align-items: center; gap: 14px; }
 .hamburger-btn {
     display: flex; flex-direction: column; justify-content: center;
     gap: 5px; background: none; border: none; cursor: pointer;
     padding: 6px; border-radius: 8px; width: 36px; height: 36px;
+    transition: background .15s;
 }
+.hamburger-btn:hover { background: var(--surface2); }
 .hamburger-btn span {
     display: block; height: 2px; border-radius: 2px;
     background: var(--muted); transition: background .15s;
 }
 .hamburger-btn:hover span { background: var(--red); }
 
-/* ── Search box ─────────────────────────────────────────────────────────────── */
+/* ── Search box (glass) ─────────────────────────────────────────────────────── */
 .topbar-search {
     display: flex; align-items: center; gap: 8px;
-    background: var(--surface2); border-radius: 8px;
-    padding: 0 12px; height: 34px; min-width: 240px;
-    border: 1.5px solid transparent; transition: border-color .15s;
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 0 12px; height: 36px; min-width: 240px;
+    transition: border-color .15s, box-shadow .15s;
 }
-.topbar-search:focus-within { border-color: var(--red); background: var(--card); }
+.topbar-search:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(8,104,178,.15); }
 .search-icon { font-size: 14px; flex-shrink: 0; }
 .search-input {
     border: none; background: transparent; outline: none;
     font-size: 13px; color: var(--text); width: 100%;
 }
 .search-input::placeholder { color: var(--muted); }
+
+/* ── Global search dropdown ─────────────────────────────────────────────────── */
+.search-wrap { position: relative; }
+.search-spin {
+    width: 14px; height: 14px; flex-shrink: 0;
+    border: 2px solid var(--border); border-top-color: var(--red);
+    border-radius: 50%; animation: search-rotate .7s linear infinite;
+}
+@@keyframes search-rotate { to { transform: rotate(360deg); } }
+.search-results {
+    position: absolute; left: 0; top: calc(100% + 8px);
+    width: 380px; max-width: 80vw; max-height: 420px; overflow-y: auto;
+    border-radius: var(--radius); z-index: 1002; padding: 6px;
+}
+.search-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 13px; }
+.search-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    transition: background .12s;
+}
+.search-item:hover { background: var(--surface2); }
+.search-type {
+    flex-shrink: 0; font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--blue);
+    background: rgba(8,104,178,.12); border-radius: 5px;
+    padding: 3px 7px; min-width: 64px; text-align: center;
+}
+.search-item-main { flex: 1; min-width: 0; }
+.search-item-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-item-sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-status {
+    flex-shrink: 0; font-size: 10px; font-weight: 600; color: var(--muted);
+    background: var(--surface2); border-radius: 5px; padding: 2px 7px;
+}
 
 /* ── Notification bell ──────────────────────────────────────────────────────── */
 .notif-wrap  { position: relative; }
@@ -262,27 +312,26 @@
     padding: 0 3px;
 }
 .notif-panel {
-    position: absolute; right: 0; top: calc(100% + 8px);
-    width: 340px; background: var(--card);
-    border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,.18);
-    border: 1px solid var(--border); z-index: 1000; overflow: hidden;
+    position: absolute; right: 0; top: calc(100% + 10px);
+    width: 340px; border-radius: var(--radius);
+    z-index: 1000; overflow: hidden;
 }
 .notif-panel-head {
-    padding: 12px 16px; font-size: 13px; font-weight: 700;
-    border-bottom: 1px solid var(--border);
+    padding: 12px 16px; font-size: 13px; font-weight: 700; color: var(--text);
+    border-bottom: 1px solid var(--glass-border);
     display: flex; justify-content: space-between; align-items: center;
 }
 .notif-clear { font-size: 11px; color: var(--red); font-weight: 600; background: none; border: none; cursor: pointer; }
 .notif-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
 .notif-item {
     display: flex; gap: 10px; padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer; background: rgba(212,5,17,.04); transition: background .12s;
+    border-bottom: 1px solid var(--glass-border);
+    cursor: pointer; background: rgba(171,25,33,.06); transition: background .12s;
 }
 .notif-item.read  { background: transparent; }
 .notif-item:hover { background: var(--surface2); }
 .notif-icon  { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
-.notif-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.notif-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; color: var(--text); }
 .notif-body  { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notif-time  { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
 
@@ -290,19 +339,19 @@
 .user-menu-wrap { position: relative; }
 .user-avatar-btn {
     display: flex; align-items: center; gap: 8px;
-    background: none; border: 1.5px solid var(--border);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
     border-radius: 24px; padding: 4px 10px 4px 4px;
-    cursor: pointer; transition: border-color .15s, background .15s;
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
 }
-.user-avatar-btn:hover { border-color: var(--red); background: var(--surface2); }
+.user-avatar-btn:hover { border-color: var(--red); box-shadow: 0 2px 10px rgba(171,25,33,.16); }
 .user-name-label { font-size: 13px; font-weight: 600; color: var(--text); }
 .chevron { font-size: 10px; color: var(--muted); }
 .user-dropdown {
-    position: absolute; right: 0; top: calc(100% + 8px);
-    width: 210px; background: var(--card);
-    border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,.15);
-    border: 1px solid var(--border); z-index: 1001;
-    overflow: hidden; padding: 4px 0;
+    position: absolute; right: 0; top: calc(100% + 10px);
+    width: 210px; border-radius: var(--radius);
+    z-index: 1001; overflow: hidden; padding: 4px 0;
 }
 .user-dd-info {
     display: flex; align-items: center; gap: 10px;
@@ -315,7 +364,7 @@
 }
 .user-dd-item:hover { background: var(--surface2); }
 .user-dd-logout { color: var(--red); }
-.user-dd-divider { border-top: 1px solid var(--border); margin: 4px 0; }
+.user-dd-divider { border-top: 1px solid var(--glass-border); margin: 4px 0; }
 
 /* Theme selector */
 .user-dd-theme {
@@ -324,7 +373,7 @@
 }
 .theme-segmented {
     display: flex; border-radius: 8px; overflow: hidden;
-    border: 1.5px solid var(--border); background: var(--surface2);
+    border: 1px solid var(--border); background: var(--surface2);
 }
 .theme-seg-btn {
     flex: 1; padding: 6px 0; font-size: 12px; font-weight: 600;
@@ -337,6 +386,16 @@
     box-shadow: 0 1px 4px rgba(0,0,0,.12);
     border-radius: 6px;
 }
+
+/* ── Mobile drawer backdrop ─────────────────────────────────────────────────── */
+.sidebar-backdrop {
+    position: fixed; inset: 0; z-index: 35;
+    background: rgba(2,6,23,.45);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    animation: backdrop-in .2s ease;
+}
+@@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@@media (min-width: 769px) { .sidebar-backdrop { display: none; } }
 
 /* ── Toast ──────────────────────────────────────────────────────────────────── */
 .toast-notif {
@@ -356,7 +415,7 @@
 
 /* ── Panel backdrop (click-outside to close) ────────────────────────────────── */
 .panels-backdrop {
-    position: fixed; inset: 0; z-index: 999;
+    position: fixed; inset: 0; z-index: 20;   /* below the topbar (30) so the dropdown is clickable; above page content for click-outside-to-close */
     background: transparent; cursor: default;
 }
 
@@ -372,8 +431,8 @@
 </style>
 
 @code {
-    private SfSidebar _sidebar = default!;
-    private bool _sidebarOpen  = true;
+    private bool _collapsed;          // desktop mini-rail (persisted)
+    private bool _mobileOpen;         // mobile overlay drawer
     private bool _panelOpen;
     private bool _userMenuOpen;
     private bool _darkMode;
@@ -406,26 +465,57 @@
         _userId      = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         _userInitial = char.ToUpper(_userName.FirstOrDefault('U'));
         _ready       = true;
+
+        // Auto-close the mobile drawer on navigation.
+        Nav.LocationChanged += OnLocationChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender || !_ready) return;
 
-        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "dhl-theme");
-        if (saved == "dark")
-        {
-            _darkMode = true;
-            StateHasChanged();
-        }
+        // Sync theme + collapse state from localStorage (JS available now). The theme
+        // attribute was already applied pre-paint by the App.razor boot script, so this
+        // only mirrors that into C# — no flicker.
+        await Theme.InitializeAsync();
+        _darkMode = Theme.IsDark;
+        try { _collapsed = await JS.InvokeAsync<bool>("dhlLayout.getCollapsed"); } catch { }
+        StateHasChanged();
 
         await ConnectNotificationHubAsync();
         await RegisterWebPushAsync();
     }
 
-    private void ToggleSidebar() => _sidebarOpen = !_sidebarOpen;
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (_mobileOpen) { _mobileOpen = false; InvokeAsync(StateHasChanged); }
+    }
 
-    private void OnSidebarStateChanged(bool isOpen) => _sidebarOpen = isOpen;
+    // Hamburger: collapse the rail on desktop, open the drawer on mobile.
+    private async Task ToggleSidebar()
+    {
+        bool isMobile;
+        try { isMobile = await JS.InvokeAsync<bool>("dhlLayout.isMobile"); }
+        catch { isMobile = false; }
+
+        if (isMobile)
+        {
+            _mobileOpen = !_mobileOpen;
+        }
+        else
+        {
+            _collapsed = !_collapsed;
+            try { await JS.InvokeVoidAsync("dhlLayout.setCollapsed", _collapsed); } catch { }
+        }
+    }
+
+    private async Task ExpandSidebar()
+    {
+        _collapsed = false;
+        try { await JS.InvokeVoidAsync("dhlLayout.setCollapsed", false); } catch { }
+    }
+
+    private void CloseMobileSidebar() => _mobileOpen = false;
 
     private async Task ConnectNotificationHubAsync()
     {
@@ -454,12 +544,71 @@
 
     private void TogglePanel()    { _panelOpen = !_panelOpen; _userMenuOpen = false; }
     private void ToggleUserMenu() { _userMenuOpen = !_userMenuOpen; _panelOpen = false; }
-    private void CloseAllPanels() { _panelOpen = false; _userMenuOpen = false; }
+    private void CloseAllPanels() { _panelOpen = false; _userMenuOpen = false; _searchOpen = false; }
+
+    // ── Global search — debounced (300ms), async, top-10 results ────────────────
+    private string _searchTerm = "";
+    private bool   _searchOpen;
+    private bool   _searching;
+    private List<GlobalSearchResult> _searchResults = [];
+    private CancellationTokenSource? _searchCts;
+
+    private void OnSearchFocus()
+    {
+        if (_searchTerm.Trim().Length >= 2) _searchOpen = true;
+    }
+
+    private async Task OnSearchInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        _searchTerm = e.Value?.ToString() ?? "";
+        _panelOpen = false; _userMenuOpen = false;
+
+        // Cancel any in-flight debounce/search.
+        _searchCts?.Cancel();
+
+        var term = _searchTerm.Trim();
+        if (term.Length < 2)
+        {
+            _searchOpen = false;
+            _searching  = false;
+            _searchResults = [];
+            return;
+        }
+
+        _searchOpen = true;
+        _searching  = true;
+
+        var cts = new CancellationTokenSource();
+        _searchCts = cts;
+        try
+        {
+            await Task.Delay(300, cts.Token);   // debounce
+            var results = await Logistics.GlobalSearchAsync(term, 10);
+            if (cts.Token.IsCancellationRequested) return;
+            _searchResults = results;
+            _searching     = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { /* superseded by a newer keystroke */ }
+        catch
+        {
+            _searching = false;
+            _searchResults = [];
+        }
+    }
+
+    private void OpenResult(GlobalSearchResult r)
+    {
+        _searchOpen = false;
+        _searchTerm = "";
+        _searchResults = [];
+        Nav.NavigateTo(r.Url);
+    }
 
     private async Task SetTheme(bool dark)
     {
         _darkMode = dark;
-        await JS.InvokeVoidAsync("localStorage.setItem", "dhl-theme", dark ? "dark" : "light");
+        await Theme.SetDarkAsync(dark);
     }
 
     private async Task MarkAllRead()
@@ -484,7 +633,13 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    public async ValueTask DisposeAsync() { if (_hub is not null) await _hub.DisposeAsync(); }
+    public async ValueTask DisposeAsync()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        if (_hub is not null) await _hub.DisposeAsync();
+    }
 
     protected override void OnParametersSet()
     {

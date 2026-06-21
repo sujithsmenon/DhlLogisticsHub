@@ -2,6 +2,7 @@
 @inject LogisticsService Svc
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject DashboardState Dash
 @implements IAsyncDisposable
 
 <!-- Leaflet -->
@@ -15,44 +16,50 @@
 }
 else
 {
-    <!-- KPI row -->
+    <!-- KPI row (clickable → drill-down with filter) -->
     <div class="kpi-grid">
-        <div class="kpi-card red">
+        <div class="kpi-card red" role="button" tabindex="0" style="cursor:pointer"
+             @onclick='() => Nav.NavigateTo("/jobs?status=Pending")'>
             <div class="kpi-icon">🚛</div>
             <div class="kpi-body">
                 <div class="kpi-value">@_data!.TotalPendingPickups</div>
                 <div class="kpi-label">Pending Pickups</div>
             </div>
         </div>
-        <div class="kpi-card blue">
+        <div class="kpi-card blue" role="button" tabindex="0" style="cursor:pointer"
+             @onclick='() => Nav.NavigateTo("/jobs?status=InTransit")'>
             <div class="kpi-icon">📍</div>
             <div class="kpi-body">
-                <div class="kpi-value">@_inTransit</div>
+                <div class="kpi-value">@_data!.TotalInTransit</div>
                 <div class="kpi-label">In Transit</div>
             </div>
         </div>
-        <div class="kpi-card green">
+        <div class="kpi-card green" role="button" tabindex="0" style="cursor:pointer"
+             @onclick='() => Nav.NavigateTo("/jobs?status=Stored")'>
             <div class="kpi-icon">✅</div>
             <div class="kpi-body">
                 <div class="kpi-value">@_data.TotalShippedThisMonth</div>
                 <div class="kpi-label">Stored This Month</div>
             </div>
         </div>
-        <div class="kpi-card orange">
+        <div class="kpi-card orange" role="button" tabindex="0" style="cursor:pointer"
+             @onclick='() => Nav.NavigateTo("/masters/containers")'>
             <div class="kpi-icon">📦</div>
             <div class="kpi-body">
                 <div class="kpi-value">@_data.TotalActiveContainers</div>
                 <div class="kpi-label">Active Containers</div>
             </div>
         </div>
-        <div class="kpi-card purple">
+        <div class="kpi-card purple" role="button" tabindex="0" style="cursor:pointer"
+             @onclick='() => Nav.NavigateTo("/staff")'>
             <div class="kpi-icon">👤</div>
             <div class="kpi-body">
-                <div class="kpi-value">@_activeExecs</div>
+                <div class="kpi-value">@_data!.TotalActiveExecutives</div>
                 <div class="kpi-label">Active Executives</div>
             </div>
         </div>
-        <div class="kpi-card yellow">
+        <div class="kpi-card yellow" role="button" tabindex="0" style="cursor:pointer"
+             @onclick='() => Nav.NavigateTo("/masters/clients")'>
             <div class="kpi-icon">🏢</div>
             <div class="kpi-body">
                 <div class="kpi-value">@_data.TotalActiveClients</div>
@@ -168,17 +175,24 @@ else
     private bool  _loading      = true;
     private bool  _hubConnected = false;
     private string? _selectedJob;
-    private int   _inTransit;
-    private int   _activeExecs;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCountersAsync();
+        // Live counters: any CRUD / status change anywhere raises DashboardState.Changed,
+        // which reloads the figures without a page refresh.
+        Dash.Changed += OnDashboardChanged;
+        _loading = false;
+    }
+
+    // Loads the KPI figures + recent/active job lists. Reused on first load and on
+    // every live-refresh signal.
+    private async Task LoadCountersAsync()
+    {
+        // All six KPI figures now come straight from the DB via Svc.get() (real counts,
+        // no page-local derivation). _recentJobs still feeds the activity feed + table.
         _data       = await Svc.get();
         _recentJobs = await Svc.GetRecentJobsAsync(12);
-        _inTransit  = _recentJobs.Count(j => j.Status == JobStatus.InTransit);
-        _activeExecs= _recentJobs
-            .Where(j => j.Status == JobStatus.InTransit || j.Status == JobStatus.Assigned)
-            .Select(j => j.AssignedExecutiveId).Distinct().Count(x => x != null);
 
         _activeJobs = _recentJobs
             .Where(j => j.Status != JobStatus.Stored && j.Status != JobStatus.Cancelled)
@@ -190,8 +204,20 @@ else
                 PickupAddress = j.PickupAddress,
                 Status        = j.Status.ToString(),
             }).ToList();
+    }
 
-        _loading = false;
+    // DashboardState.Changed fires on a non-UI thread — marshal back via InvokeAsync.
+    private async void OnDashboardChanged()
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadCountersAsync();
+                StateHasChanged();
+            });
+        }
+        catch { /* component disposed mid-refresh — ignore */ }
     }
 
     private bool _mapInitialized;
@@ -253,7 +279,11 @@ else
         if (job.LastLat != 0) await JS.InvokeVoidAsync("DhlMap.panTo", job.LastLat, job.LastLng);
     }
 
-    public async ValueTask DisposeAsync() { if (_hub is not null) await _hub.DisposeAsync(); }
+    public async ValueTask DisposeAsync()
+    {
+        Dash.Changed -= OnDashboardChanged;
+        if (_hub is not null) await _hub.DisposeAsync();
+    }
 
     private static string StatusPill(string s) => s switch
     {

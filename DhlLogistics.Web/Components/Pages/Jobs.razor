@@ -111,9 +111,19 @@ else
     private static readonly string[] _filters =
         ["All", "Pending", "Assigned", "InTransit", "PickedUp", "Stored", "Cancelled"];
 
+    // Deep-link filter: dashboard KPI cards navigate to /jobs?status=Pending etc.
+    [SupplyParameterFromQuery(Name = "status")]
+    private string? StatusQuery { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         _jobs = await Svc.GetAllJobsAsync();
+        // Honour the ?status= query (from a dashboard card) if it's a known filter.
+        if (!string.IsNullOrWhiteSpace(StatusQuery) &&
+            _filters.Contains(StatusQuery, StringComparer.OrdinalIgnoreCase))
+        {
+            _activeFilter = _filters.First(f => f.Equals(StatusQuery, StringComparison.OrdinalIgnoreCase));
+        }
         ApplyFilter();
         _loading = false;
     }
