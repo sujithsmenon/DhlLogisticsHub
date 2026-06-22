@@ -20,7 +20,7 @@
     --card:     #FFFFFF;
     --border:   #DDE2EA;
     --text:     #0E2A47;
-    --muted:    #6B7280;
+    --muted:    #5A6573;   /* darkened for WCAG-AA secondary text on white/surface */
 
     --sidebar-w:           260px;   /* desktop expanded rail */
     --sidebar-w-collapsed: 70px;    /* desktop mini rail */
@@ -82,7 +82,7 @@
     --sidebar-bg:         rgba(15,23,40,.62);
     --sidebar-text:       #cdd9ec;
     --sidebar-strong:     #f1f5f9;
-    --sidebar-muted:      #8ea2c0;
+    --sidebar-muted:      #aab9d4;   /* lifted for clearer submenu/child-item contrast on the dark rail */
     --sidebar-section:    #64748b;
     --sidebar-hover:      rgba(255,255,255,.07);
     --sidebar-border:     rgba(255,255,255,.08);
@@ -241,6 +241,11 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
     box-shadow: var(--glass-shadow);
+    /* Bootstrap's .card sets `color: var(--bs-body-color)` (#212529, only swapped under
+       [data-bs-theme=dark] which this app never sets). Without this line every element
+       inside a card that doesn't set its own colour inherits dark text → dark-on-dark in
+       dark mode (AWB / Export Jobs: Shipper, Consignee, Goods, Workflow, etc.). */
+    color: var(--text);
     /* overflow: hidden removed — allows Syncfusion dialog popups to escape card bounds */
 }
 .card-head {
@@ -496,15 +501,19 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 }
 .card > .card-header b { font-weight: 700; }
 
-/* Grid header band — tint to harmonise with the teal card header */
+/* Grid header band — header cells sit on the PVGT-blue band (syncfusion-grid-pvgt.css)
+   so their text/icons must be WHITE, not navy (navy-on-blue ≈ 1.6:1 = unreadable). */
 .e-grid .e-gridheader,
 .e-grid .e-gridheader .e-headercell,
 .e-grid .e-gridheader .e-headercell .e-headercelldiv,
-.e-grid .e-gridheader .e-filterbarcell {
-   /* background-color: #e6f4f3 !important;*/
-    color: #0E2A47 !important;
+.e-grid .e-gridheader .e-headercell .e-headertext {
+    color: #ffffff !important;
 }
-.e-grid .e-gridheader .e-sortfilterdiv { color: #198781; }
+.e-grid .e-gridheader .e-sortfilterdiv,
+.e-grid .e-gridheader .e-headercell .e-icons { color: rgba(255,255,255,.85) !important; }
+/* Filter-bar inputs sit on a WHITE field → keep dark text for readability. */
+.e-grid .e-gridheader .e-filterbarcell,
+.e-grid .e-gridheader .e-filterbarcell input.e-input { color: #0E2A47 !important; }
 
 /* Grid toolbar surface */
 .e-grid .e-toolbar {
@@ -570,6 +579,91 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
     background: #102b2a !important;
     border-bottom-color: #1f4d4b !important;
 }
+
+/* ── Dark mode — LIST-PAGE grids ──────────────────────────────────────────────
+   The app loads only the LIGHT Syncfusion theme, so without these rules a list
+   grid keeps white rows / light-on-light pager + filter text against the dark
+   shell. This completes the dark grid surface (rows, pager, filter bar, empty
+   state). Dialog grids are already themed above; these globals match that palette
+   and are scoped to [data-dark] so LIGHT MODE IS UNCHANGED. */
+[data-dark="true"] .e-grid,
+[data-dark="true"] .e-grid .e-content,
+[data-dark="true"] .e-grid .e-table {
+    background-color: #1E293B !important;
+    color: #E2E8F0 !important;
+    border-color: #334155 !important;
+}
+[data-dark="true"] .e-grid .e-row .e-rowcell {
+    background-color: #1E293B !important;
+    color: #E2E8F0 !important;
+    border-color: #334155 !important;
+}
+[data-dark="true"] .e-grid .e-altrow .e-rowcell { background-color: #19273C !important; }
+[data-dark="true"] .e-grid .e-row:hover .e-rowcell,
+[data-dark="true"] .e-grid .e-row:hover .e-altrow .e-rowcell { background-color: #243349 !important; }
+[data-dark="true"] .e-grid .e-row.e-rowselect .e-rowcell,
+[data-dark="true"] .e-grid .e-row .e-rowcell.e-selectionbackground { background-color: #2A3B57 !important; color: #F8FAFC !important; }
+/* Sort/filter glyphs + cell links stay visible */
+[data-dark="true"] .e-grid .e-rowcell a,
+[data-dark="true"] .e-grid .e-icons,
+[data-dark="true"] .e-grid .e-gridheader .e-sortfilterdiv { color: #CBD5E1 !important; }
+/* Empty / no-records text */
+[data-dark="true"] .e-grid .e-emptyrow td,
+[data-dark="true"] .e-grid .e-emptyrow { background-color: #1E293B !important; color: #94A3B8 !important; }
+/* Filter bar inputs in the header row */
+[data-dark="true"] .e-grid .e-filterbarcell input.e-input {
+    background: #0F172A !important;
+    color: #F1F5F9 !important;
+    color-scheme: dark;
+}
+[data-dark="true"] .e-grid .e-filterbarcell input.e-input::placeholder { color: #8595AC !important; opacity: 1 !important; }
+/* Pager */
+[data-dark="true"] .e-grid .e-gridpager,
+[data-dark="true"] .e-pager {
+    background-color: #16263B !important;
+    border-color: #334155 !important;
+    color: #E2E8F0 !important;
+}
+[data-dark="true"] .e-pager .e-pagercontainer { background-color: transparent !important; }
+[data-dark="true"] .e-pager div.e-numericitem,
+[data-dark="true"] .e-pager .e-pagercontainer .e-link,
+[data-dark="true"] .e-pager .e-pagerconstant,
+[data-dark="true"] .e-pager .e-parentmsgbar { color: #CBD5E1 !important; background-color: transparent !important; }
+[data-dark="true"] .e-pager div.e-currentitem,
+[data-dark="true"] .e-pager div.e-active { background-color: #2563EB !important; color: #FFFFFF !important; }
+
+/* ── Dark mode — SfTreeGrid (UserManagement). TreeGrid renders under a .e-treegrid
+   wrapper, NOT .e-grid, so the grid rules above don't reach it and it would stay a
+   white block in dark mode. Mirror the dark grid palette here. ───────────────── */
+[data-dark="true"] .e-treegrid,
+[data-dark="true"] .e-treegrid .e-content,
+[data-dark="true"] .e-treegrid .e-table {
+    background-color: #1E293B !important;
+    color: #E2E8F0 !important;
+    border-color: #334155 !important;
+}
+[data-dark="true"] .e-treegrid .e-row .e-rowcell {
+    background-color: #1E293B !important;
+    color: #E2E8F0 !important;
+    border-color: #334155 !important;
+}
+[data-dark="true"] .e-treegrid .e-altrow .e-rowcell { background-color: #19273C !important; }
+[data-dark="true"] .e-treegrid .e-row:hover .e-rowcell { background-color: #243349 !important; }
+[data-dark="true"] .e-treegrid .e-gridheader,
+[data-dark="true"] .e-treegrid .e-gridheader .e-headercell,
+[data-dark="true"] .e-treegrid .e-gridheader .e-headercell .e-headercelldiv {
+    background-color: #143b3a !important;
+    color: #E2F5F3 !important;
+}
+[data-dark="true"] .e-treegrid .e-icons,
+[data-dark="true"] .e-treegrid .e-treecolumn-container .e-icons { color: #CBD5E1 !important; }
+[data-dark="true"] .e-treegrid .e-gridpager,
+[data-dark="true"] .e-treegrid .e-pager { background-color: #16263B !important; color: #E2E8F0 !important; border-color: #334155 !important; }
+
+/* ── Dark mode — marquee ticker (default.css hard-codes a #fff background, which
+      hides the near-white ticker text in dark mode). ───────────────────────── */
+[data-dark="true"] .marquee-container { background: var(--surface2) !important; }
+[data-dark="true"] .marquee-text { color: var(--text); }
 
 /* Status pills à la sample */
 .statustemp {
