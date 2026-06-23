@@ -20,8 +20,12 @@
                             var cont = (context as UserWithRolesViewModel)!;
                         }
                         <div class="row">
+                           @*  <div class="col-md-6 mb-3">
+                                <label class="form-Custom-label">User Name </label>
+                                <SfTextBox @bind-Value="@cont.StaffName" CssClass="e-small" Enabled="false" />
+                            </div> *@
                             <div class="col-md-6 mb-3">
-                                <label class="form-Custom-label">Username</label>
+                                <label class="form-Custom-label">Login User Name </label>
                                 <SfTextBox @bind-Value="@cont.UserName" CssClass="e-small" Enabled="false" />
                             </div>
                             <div class="col-md-6 mb-3">
@@ -64,7 +68,8 @@
                             <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new CommandButtonOptions() { IconCss = "e-icons e-lock", CssClass = "e-flat" })" Title="Change Password"></GridCommandColumn>
                         </GridCommandColumns>
                     </GridColumn>
-                    <GridColumn Field="@nameof(UserWithRolesViewModel.UserName)" HeaderText="Username" Width="220" IsPrimaryKey="true"></GridColumn>
+                    <GridColumn Field="StaffName" HeaderText="User Name" Width="160"></GridColumn>
+                    <GridColumn Field="@nameof(UserWithRolesViewModel.UserName)" HeaderText="Login User Name" Width="220" IsPrimaryKey="true"></GridColumn>
                     <GridColumn Field="@nameof(UserWithRolesViewModel.Email)" HeaderText="Email" Width="220"></GridColumn>
                     <GridColumn HeaderText="Roles" Width="220">
                         <Template>
@@ -78,7 +83,7 @@
                             }
                         </Template>
                     </GridColumn>
-                    <GridColumn Field="StaffName" HeaderText="Staff" Width="160"></GridColumn>
+                    
                     <GridColumn Field="@nameof(UserWithRolesViewModel.EmailConfirmed)" HeaderText="Access" Width="90" TextAlign="TextAlign.Center" DisplayAsCheckBox="true"></GridColumn>
                 </GridColumns>
             </SfGrid>
@@ -243,7 +248,8 @@
                                  .Join(branches, b => b.BranchId, x => x.Id, (b, x) => x.BranchName)
                                  .ToArray(),
                     StaffId = reg?.StaffId,
-                    StaffName = staff?.FullName,
+                    StaffName = u.FullName,
+                    //StaffName = staff?.FullName,
                 };
             }).OrderBy(o => o.UserName).ToList();
         }
