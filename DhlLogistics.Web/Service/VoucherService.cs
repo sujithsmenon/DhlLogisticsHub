@@ -9,11 +9,15 @@ public class VoucherService
 {
     private readonly AppDbContext _db;
     private readonly AuthenticationStateProvider _authProvider;
+    private readonly DashboardState _dash;
+    private readonly WorkflowLogService _wflog;
 
-    public VoucherService(AppDbContext db, AuthenticationStateProvider authProvider)
+    public VoucherService(AppDbContext db, AuthenticationStateProvider authProvider, DashboardState dash, WorkflowLogService wflog)
     {
         _db = db;
         _authProvider = authProvider;
+        _dash = dash;
+        _wflog = wflog;
     }
 
     private async Task<string> CurrentUserAsync()
@@ -110,6 +114,36 @@ public class VoucherService
         _db.Vouchers.Add(v);
         await _db.SaveChangesAsync();
         await LogEventAsync(v.Id, VoucherEventType.Created, "Voucher created as Draft.", user);
+        _dash.NotifyChanged();
+        return v;
+    }
+
+    /// <summary>
+    /// Creates a voucher that is already <see cref="VoucherStatus.Posted"/> in a single step — the entry
+    /// point for automatic accounting hooks (bill approval, job expense posting, customer/vendor payments)
+    /// so nothing is posted by hand. Reuses the SAME numbering (<see cref="NextVoucherNoAsync"/>) and
+    /// balance validation (<see cref="EnsureBalanced"/>) as the interactive path, so there is one copy of
+    /// that logic. The caller supplies the actor (these run in workflow/startup contexts without a circuit
+    /// user) and owns the surrounding transaction — this method does not open its own.
+    /// </summary>
+    public async Task<Voucher> CreatePostedAsync(Voucher v, string actor)
+    {
+        v.FinYear   = ComputeFinYear(v.VoucherDate);
+        v.VoucherNo = await NextVoucherNoAsync(v.Type, v.FinYear);
+        EnsureBalanced(v);
+
+        int order = 1;
+        foreach (var l in v.Lines) if (l.DisplayOrder == 0) l.DisplayOrder = order++;
+
+        v.Status    = VoucherStatus.Posted;
+        v.CreatedBy = actor;
+        v.CreatedOn = DateTime.UtcNow;
+        v.PostedBy  = actor;
+        v.PostedOn  = DateTime.UtcNow;
+
+        _db.Vouchers.Add(v);
+        await _db.SaveChangesAsync();
+        await LogEventAsync(v.Id, VoucherEventType.Posted, "Auto-posted from workflow.", actor);
         return v;
     }
 
@@ -137,6 +171,7 @@ public class VoucherService
 
         await _db.SaveChangesAsync();
         await LogEventAsync(v.Id, VoucherEventType.Updated, null, user);
+        _dash.NotifyChanged();
     }
 
     public async Task SubmitAsync(long id)
@@ -152,6 +187,8 @@ public class VoucherService
         v.RejectedBy  = null; v.RejectedOn = null; v.RejectionReason = null;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, VoucherEventType.Submitted, "Submitted for verification.", user);
+        await _wflog.LogTransitionAsync("Accounts", "Voucher", id, v.VoucherNo, WorkflowOperationType.Submit, user, $"Voucher {v.VoucherNo} submitted for verification.");
+        _dash.NotifyChanged();
     }
 
     public async Task VerifyAsync(long id, string? note = null)
@@ -166,6 +203,8 @@ public class VoucherService
         v.VerifiedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, VoucherEventType.Verified, note, user);
+        await _wflog.LogTransitionAsync("Accounts", "Voucher", id, v.VoucherNo, WorkflowOperationType.Verify, user, $"Voucher {v.VoucherNo} verified; awaiting approval.");
+        _dash.NotifyChanged();
     }
 
     public async Task ApproveAsync(long id, string? note = null)
@@ -180,6 +219,8 @@ public class VoucherService
         v.ApprovedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, VoucherEventType.Approved, note, user);
+        await _wflog.LogTransitionAsync("Accounts", "Voucher", id, v.VoucherNo, WorkflowOperationType.Approve, user, $"Voucher {v.VoucherNo} approved.", notifyManagers: true);
+        _dash.NotifyChanged();
     }
 
     public async Task RejectAsync(long id, string reason)
@@ -198,6 +239,8 @@ public class VoucherService
         v.RejectionReason = reason;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, VoucherEventType.Rejected, reason, user);
+        await _wflog.LogTransitionAsync("Accounts", "Voucher", id, v.VoucherNo, WorkflowOperationType.Reject, user, $"Voucher {v.VoucherNo} rejected: {reason}", notifyManagers: true);
+        _dash.NotifyChanged();
     }
 
     public async Task PostAsync(long id, string? note = null)
@@ -212,6 +255,8 @@ public class VoucherService
         v.PostedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, VoucherEventType.Posted, note, user);
+        await _wflog.LogTransitionAsync("Accounts", "Voucher", id, v.VoucherNo, WorkflowOperationType.Post, user, $"Voucher {v.VoucherNo} posted to the ledger.", notifyManagers: true);
+        _dash.NotifyChanged();
     }
 
     public async Task<bool> DeleteAsync(long id)
@@ -223,6 +268,7 @@ public class VoucherService
 
         _db.Vouchers.Remove(v);
         await _db.SaveChangesAsync();
+        _dash.NotifyChanged();
         return true;
     }
 

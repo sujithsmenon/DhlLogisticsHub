@@ -1,0 +1,144 @@
+@page "/finance/payments"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject AccountingService Accounting
+@inject LogisticsService Logistics
+@inject AccountHeadService AccountHeads
+@inject CompanyBranchService BranchService
+@inject IToastService ToastService
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@_busy" Label="Posting..." />
+    <div class="row">
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <span><b>Record Payment</b></span>
+                    <div class="ms-auto">
+                        <SfDropDownList TItem="ModeItem" TValue="PayMode" @bind-Value="_mode" DataSource="_modes"
+                                        CssClass="e-small" Width="220px">
+                            <DropDownListFieldSettings Text="Label" Value="Value" />
+                        </SfDropDownList>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="muted" style="margin-bottom:14px;">
+                        @(_mode == PayMode.CustomerReceipt
+                            ? "Customer receipt posts automatically: Dr Cash/Bank, Cr Accounts Receivable — reducing the customer's outstanding balance."
+                            : "Vendor payment posts automatically: Dr Accounts Payable, Cr Cash/Bank — reducing the vendor's outstanding balance.")
+                    </p>
+
+                    <div class="row">
+                        <div class="mb-3 col-md-6">
+                            <label class="form-Custom-label">@(_mode == PayMode.CustomerReceipt ? "Customer:" : "Vendor:")</label>
+                            <SfComboBox @bind-Value="_partyId" TItem="DhlClient" TValue="int?" DataSource="_clients"
+                                        AllowFiltering="true" CssClass="e-small" ShowClearButton="true" Placeholder="Select party..">
+                                <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                        <div class="mb-3 col-md-6">
+                            <label class="form-Custom-label">Cash / Bank:</label>
+                            <SfComboBox @bind-Value="_cashBankId" TItem="AccountHead" TValue="int?" DataSource="_cashBank"
+                                        CssClass="e-small" ShowClearButton="true" Placeholder="Select account..">
+                                <ComboBoxFieldSettings Text="AccountName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                        <div class="mb-3 col-md-4">
+                            <label class="form-Custom-label">Amount:</label>
+                            <SfNumericTextBox TValue="decimal" @bind-Value="_amount" Format="N2" Min="0" CssClass="e-small" />
+                        </div>
+                        <div class="mb-3 col-md-4">
+                            <label class="form-Custom-label">Date:</label>
+                            <SfDatePicker TValue="DateTime" @bind-Value="_date" Format="dd-MMM-yyyy" StrictMode="true" CssClass="e-small" />
+                        </div>
+                        <div class="mb-3 col-md-4">
+                            <label class="form-Custom-label">Branch:</label>
+                            <SfComboBox @bind-Value="_branchId" TItem="CompanyBranch" TValue="int?" DataSource="_branches"
+                                        CssClass="e-small" ShowClearButton="true">
+                                <ComboBoxFieldSettings Text="BranchName" Value="Id" />
+                            </SfComboBox>
+                        </div>
+                        <div class="mb-3 col-md-8">
+                            <label class="form-Custom-label">Reference:</label>
+                            <SfTextBox @bind-Value="_reference" CssClass="e-small" Placeholder="Cheque / UTR / note (optional)" />
+                        </div>
+                        <div class="mb-3 col-md-4" style="display:flex;align-items:flex-end;">
+                            <SfButton OnClick="@Post" CssClass="e-small" IconCss="e-icons e-save-as" IsPrimary="true" Disabled="@_busy">Post Payment</SfButton>
+                        </div>
+                    </div>
+
+                    @if (_lastVoucherNo is not null)
+                    {
+                        <div class="alert alert-success" style="padding:10px 12px;font-size:13px;">
+                            Posted <b>@_lastVoucherNo</b>. Ledgers, outstanding balances and reports have refreshed.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private enum PayMode { CustomerReceipt = 0, VendorPayment = 1 }
+    private record ModeItem(PayMode Value, string Label);
+
+    private static readonly List<ModeItem> _modes = new()
+    {
+        new(PayMode.CustomerReceipt, "Customer Receipt (money in)"),
+        new(PayMode.VendorPayment,   "Vendor Payment (money out)"),
+    };
+
+    private PayMode _mode = PayMode.CustomerReceipt;
+    private bool _busy;
+    private string? _lastVoucherNo;
+
+    private int?     _partyId;
+    private int?     _cashBankId;
+    private decimal  _amount;
+    private DateTime _date = DateTime.UtcNow.Date;
+    private int?     _branchId;
+    private string?  _reference;
+
+    private List<DhlClient>     _clients  = new();
+    private List<AccountHead>   _cashBank = new();
+    private List<CompanyBranch> _branches = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _clients  = await Logistics.GetAllClientsAsync();
+        _cashBank = await AccountHeads.GetCashAndBankAsync();
+        _branches = await BranchService.GetAllAsync();
+    }
+
+    private async Task Post()
+    {
+        if (_partyId is null)    { Toast("Select a party."); return; }
+        if (_cashBankId is null) { Toast("Select a Cash/Bank account."); return; }
+        if (_amount <= 0)        { Toast("Amount must be greater than 0."); return; }
+
+        _busy = true;
+        try
+        {
+            var v = _mode == PayMode.CustomerReceipt
+                ? await Accounting.RecordCustomerPaymentAsync(_partyId.Value, _amount, _cashBankId.Value, _date, _reference, _branchId)
+                : await Accounting.RecordVendorPaymentAsync(_partyId.Value, _amount, _cashBankId.Value, _date, _reference, _branchId);
+
+            _lastVoucherNo = v.VoucherNo;
+            ToastService.Show(new() { Title = "Posted", Content = $"Payment posted as {v.VoucherNo}.", CssClass = "e-toast-success" });
+            _amount = 0; _reference = null; _partyId = null;
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Validation", Content = msg, CssClass = "e-toast-danger" });
+}
