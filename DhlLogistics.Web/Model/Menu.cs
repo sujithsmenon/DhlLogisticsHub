@@ -6,7 +6,7 @@ namespace DhlLogistics.Web.Model;
 /// sidebar and <see cref="PageName"/> holds the relative href (e.g. "masters/clients")
 /// which doubles as the permission page-path used to filter the menu per user.
 ///
-/// Stored in the main Supabase Postgres database (see <see cref="Database.AppDbContext"/>).
+/// Stored in the main application PostgreSQL database (see <see cref="Database.AppDbContext"/>).
 /// </summary>
 public class Menu
 {

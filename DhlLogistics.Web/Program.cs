@@ -32,9 +32,10 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-// ── Database (Supabase Postgres via Npgsql) ──────────────────────────────────
+// ── Database (Amazon RDS PostgreSQL via Npgsql) ──────────────────────────────
+// Provider-agnostic Npgsql — any PostgreSQL endpoint works (RDS, or a self-managed/hosted Postgres).
 // Connection string lives in User Secrets in Development:
-//   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=...;Port=6543;Database=postgres;Username=postgres.<projectref>;Password=...;SSL Mode=Require;Trust Server Certificate=true"
+//   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=<instance>.<region>.rds.amazonaws.com;Port=5432;Database=dhllogistics;Username=<db-user>;Password=...;SSL Mode=Require;Trust Server Certificate=true"
 // In production, set env var ConnectionStrings__DefaultConnection.
 // Single source of options: register the factory (configures Npgsql once) and derive
 // the scoped AppDbContext from it. This serves BOTH the interactive user-management
@@ -49,8 +50,8 @@ builder.Services.AddScoped<AppDbContext>(sp =>
     sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
 // ── Navigation menu ──────────────────────────────────────────────────────────
-// The sidebar is data-driven from a Menus table. It now lives in the main Supabase
-// Postgres DB (AppDbContext) — previously a separate local SQL Server store, which
+// The sidebar is data-driven from a Menus table. It lives in the main application
+// PostgreSQL DB (AppDbContext) — previously a separate local SQL Server store, which
 // AWS Elastic Beanstalk could not reach. NavMenu / permission trees open a short-lived
 // AppDbContext via the factory registered above.
 
