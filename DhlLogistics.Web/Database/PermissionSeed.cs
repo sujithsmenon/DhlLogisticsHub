@@ -44,6 +44,13 @@ public static class PermissionSeed
         // Finance Reports
         "reports/finance", "reports/ledger", "reports/trial-balance",
         "reports/gst-output", "reports/bill-register",
+        // ERP finance reports (added with the accounting automation slice)
+        "reports/profit-loss", "reports/balance-sheet", "reports/revenue", "reports/expense",
+        "reports/job-profitability", "reports/receivable-aging", "reports/payable-aging",
+        "reports/payment-register", "reports/customer-statement", "reports/vendor-statement",
+        "reports/cash-book", "reports/bank-book", "reports/forwarding", "reports/clearance",
+        "reports/transportation", "reports/kpi",
+        "finance/payments",
         // Admin (CBM-style user management replaces the old matrix page)
         "usermanagement",
     };

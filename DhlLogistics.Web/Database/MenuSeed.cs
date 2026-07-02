@@ -120,17 +120,34 @@ public static class MenuSeed
         Child(accounts, "Overview",            "🏠", "finance/accounts", matchAll: true);
         Child(accounts, "Chart of Accounts",   "📚", "accounts/heads");
         Child(accounts, "Journal Vouchers",    "📝", "accounts/journal");
+        Child(accounts, "Payments",            "💰", "finance/payments");
         Child(accounts, "Cash & Bank",         "💵", "accounts/cashbank");
         Child(accounts, "Verification",        "✔",  "accounts/verify");
         Child(accounts, "Approval & Posting",  "✅", "accounts/approve");
 
         // ── Reports ──────────────────────────────────────────────────────────
         var reports = Group("Reports", "📊");
-        Child(reports, "Overview",       "🏠", "reports/finance", matchAll: true);
-        Child(reports, "Account Ledger", "📒", "reports/ledger");
-        Child(reports, "Trial Balance",  "⚖",  "reports/trial-balance");
-        Child(reports, "GST Output",     "🧾", "reports/gst-output");
-        Child(reports, "Bill Register",  "📑", "reports/bill-register");
+        Child(reports, "Overview",          "🏠", "reports/finance", matchAll: true);
+        Child(reports, "Account Ledger",    "📒", "reports/ledger");
+        Child(reports, "Trial Balance",     "⚖",  "reports/trial-balance");
+        Child(reports, "Profit & Loss",     "📈", "reports/profit-loss");
+        Child(reports, "Balance Sheet",     "🧮", "reports/balance-sheet");
+        Child(reports, "Revenue",           "💹", "reports/revenue");
+        Child(reports, "Expense",           "💸", "reports/expense");
+        Child(reports, "Job Profitability", "📊", "reports/job-profitability");
+        Child(reports, "Receivable Aging",  "⏳", "reports/receivable-aging");
+        Child(reports, "Payable Aging",     "⌛", "reports/payable-aging");
+        Child(reports, "Payment Register",  "🧾", "reports/payment-register");
+        Child(reports, "Customer Statement","👤", "reports/customer-statement");
+        Child(reports, "Vendor Statement",  "🏭", "reports/vendor-statement");
+        Child(reports, "Cash Book",         "💵", "reports/cash-book");
+        Child(reports, "Bank Book",         "🏦", "reports/bank-book");
+        Child(reports, "Forwarding Report", "📦", "reports/forwarding");
+        Child(reports, "Clearance Report",  "🛃", "reports/clearance");
+        Child(reports, "Transportation Report","🚛", "reports/transportation");
+        Child(reports, "KPI Dashboard",     "📊", "reports/kpi");
+        Child(reports, "GST Output",        "🧾", "reports/gst-output");
+        Child(reports, "Bill Register",     "📑", "reports/bill-register");
 
         // ── Finance Masters ──────────────────────────────────────────────────
         var finMasters = Group("Finance Masters", "💼");
@@ -174,6 +191,73 @@ public static class MenuSeed
             allChildren.AddRange(children);
         }
         db.Menus.AddRange(allChildren);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Idempotent additive seed for the ERP finance reports + payments pages. Because
+    /// <see cref="SeedAsync"/> only runs on an empty table, already-seeded installs would never
+    /// gain the new report pages — so this inserts any missing leaf (keyed by PageName) under the
+    /// existing <b>Reports</b> and <b>Accounts</b> groups. Safe to run on every startup: existing rows
+    /// are left untouched, so hand-edited menus are never clobbered. No menu item is hard-coded in the
+    /// UI — the sidebar still renders purely from these DB rows, permission-filtered per user.
+    /// </summary>
+    public static async Task EnsureFinanceMenusAsync(IDbContextFactory<AppDbContext> factory)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        if (!await db.Menus.AnyAsync()) return;   // fresh DB — SeedAsync will cover it
+
+        var reports  = await db.Menus.FirstOrDefaultAsync(m => m.ParentId == null && m.MenuName == "Reports");
+        var accounts = await db.Menus.FirstOrDefaultAsync(m => m.ParentId == null && m.MenuName == "Accounts");
+        if (reports is null && accounts is null) return;
+
+        var existingPages = new HashSet<string>(
+            await db.Menus.Where(m => m.PageName != null).Select(m => m.PageName!).ToListAsync(),
+            StringComparer.OrdinalIgnoreCase);
+
+        var nextOrder = (await db.Menus.MaxAsync(m => (int?)m.ShowOrder) ?? 0) + 10;
+        var toAdd = new List<Menu>();
+
+        void Add(Menu? parent, string name, string icon, string page)
+        {
+            if (parent is null || existingPages.Contains(page)) return;
+            toAdd.Add(new Menu
+            {
+                MenuName           = name,
+                Icon               = icon,
+                PageName           = page,
+                ParentId           = parent.MenuId,
+                ShowOrder          = nextOrder,
+                RequiresPermission = true,
+                Active             = true,
+            });
+            existingPages.Add(page);
+            nextOrder += 10;
+        }
+
+        // New finance report pages under the existing Reports group.
+        Add(reports, "Profit & Loss",       "📈", "reports/profit-loss");
+        Add(reports, "Balance Sheet",       "🧮", "reports/balance-sheet");
+        Add(reports, "Revenue",             "💹", "reports/revenue");
+        Add(reports, "Expense",             "💸", "reports/expense");
+        Add(reports, "Job Profitability",   "📊", "reports/job-profitability");
+        Add(reports, "Receivable Aging",    "⏳", "reports/receivable-aging");
+        Add(reports, "Payable Aging",       "⌛", "reports/payable-aging");
+        Add(reports, "Payment Register",    "🧾", "reports/payment-register");
+        Add(reports, "Customer Statement",  "👤", "reports/customer-statement");
+        Add(reports, "Vendor Statement",    "🏭", "reports/vendor-statement");
+        Add(reports, "Cash Book",           "💵", "reports/cash-book");
+        Add(reports, "Bank Book",           "🏦", "reports/bank-book");
+        Add(reports, "Forwarding Report",   "📦", "reports/forwarding");
+        Add(reports, "Clearance Report",    "🛃", "reports/clearance");
+        Add(reports, "Transportation Report","🚛", "reports/transportation");
+        Add(reports, "KPI Dashboard",       "📊", "reports/kpi");
+
+        // Payments entry under the existing Accounts group.
+        Add(accounts, "Payments", "💰", "finance/payments");
+
+        if (toAdd.Count == 0) return;
+        db.Menus.AddRange(toAdd);
         await db.SaveChangesAsync();
     }
 

@@ -1,0 +1,115 @@
+@page "/reports/kpi"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject DashboardState Dash
+@inject IJSRuntime JS
+@inject IToastService ToastService
+@implements IDisposable
+
+<style>
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px; }
+    .kpi-card { border-radius:10px; padding:16px 18px; color:#fff; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+    .kpi-card b { display:block; font-size:12px; opacity:.9; text-transform:uppercase; letter-spacing:.5px; }
+    .kpi-card span { font-size:26px; font-weight:800; }
+    .k-teal { background:linear-gradient(135deg,#198781,#14706b); }
+    .k-blue { background:linear-gradient(135deg,#0868B2,#07579b); }
+    .k-navy { background:linear-gradient(135deg,#0E2A47,#0B2238); }
+    .k-red  { background:linear-gradient(135deg,#AB1921,#861017); }
+    .k-green{ background:linear-gradient(135deg,#198754,#116a42); }
+    .k-amber{ background:linear-gradient(135deg,#b8860b,#946c09); }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header d-flex align-items-center">
+            <span><b>Dashboard KPI Report</b></span>
+            <div class="ms-auto">
+                <SfButton OnClick="@Print" CssClass="e-small" IconCss="e-icons e-print">Print</SfButton>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show" CssClass="e-small" IconCss="e-icons e-search" IsPrimary="true">Show</SfButton>
+                </div>
+            </div>
+
+            @if (_k is not null)
+            {
+                <div class="kpi-grid">
+                    <div class="kpi-card k-green"><b>Total Revenue</b><span>@_k.TotalRevenue.ToString("N0")</span></div>
+                    <div class="kpi-card k-red"><b>Total Expense</b><span>@_k.TotalExpense.ToString("N0")</span></div>
+                    <div class="kpi-card k-teal"><b>Net Profit</b><span>@_k.NetProfit.ToString("N0")</span></div>
+                    <div class="kpi-card k-blue"><b>Receivables</b><span>@_k.Receivables.ToString("N0")</span></div>
+                    <div class="kpi-card k-amber"><b>Payables</b><span>@_k.Payables.ToString("N0")</span></div>
+                    <div class="kpi-card k-navy"><b>Cash + Bank</b><span>@_k.CashBankBalance.ToString("N0")</span></div>
+                    <div class="kpi-card k-teal"><b>Jobs Approved</b><span>@_k.JobsApproved</span></div>
+                    <div class="kpi-card k-blue"><b>Jobs Draft</b><span>@_k.JobsDraft</span></div>
+                    <div class="kpi-card k-navy"><b>Jobs Closed</b><span>@_k.JobsClosed</span></div>
+                    <div class="kpi-card k-amber"><b>Bills Draft</b><span>@_k.BillsDraft</span></div>
+                    <div class="kpi-card k-green"><b>Bills Approved</b><span>@_k.BillsApproved</span></div>
+                </div>
+            }
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private bool loader = false;
+    private DashboardKpis? _k;
+
+    private List<CompanyBranch> branches = new();
+    private int?      filterBranchId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Dash.Changed += OnDashChanged;   // live refresh: any posting re-pulls the KPIs
+        branches = await Branches.GetAllAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        await Show();
+    }
+
+    private async void OnDashChanged() => await InvokeAsync(async () => { await Show(); });
+
+    private async Task Show()
+    {
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            _k = await Reports.GetDashboardKpisAsync(fromDate.Value, toDate.Value, filterBranchId);
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private async Task Print() => await JS.InvokeVoidAsync("window.print");
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+
+    public void Dispose() => Dash.Changed -= OnDashChanged;
+}
