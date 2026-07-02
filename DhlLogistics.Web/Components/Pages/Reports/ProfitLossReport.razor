@@ -1,0 +1,132 @@
+@page "/reports/profit-loss"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .pl-strip { display:flex; flex-wrap:wrap; gap:22px; padding:10px 4px; }
+    .pl-strip .item b { display:block; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .pl-strip .item span { font-size:18px; font-weight:800; }
+    .pl-strip .pos span { color:#198754; } .pl-strip .neg span { color:#dc3545; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Profit &amp; Loss</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (_report is not null)
+            {
+                <div class="pl-strip">
+                    <div class="item"><b>Revenue</b><span>@_report.TotalRevenue.ToString("N2")</span></div>
+                    <div class="item"><b>Direct Cost</b><span>@_report.TotalDirectCost.ToString("N2")</span></div>
+                    <div class="item @(_report.GrossProfit >= 0 ? "pos" : "neg")"><b>Gross Profit</b><span>@_report.GrossProfit.ToString("N2")</span></div>
+                    <div class="item"><b>Indirect Cost</b><span>@_report.TotalIndirectCost.ToString("N2")</span></div>
+                    <div class="item @(_report.NetProfit >= 0 ? "pos" : "neg")"><b>Net Profit</b><span>@_report.NetProfit.ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 320px);">
+                <SfGrid ID="Grid" TValue="PLRow" DataSource="@rows" @ref="Grid"
+                        AllowSorting="true" CssClass="e-small" AllowResizing="true"
+                        AllowExcelExport="true" AllowPdfExport="true" AllowGrouping="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridGroupSettings Columns="@(new[] { nameof(PLRow.Section) })" ShowGroupedColumn="false" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="PLRow" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(PLRow.Section)" HeaderText="Section" Width="160" />
+                        <GridColumn Field="@nameof(PLRow.Account)" HeaderText="Account" Width="300" />
+                        <GridColumn Field="@nameof(PLRow.Amount)"  HeaderText="Amount"  Width="160" Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    public record PLRow(string Section, string Account, decimal Amount);
+
+    private SfGrid<PLRow>? Grid;
+    private bool loader = false;
+    private List<Object> Toolbaritems = new() { "ExcelExport", "PdfExport", "Print" };
+
+    private List<CompanyBranch>   branches = new();
+    private ProfitAndLossReport?  _report;
+    private List<PLRow>           rows = new();
+
+    private int?      filterBranchId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        branches = await Branches.GetAllAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            _report = await Reports.GetProfitAndLossAsync(fromDate.Value, toDate.Value, filterBranchId);
+            rows = new();
+            rows.AddRange(_report.Revenue.Select(l => new PLRow("Revenue", l.AccountName, l.Amount)));
+            rows.AddRange(_report.DirectCosts.Select(l => new PLRow("Direct Cost", l.AccountName, l.Amount)));
+            rows.AddRange(_report.IndirectCosts.Select(l => new PLRow("Indirect Cost", l.AccountName, l.Amount)));
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterBranchId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        _report = null; rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null || args.Item.Id is not { } id) return;
+        if (id.EndsWith("_excelexport")) await Grid.ExportToExcelAsync();
+        else if (id.EndsWith("_pdfexport")) await Grid.ExportToPdfAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

@@ -1,0 +1,143 @@
+@page "/reports/revenue"
+@page "/reports/expense"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject NavigationManager Nav
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .summary-strip { display:flex; flex-wrap:wrap; gap:18px; padding:8px 4px; }
+    .summary-strip .item b { display:block; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .summary-strip .item span { font-size:14px; font-weight:700; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>@(_expense ? "Expense Report" : "Revenue Report")</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Period:</label>
+                    <SfDropDownList @bind-Value="gran" TItem="GranOption" TValue="ReportGranularity" DataSource="@_grans" CssClass="e-small">
+                        <DropDownListFieldSettings Text="Label" Value="Value" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (rows.Count > 0)
+            {
+                <div class="summary-strip">
+                    <div class="item"><b>Periods</b><span>@rows.Count</span></div>
+                    <div class="item"><b>Total</b><span>@rows.Sum(r => r.Amount).ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 300px);">
+                <SfGrid ID="Grid" TValue="PeriodAmountRow" DataSource="@rows" @ref="Grid"
+                        AllowPaging="true" CssClass="e-small" AllowResizing="true" AllowSelection="true"
+                        AllowSorting="true" AllowExcelExport="true" AllowPdfExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="PeriodAmountRow" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(PeriodAmountRow.Period)" HeaderText="Period" Width="200" />
+                        <GridColumn Field="@nameof(PeriodAmountRow.Amount)" HeaderText="@(_expense ? "Expense" : "Revenue")" Width="180" Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    public record GranOption(ReportGranularity Value, string Label);
+
+    private SfGrid<PeriodAmountRow>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "12", "20", "50" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "PdfExport", "Print", "Search" };
+
+    private List<CompanyBranch>    branches = new();
+    private List<PeriodAmountRow>  rows     = new();
+
+    private bool              _expense;
+    private ReportGranularity gran = ReportGranularity.Monthly;
+    private int?              filterBranchId;
+    private DateTime?         fromDate;
+    private DateTime?         toDate;
+
+    private static readonly List<GranOption> _grans = new()
+    {
+        new(ReportGranularity.Daily, "Daily"), new(ReportGranularity.Monthly, "Monthly"), new(ReportGranularity.Yearly, "Yearly"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _expense = Nav.Uri.Contains("/expense", StringComparison.OrdinalIgnoreCase);
+        branches = await Branches.GetAllAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            rows = _expense
+                ? await Reports.GetExpenseReportAsync(fromDate.Value, toDate.Value, gran, filterBranchId)
+                : await Reports.GetRevenueReportAsync(fromDate.Value, toDate.Value, gran, filterBranchId);
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        gran = ReportGranularity.Monthly; filterBranchId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null || args.Item.Id is not { } id) return;
+        if (id.EndsWith("_excelexport")) await Grid.ExportToExcelAsync();
+        else if (id.EndsWith("_pdfexport")) await Grid.ExportToPdfAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

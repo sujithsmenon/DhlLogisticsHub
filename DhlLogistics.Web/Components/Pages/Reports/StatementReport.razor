@@ -1,0 +1,150 @@
+@page "/reports/customer-statement"
+@page "/reports/vendor-statement"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject LogisticsService Logistics
+@inject NavigationManager Nav
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .summary-strip { display:flex; flex-wrap:wrap; gap:18px; padding:8px 4px; }
+    .summary-strip .item b { display:block; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .summary-strip .item span { font-size:14px; font-weight:700; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>@(_vendor ? "Vendor Statement" : "Customer Statement")</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-3">
+                    <label class="form-Custom-label">@(_vendor ? "Vendor:" : "Customer:")</label>
+                    <SfComboBox @bind-Value="partyId" TItem="DhlClient" TValue="int?" DataSource="@clients"
+                                AllowFiltering="true" CssClass="e-small" ShowClearButton="true" Placeholder="Select party..">
+                        <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                    </SfComboBox>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (_report is not null)
+            {
+                <div class="summary-strip">
+                    <div class="item"><b>Party</b><span>@(_report.PartyName ?? "-")</span></div>
+                    <div class="item"><b>Opening</b><span>@_report.OpeningBalance.ToString("N2")</span></div>
+                    <div class="item"><b>Debit</b><span>@_report.TotalDebit.ToString("N2")</span></div>
+                    <div class="item"><b>Credit</b><span>@_report.TotalCredit.ToString("N2")</span></div>
+                    <div class="item"><b>Closing</b><span>@_report.ClosingBalance.ToString("N2")</span></div>
+                    <div class="item"><b>Outstanding</b><span>@_report.Outstanding.ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 320px);">
+                <SfGrid ID="Grid" TValue="StatementEntry" DataSource="@(_report?.Entries ?? new())" @ref="Grid"
+                        AllowPaging="true" CssClass="e-small" AllowResizing="true" AllowSorting="true"
+                        AllowExcelExport="true" AllowPdfExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="StatementEntry" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(StatementEntry.Date)"           HeaderText="Date"    Width="100" Format="dd-MMM-yyyy" />
+                        <GridColumn Field="@nameof(StatementEntry.VoucherNo)"       HeaderText="Voucher" Width="130" />
+                        <GridColumn Field="@nameof(StatementEntry.DocType)"         HeaderText="Type"    Width="90" />
+                        <GridColumn Field="@nameof(StatementEntry.Reference)"       HeaderText="Ref"     Width="130" />
+                        <GridColumn Field="@nameof(StatementEntry.Narration)"       HeaderText="Narration" Width="240" />
+                        <GridColumn Field="@nameof(StatementEntry.Debit)"           HeaderText="Debit"   Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(StatementEntry.Credit)"          HeaderText="Credit"  Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(StatementEntry.RunningBalance)"  HeaderText="Balance" Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private SfGrid<StatementEntry>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "20", "50", "100" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "PdfExport", "Print", "Search" };
+
+    private List<CompanyBranch>   branches = new();
+    private List<DhlClient>       clients  = new();
+    private PartyStatementReport? _report;
+
+    private bool      _vendor;
+    private int?      partyId;
+    private int?      filterBranchId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _vendor  = Nav.Uri.Contains("vendor", StringComparison.OrdinalIgnoreCase);
+        branches = await Branches.GetAllAsync();
+        clients  = await Logistics.GetAllClientsAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+    }
+
+    private async Task Show()
+    {
+        if (partyId is null) { Toast("Select a party."); return; }
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            _report = _vendor
+                ? await Reports.GetVendorStatementAsync(partyId.Value, fromDate.Value, toDate.Value, filterBranchId)
+                : await Reports.GetCustomerStatementAsync(partyId.Value, fromDate.Value, toDate.Value, filterBranchId);
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        partyId = null; filterBranchId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        _report = null;
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null || args.Item.Id is not { } id) return;
+        if (id.EndsWith("_excelexport")) await Grid.ExportToExcelAsync();
+        else if (id.EndsWith("_pdfexport")) await Grid.ExportToPdfAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

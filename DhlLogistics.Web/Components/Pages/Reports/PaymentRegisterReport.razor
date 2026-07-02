@@ -1,0 +1,150 @@
+@page "/reports/payment-register"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .summary-strip { display:flex; flex-wrap:wrap; gap:18px; padding:8px 4px; }
+    .summary-strip .item b { display:block; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .summary-strip .item span { font-size:14px; font-weight:700; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Payment Register</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Type:</label>
+                    <SfDropDownList @bind-Value="filterType" TItem="TypeOption" TValue="string" DataSource="@_types" CssClass="e-small">
+                        <DropDownListFieldSettings Text="Label" Value="Value" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (rows.Count > 0)
+            {
+                <div class="summary-strip">
+                    <div class="item"><b>Vouchers</b><span>@rows.Count</span></div>
+                    <div class="item"><b>Received</b><span>@rows.Where(r => r.Type == VoucherType.Receipt).Sum(r => r.Amount).ToString("N2")</span></div>
+                    <div class="item"><b>Paid</b><span>@rows.Where(r => r.Type == VoucherType.Payment).Sum(r => r.Amount).ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 300px);">
+                <SfGrid ID="Grid" TValue="PaymentRegisterRow" DataSource="@rows" @ref="Grid"
+                        AllowPaging="true" CssClass="e-small" AllowResizing="true" AllowSelection="true"
+                        AllowSorting="true" AllowExcelExport="true" AllowPdfExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="PaymentRegisterRow" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(PaymentRegisterRow.Date)"      HeaderText="Date"      Width="100" Format="dd-MMM-yyyy" />
+                        <GridColumn Field="@nameof(PaymentRegisterRow.VoucherNo)" HeaderText="Voucher"   Width="130" />
+                        <GridColumn Field="@nameof(PaymentRegisterRow.Type)"      HeaderText="Type"      Width="90" />
+                        <GridColumn Field="@nameof(PaymentRegisterRow.Party)"     HeaderText="Party"     Width="220" />
+                        <GridColumn Field="@nameof(PaymentRegisterRow.CashBank)"  HeaderText="Cash/Bank" Width="150" />
+                        <GridColumn Field="@nameof(PaymentRegisterRow.Amount)"    HeaderText="Amount"    Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(PaymentRegisterRow.Reference)" HeaderText="Reference" Width="140" />
+                        <GridColumn Field="@nameof(PaymentRegisterRow.Narration)" HeaderText="Narration" Width="240" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    public record TypeOption(string Value, string Label);
+
+    private SfGrid<PaymentRegisterRow>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "20", "50" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "PdfExport", "Print", "Search" };
+
+    private List<CompanyBranch>        branches = new();
+    private List<PaymentRegisterRow>   rows     = new();
+
+    private string    filterType = "ALL";
+    private int?      filterBranchId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private static readonly List<TypeOption> _types = new()
+    {
+        new("ALL", "Receipts + Payments"), new("RECEIPT", "Receipts (in)"), new("PAYMENT", "Payments (out)"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        branches = await Branches.GetAllAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            VoucherType? t = filterType switch
+            {
+                "RECEIPT" => VoucherType.Receipt,
+                "PAYMENT" => VoucherType.Payment,
+                _         => null,
+            };
+            rows = await Reports.GetPaymentRegisterAsync(fromDate.Value, toDate.Value, t, filterBranchId);
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterType = "ALL"; filterBranchId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null || args.Item.Id is not { } id) return;
+        if (id.EndsWith("_excelexport")) await Grid.ExportToExcelAsync();
+        else if (id.EndsWith("_pdfexport")) await Grid.ExportToPdfAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

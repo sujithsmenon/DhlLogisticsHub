@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 /// Opening balance from <see cref="AccountHead"/> is converted to signed by
 /// multiplying with +1 (Debit) or −1 (Credit).
 /// </summary>
-public class FinanceReportService
+public partial class FinanceReportService
 {
     private readonly AppDbContext _db;
     public FinanceReportService(AppDbContext db) => _db = db;

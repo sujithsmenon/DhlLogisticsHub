@@ -1,0 +1,144 @@
+@page "/reports/job-profitability"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject LogisticsService Logistics
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .summary-strip { display:flex; flex-wrap:wrap; gap:18px; padding:8px 4px; }
+    .summary-strip .item b { display:block; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .summary-strip .item span { font-size:14px; font-weight:700; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Job Profitability</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-3">
+                    <label class="form-Custom-label">Customer:</label>
+                    <SfComboBox @bind-Value="filterCustomerId" TItem="DhlClient" TValue="int?" DataSource="@clients"
+                                AllowFiltering="true" CssClass="e-small" ShowClearButton="true" Placeholder="All customers">
+                        <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                    </SfComboBox>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">From:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="fromDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">To:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="toDate" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (rows.Count > 0)
+            {
+                <div class="summary-strip">
+                    <div class="item"><b>Jobs</b><span>@rows.Count</span></div>
+                    <div class="item"><b>Revenue</b><span>@rows.Sum(r => r.Revenue).ToString("N2")</span></div>
+                    <div class="item"><b>Total Cost</b><span>@rows.Sum(r => r.TotalCost).ToString("N2")</span></div>
+                    <div class="item"><b>Profit</b><span>@rows.Sum(r => r.Profit).ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 300px);">
+                <SfGrid ID="Grid" TValue="JobProfitabilityRow" DataSource="@rows" @ref="Grid"
+                        AllowPaging="true" CssClass="e-small" AllowResizing="true" AllowSelection="true"
+                        AllowSorting="true" AllowExcelExport="true" AllowPdfExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="JobProfitabilityRow" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(JobProfitabilityRow.JobOrderNo)"         HeaderText="Job No"     Width="130" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.JobDate)"            HeaderText="Date"       Width="100" Format="dd-MMM-yyyy" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.Customer)"           HeaderText="Customer"   Width="220" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.Revenue)"            HeaderText="Revenue"    Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.TransportationCost)" HeaderText="Transport"  Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.ClearanceCost)"      HeaderText="Clearance"  Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.OtherCost)"          HeaderText="Other"      Width="100" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.TotalCost)"          HeaderText="Total Cost" Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.Profit)"             HeaderText="Profit"     Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.ProfitPct)"          HeaderText="Profit %"   Width="90"  Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private SfGrid<JobProfitabilityRow>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "20", "50" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "PdfExport", "Print", "Search" };
+
+    private List<CompanyBranch>       branches = new();
+    private List<DhlClient>           clients  = new();
+    private List<JobProfitabilityRow> rows     = new();
+
+    private int?      filterBranchId;
+    private int?      filterCustomerId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        branches = await Branches.GetAllAsync();
+        clients  = await Logistics.GetAllClientsAsync();
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!fromDate.HasValue || !toDate.HasValue) { Toast("Pick a date range."); return; }
+        try
+        {
+            loader = true;
+            rows = await Reports.GetJobProfitabilityAsync(fromDate.Value, toDate.Value, filterBranchId, filterCustomerId);
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterBranchId = null; filterCustomerId = null;
+        var now = DateTime.Today;
+        var fyStart = now.Month >= 4 ? new DateTime(now.Year, 4, 1) : new DateTime(now.Year - 1, 4, 1);
+        fromDate = fyStart; toDate = now;
+        rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null || args.Item.Id is not { } id) return;
+        if (id.EndsWith("_excelexport")) await Grid.ExportToExcelAsync();
+        else if (id.EndsWith("_pdfexport")) await Grid.ExportToPdfAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

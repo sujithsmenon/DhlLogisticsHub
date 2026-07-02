@@ -1,0 +1,119 @@
+@page "/reports/balance-sheet"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using BSReport = DhlLogistics.Shared.Models.BalanceSheetReport
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .pl-strip { display:flex; flex-wrap:wrap; gap:22px; padding:10px 4px; }
+    .pl-strip .item b { display:block; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .pl-strip .item span { font-size:16px; font-weight:800; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Balance Sheet</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">As of:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="asOf" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (_report is not null)
+            {
+                <div class="pl-strip">
+                    <div class="item"><b>Total Assets</b><span>@_report.TotalAssets.ToString("N2")</span></div>
+                    <div class="item"><b>Liabilities</b><span>@_report.TotalLiabilities.ToString("N2")</span></div>
+                    <div class="item"><b>Equity</b><span>@_report.TotalEquity.ToString("N2")</span></div>
+                    <div class="item"><b>Net Profit</b><span>@_report.NetProfit.ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 320px);">
+                <SfGrid ID="Grid" TValue="BSRow" DataSource="@rows" @ref="Grid"
+                        CssClass="e-small" AllowResizing="true" AllowGrouping="true"
+                        AllowExcelExport="true" AllowPdfExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridGroupSettings Columns="@(new[] { nameof(BSRow.Section) })" ShowGroupedColumn="false" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="BSRow" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(BSRow.Section)" HeaderText="Section" Width="160" />
+                        <GridColumn Field="@nameof(BSRow.Account)" HeaderText="Account" Width="300" />
+                        <GridColumn Field="@nameof(BSRow.Amount)"  HeaderText="Amount"  Width="160" Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    public record BSRow(string Section, string Account, decimal Amount);
+
+    private SfGrid<BSRow>? Grid;
+    private bool loader = false;
+    private List<Object> Toolbaritems = new() { "ExcelExport", "PdfExport", "Print" };
+
+    private List<CompanyBranch>   branches = new();
+    private BSReport?             _report;
+    private List<BSRow>           rows = new();
+
+    private int?      filterBranchId;
+    private DateTime? asOf = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        branches = await Branches.GetAllAsync();
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!asOf.HasValue) { Toast("Pick an as-of date."); return; }
+        try
+        {
+            loader = true;
+            _report = await Reports.GetBalanceSheetAsync(asOf.Value, filterBranchId);
+            rows = new();
+            rows.AddRange(_report.Assets.Select(l => new BSRow("Assets", l.AccountName, l.Amount)));
+            rows.AddRange(_report.Liabilities.Select(l => new BSRow("Liabilities", l.AccountName, l.Amount)));
+            rows.AddRange(_report.Equity.Select(l => new BSRow("Equity", l.AccountName, l.Amount)));
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterBranchId = null; asOf = DateTime.Today; _report = null; rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null || args.Item.Id is not { } id) return;
+        if (id.EndsWith("_excelexport")) await Grid.ExportToExcelAsync();
+        else if (id.EndsWith("_pdfexport")) await Grid.ExportToPdfAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}

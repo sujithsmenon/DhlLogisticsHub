@@ -1,0 +1,125 @@
+@page "/reports/receivable-aging"
+@page "/reports/payable-aging"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject FinanceReportService Reports
+@inject CompanyBranchService Branches
+@inject NavigationManager Nav
+@inject IToastService ToastService
+
+<style>
+    .e-grid .e-rowcell { border-style: solid; border-width: 1px 0 0; font-size: 12px; padding: 2px 2px; vertical-align: middle; white-space: nowrap; }
+    .e-grid .e-headercelldiv { font-size: 12px; font-weight: 700; height: 18px; line-height: 18px; }
+    .e-grid .e-altrow { background-color: #c6eefd66; }
+    .summary-strip { display:flex; flex-wrap:wrap; gap:18px; padding:8px 4px; }
+    .summary-strip .item b { display:block; font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+    .summary-strip .item span { font-size:14px; font-weight:700; }
+</style>
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...." />
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>@(_payable ? "Accounts Payable Aging" : "Accounts Receivable Aging")</b></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">As of:</label>
+                    <SfDatePicker TValue="DateTime?" CssClass="e-small" @bind-Value="asOf" Format="dd-MMM-yyyy" />
+                </div>
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Branch:</label>
+                    <SfDropDownList @bind-Value="filterBranchId" TItem="CompanyBranch" TValue="int?" DataSource="@branches"
+                                    CssClass="e-small" ShowClearButton="true">
+                        <DropDownListFieldSettings Text="BranchName" Value="Id" />
+                    </SfDropDownList>
+                </div>
+                <div class="mb-3 col-md-3"><br />
+                    <SfButton OnClick="@Show"  CssClass="e-small" IconCss="e-icons e-search"     IsPrimary="true">Show</SfButton>
+                    <SfButton OnClick="@Clear" CssClass="e-small" IconCss="e-icons e-clear-form" IsPrimary="true">Clear</SfButton>
+                </div>
+            </div>
+
+            @if (rows.Count > 0)
+            {
+                <div class="summary-strip">
+                    <div class="item"><b>Parties</b><span>@rows.Count</span></div>
+                    <div class="item"><b>0–30</b><span>@rows.Sum(r => r.Current).ToString("N2")</span></div>
+                    <div class="item"><b>31–60</b><span>@rows.Sum(r => r.Days31_60).ToString("N2")</span></div>
+                    <div class="item"><b>61–90</b><span>@rows.Sum(r => r.Days61_90).ToString("N2")</span></div>
+                    <div class="item"><b>90+</b><span>@rows.Sum(r => r.Days90Plus).ToString("N2")</span></div>
+                    <div class="item"><b>Total</b><span>@rows.Sum(r => r.Total).ToString("N2")</span></div>
+                </div>
+            }
+
+            <div style="height: calc(100vh - 300px);">
+                <SfGrid ID="Grid" TValue="AgingRow" DataSource="@rows" @ref="Grid"
+                        AllowPaging="true" CssClass="e-small" AllowResizing="true" AllowSelection="true"
+                        AllowSorting="true" AllowExcelExport="true" AllowPdfExport="true"
+                        Toolbar="@Toolbaritems" Height="100%" RowHeight="24" Width="100%">
+                    <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.FilterBar" />
+                    <GridEvents OnToolbarClick="ToolbarClick" TValue="AgingRow" />
+                    <GridPageSettings PageSize="20" PageSizes="@pagerDropdown" />
+                    <GridColumns>
+                        <GridColumn Field="@nameof(AgingRow.PartyName)"  HeaderText="@(_payable ? "Vendor" : "Customer")" Width="240" />
+                        <GridColumn Field="@nameof(AgingRow.Current)"    HeaderText="0–30"  Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(AgingRow.Days31_60)"  HeaderText="31–60" Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(AgingRow.Days61_90)"  HeaderText="61–90" Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(AgingRow.Days90Plus)" HeaderText="90+"   Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(AgingRow.Total)"      HeaderText="Total" Width="130" Format="N2" TextAlign="TextAlign.Right" />
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private SfGrid<AgingRow>? Grid;
+    private bool loader = false;
+    public string[] pagerDropdown { get; set; } = new[] { "All", "10", "20", "50" };
+    private List<Object> Toolbaritems = new() { "ExcelExport", "PdfExport", "Print", "Search" };
+
+    private List<CompanyBranch> branches = new();
+    private List<AgingRow>      rows     = new();
+
+    private bool      _payable;
+    private int?      filterBranchId;
+    private DateTime? asOf = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _payable = Nav.Uri.Contains("payable", StringComparison.OrdinalIgnoreCase);
+        branches = await Branches.GetAllAsync();
+        await Show();
+    }
+
+    private async Task Show()
+    {
+        if (!asOf.HasValue) { Toast("Pick an as-of date."); return; }
+        try
+        {
+            loader = true;
+            rows = _payable
+                ? await Reports.GetPayableAgingAsync(asOf.Value, filterBranchId)
+                : await Reports.GetReceivableAgingAsync(asOf.Value, filterBranchId);
+        }
+        catch (Exception ex) { Toast(ex.Message); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private void Clear()
+    {
+        filterBranchId = null; asOf = DateTime.Today; rows = new();
+    }
+
+    public async Task ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (Grid is null || args.Item.Id is not { } id) return;
+        if (id.EndsWith("_excelexport")) await Grid.ExportToExcelAsync();
+        else if (id.EndsWith("_pdfexport")) await Grid.ExportToPdfAsync();
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Notice", Content = msg, CssClass = "e-toast-warning" });
+}
