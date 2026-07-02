@@ -72,6 +72,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     // ── M4 Job Orders ────────────────────────────────────────────────────────
     public DbSet<JobOrder>         JobOrders         => Set<JobOrder>();
     public DbSet<JobOrderEvent>    JobOrderEvents    => Set<JobOrderEvent>();
+    public DbSet<JobOrderOperation> JobOrderOperations => Set<JobOrderOperation>();
     public DbSet<CompanyBranch>    CompanyBranches   => Set<CompanyBranch>();
     public DbSet<ShipmentActivity> ShipmentActivities => Set<ShipmentActivity>();
 
@@ -89,6 +90,9 @@ public class AppDbContext : IdentityDbContext<AppUser>
     // ── Navigation menu (consolidated into Postgres so it works on AWS; was a
     //    separate local SQL Server store via the now-removed MenuDbContext) ──────
     public DbSet<Menu> Menus => Set<Menu>();
+
+    // ── Workflow Engine (cross-cutting activity + audit log) ───────────────────
+    public DbSet<WorkflowAuditLog> WorkflowAuditLogs => Set<WorkflowAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -236,6 +240,19 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .OnDelete(DeleteBehavior.Cascade);
         mb.Entity<JobOrderEvent>().HasIndex(e => new { e.JobOrderId, e.At });
 
+        // JobOrder operations sub-grid (business operations within a job)
+        mb.Entity<JobOrderOperation>().Property(o => o.Cost).HasPrecision(18, 2);
+        mb.Entity<JobOrderOperation>()
+            .HasOne(o => o.JobOrder).WithMany(j => j.Operations).HasForeignKey(o => o.JobOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<JobOrderOperation>()
+            .HasOne(o => o.OperatedByClient).WithMany().HasForeignKey(o => o.OperatedByClientId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<JobOrderOperation>()
+            .HasOne(o => o.HandledByStaff).WithMany().HasForeignKey(o => o.HandledByStaffId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<JobOrderOperation>().HasIndex(o => o.JobOrderId);
+
         // ── M4 Billing ────────────────────────────────────────────────────────
         mb.Entity<Bill>().Property(b => b.ExchangeRate).HasPrecision(18, 6);
         mb.Entity<Bill>().Property(b => b.SubTotal).HasPrecision(18, 2);
@@ -280,6 +297,10 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasOne(e => e.Bill).WithMany(b => b.Events).HasForeignKey(e => e.BillId)
             .OnDelete(DeleteBehavior.Cascade);
         mb.Entity<BillEvent>().HasIndex(e => new { e.BillId, e.At });
+
+        // ── Workflow Engine audit/activity log (no hard FK — survives entity deletion) ──
+        mb.Entity<WorkflowAuditLog>().HasIndex(l => new { l.Kind, l.At });
+        mb.Entity<WorkflowAuditLog>().HasIndex(l => new { l.EntityType, l.EntityId });
 
         // ── M4 Accounts ───────────────────────────────────────────────────────
         mb.Entity<AccountHead>().Property(a => a.OpeningBalance).HasPrecision(18, 2);

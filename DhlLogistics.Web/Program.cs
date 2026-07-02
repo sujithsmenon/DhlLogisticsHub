@@ -175,6 +175,25 @@ builder.Services.AddScoped<ShipmentActivityService>();
 // ── M3 Permission service ────────────────────────────────────────────────────
 builder.Services.AddScoped<PermissionService>();
 
+// ── Workflow Engine (centralized Add/Edit/Delete pipeline) ───────────────────
+// Orchestrator + reusable steps + per-module handlers. Every module's Application Service
+// builds a WorkflowContext and calls WorkflowOrchestrator.RunAsync instead of saving inline.
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.WorkflowOrchestrator>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.ValidateStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.GenerateNumberStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.PersistEntityStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.GenerateBillingStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.TimelineStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.ActivityLogStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.AuditLogStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.DashboardRefreshStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.SearchIndexStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Steps.NotificationStep>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Handlers.JobOrderWorkflowHandler>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Handlers.BillWorkflowHandler>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Handlers.AwbWorkflowHandler>();
+builder.Services.AddScoped<DhlLogistics.Web.Workflow.Handlers.ExportWorkflowHandler>();
+
 // ── M4 Job Order service ─────────────────────────────────────────────────────
 builder.Services.AddScoped<JobOrderService>();
 
@@ -182,6 +201,15 @@ builder.Services.AddScoped<JobOrderService>();
 builder.Services.AddScoped<BillService>();
 builder.Services.AddScoped<VoucherService>();
 builder.Services.AddScoped<AccountHeadService>();
+// Automatic accounting engine: bill approval → revenue voucher, job approval → expense/payable,
+// customer/vendor payments → receipt/payment. Reuses VoucherService; no manual posting.
+builder.Services.AddScoped<AccountingService>();
+// Cross-cutting Activity/Audit log + notifications for status transitions that run outside the
+// WorkflowOrchestrator (Verify/Approve/Reject/Submit/Close/Post).
+builder.Services.AddScoped<WorkflowLogService>();
+
+// ── One-time (repeatable) billing backfill for existing jobs ─────────────────
+builder.Services.AddScoped<BillingSyncService>();
 
 // ── Finance reports (read-only over the above) ───────────────────────────────
 builder.Services.AddScoped<FinanceReportService>();
@@ -298,6 +326,18 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"[M2 Seed] skipped: {ex.Message}");
     }
 
+    // Chart of Accounts seed (idempotent — inserts any standard head missing by code).
+    // Runs before the billing backfill so auto-posting has heads to resolve.
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<DhlLogistics.Web.Database.AppDbContext>();
+        await DhlLogistics.Web.Database.AccountSeed.SeedAsync(db);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Account Seed] skipped: {ex.Message}");
+    }
+
     // M3 default permission grants (idempotent — skipped if already seeded)
     try
     {
@@ -318,10 +358,27 @@ using (var scope = app.Services.CreateScope())
         await DhlLogistics.Web.Database.MenuSeed.SeedAsync(menuFactory);
         // Repoint legacy Users/Roles menu entries to the new /usermanagement page.
         await DhlLogistics.Web.Database.MenuSeed.FixupAsync(menuFactory);
+        // Additively insert the ERP finance-report + payments menu leaves on already-seeded installs.
+        await DhlLogistics.Web.Database.MenuSeed.EnsureFinanceMenusAsync(menuFactory);
     }
     catch (Exception ex)
     {
         Console.WriteLine($"[Menu Seed] skipped: {ex.Message}");
+    }
+
+    // Billing backfill (idempotent — create-only): existing Clearance/Forwarding jobs get their
+    // 1:1 bill on first boot, so Billing pages show synchronized records immediately. Jobs that
+    // already have a bill are skipped, so repeated boots don't churn. A full header re-sync is
+    // available on demand from the Billing Sync admin page.
+    try
+    {
+        var sync = scope.ServiceProvider.GetRequiredService<DhlLogistics.Web.Service.BillingSyncService>();
+        var result = await sync.SyncAllAsync(updateExisting: false);
+        Console.WriteLine($"[Billing Backfill] {result}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Billing Backfill] skipped: {ex.Message}");
     }
 }
 

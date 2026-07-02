@@ -399,6 +399,9 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<long>("BillId")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("ChargeCodeId")
                         .HasColumnType("integer");
 
@@ -1136,6 +1139,9 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<string>("Remarks")
                         .HasColumnType("text");
 
+                    b.Property<bool>("RequiresTransportation")
+                        .HasColumnType("boolean");
+
                     b.Property<int?>("SaleStaffId")
                         .HasColumnType("integer");
 
@@ -1227,6 +1233,51 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.HasIndex("JobOrderId", "At");
 
                     b.ToTable("JobOrderEvents");
+                });
+
+            modelBuilder.Entity("DhlLogistics.Shared.Models.JobOrderOperation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal?>("Cost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ExpenseCategory")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HandledByStaffId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("JobOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("OperatedByClientId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OperationName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HandledByStaffId");
+
+                    b.HasIndex("JobOrderId");
+
+                    b.HasIndex("OperatedByClientId");
+
+                    b.ToTable("JobOrderOperations");
                 });
 
             modelBuilder.Entity("DhlLogistics.Shared.Models.PickupJob", b =>
@@ -2092,6 +2143,57 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.ToTable("VoucherLines");
                 });
 
+            modelBuilder.Entity("DhlLogistics.Shared.Models.WorkflowAuditLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("text");
+
+                    b.Property<long>("EntityId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EntityRef")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Operation")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.HasIndex("Kind", "At");
+
+                    b.ToTable("WorkflowAuditLogs");
+                });
+
             modelBuilder.Entity("DhlLogistics.Web.Database.AppUser", b =>
                 {
                     b.Property<string>("Id")
@@ -2669,6 +2771,31 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Navigation("JobOrder");
                 });
 
+            modelBuilder.Entity("DhlLogistics.Shared.Models.JobOrderOperation", b =>
+                {
+                    b.HasOne("DhlLogistics.Shared.Models.DhlClient", "OperatedByClient")
+                        .WithMany()
+                        .HasForeignKey("OperatedByClientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DhlLogistics.Shared.Models.JobOrder", "JobOrder")
+                        .WithMany("Operations")
+                        .HasForeignKey("JobOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DhlLogistics.Shared.Models.Staff", "HandledByStaff")
+                        .WithMany()
+                        .HasForeignKey("HandledByStaffId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("HandledByStaff");
+
+                    b.Navigation("JobOrder");
+
+                    b.Navigation("OperatedByClient");
+                });
+
             modelBuilder.Entity("DhlLogistics.Shared.Models.PickupJob", b =>
                 {
                     b.HasOne("DhlLogistics.Shared.Models.Vehicle", "AssignedVehicle")
@@ -2947,6 +3074,8 @@ namespace DhlLogistics.Web.Database.Migrations
             modelBuilder.Entity("DhlLogistics.Shared.Models.JobOrder", b =>
                 {
                     b.Navigation("Events");
+
+                    b.Navigation("Operations");
                 });
 
             modelBuilder.Entity("DhlLogistics.Shared.Models.PickupJob", b =>
