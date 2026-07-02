@@ -2,13 +2,32 @@ namespace DhlLogistics.Web.Service;
 
 using DhlLogistics.Shared.Models;
 using DhlLogistics.Web.Database;
+using DhlLogistics.Web.Workflow;
+using DhlLogistics.Web.Workflow.Handlers;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 public class ExportJobService
 {
     private readonly AppDbContext _db;
+    private readonly AuthenticationStateProvider _authProvider;
+    private readonly WorkflowOrchestrator _orchestrator;
+    private readonly ExportWorkflowHandler _handler;
 
-    public ExportJobService(AppDbContext db) => _db = db;
+    public ExportJobService(AppDbContext db, AuthenticationStateProvider authProvider,
+                            WorkflowOrchestrator orchestrator, ExportWorkflowHandler handler)
+    {
+        _db           = db;
+        _authProvider = authProvider;
+        _orchestrator = orchestrator;
+        _handler      = handler;
+    }
+
+    private async Task<string> CurrentUserAsync()
+    {
+        var s = await _authProvider.GetAuthenticationStateAsync();
+        return s.User?.Identity?.Name ?? "system";
+    }
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
@@ -33,14 +52,12 @@ public class ExportJobService
 
     // ── Create ────────────────────────────────────────────────────────────────
 
+    // Routed through the Workflow Engine (validate → persist → timeline → activity → audit →
+    // commit → dashboard/search/notify). Domain specifics live in ExportWorkflowHandler.
     public async Task<ExportJob> CreateAsync(ExportJob job)
     {
-        job.Id         = 0;
-        job.ReceivedAt = DateTime.UtcNow;
-        job.Status     = ExportJobStatus.Received;
-        _db.ExportJobs.Add(job);
-        AddEvent(job, "Created", $"Export job created. Customer: {job.CustomerName}. Ref: {job.JobReference}.");
-        await _db.SaveChangesAsync();
+        var ctx = new WorkflowContext(WorkflowOperationType.Create, await CurrentUserAsync(), job, _handler);
+        await _orchestrator.RunAsync(ctx);
         return job;
     }
 

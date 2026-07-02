@@ -2,17 +2,34 @@ namespace DhlLogistics.Web.Service;
 
 using DhlLogistics.Shared.Models;
 using DhlLogistics.Web.Database;
+using DhlLogistics.Web.Workflow;
+using DhlLogistics.Web.Workflow.Handlers;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 public class AwbShipmentService
 {
     private readonly AppDbContext _db;
     private readonly NotificationService _notify;
+    private readonly AuthenticationStateProvider _authProvider;
+    private readonly WorkflowOrchestrator _orchestrator;
+    private readonly AwbWorkflowHandler _handler;
 
-    public AwbShipmentService(AppDbContext db, NotificationService notify)
+    public AwbShipmentService(AppDbContext db, NotificationService notify,
+                              AuthenticationStateProvider authProvider,
+                              WorkflowOrchestrator orchestrator, AwbWorkflowHandler handler)
     {
-        _db     = db;
-        _notify = notify;
+        _db           = db;
+        _notify       = notify;
+        _authProvider = authProvider;
+        _orchestrator = orchestrator;
+        _handler      = handler;
+    }
+
+    private async Task<string> CurrentUserAsync()
+    {
+        var s = await _authProvider.GetAuthenticationStateAsync();
+        return s.User?.Identity?.Name ?? "system";
     }
 
     // ── Queries ───────────────────────────────────────────────────────────────
@@ -64,52 +81,20 @@ public class AwbShipmentService
 
     // ── Manual AWB entry / edit ───────────────────────────────────────────────
 
+    // Manual create + details edit routed through the Workflow Engine (validate → persist →
+    // timeline → activity → audit → commit → dashboard/search/notify). The field-level patch and
+    // the create defaults live in AwbWorkflowHandler.
     public async Task<AwbShipment> CreateManualAsync(AwbShipment awb)
     {
-        awb.Id         = 0;
-        awb.ReceivedAt = DateTime.UtcNow;
-        awb.Status     = AwbStatus.Received;
-        _db.AwbShipments.Add(awb);
-        await _db.SaveChangesAsync();
+        var ctx = new WorkflowContext(WorkflowOperationType.Create, await CurrentUserAsync(), awb, _handler);
+        await _orchestrator.RunAsync(ctx);
         return awb;
     }
 
     public async Task UpdateAwbDetailsAsync(AwbShipment patch)
     {
-        var existing = await _db.AwbShipments.FindAsync(patch.Id);
-        if (existing is null) return;
-
-        existing.HawbNo               = patch.HawbNo;
-        existing.IssuedDate           = patch.IssuedDate;
-        existing.StationCode          = patch.StationCode;
-        existing.ShipperAccount       = patch.ShipperAccount;
-        existing.ShipperName          = patch.ShipperName;
-        existing.ShipperAddress       = patch.ShipperAddress;
-        existing.ShipperPhone         = patch.ShipperPhone;
-        existing.ShipperContact       = patch.ShipperContact;
-        existing.ConsigneeAccount     = patch.ConsigneeAccount;
-        existing.ConsigneeName        = patch.ConsigneeName;
-        existing.ConsigneeAddress     = patch.ConsigneeAddress;
-        existing.ConsigneePhone       = patch.ConsigneePhone;
-        existing.ConsigneeContact     = patch.ConsigneeContact;
-        existing.OriginStation        = patch.OriginStation;
-        existing.DestinationStation   = patch.DestinationStation;
-        existing.ReferenceNumbers     = patch.ReferenceNumbers;
-        existing.HandlingInfo         = patch.HandlingInfo;
-        existing.Pieces               = patch.Pieces;
-        existing.GrossWeightKg        = patch.GrossWeightKg;
-        existing.ChargeableWeight     = patch.ChargeableWeight;
-        existing.RateClass            = patch.RateClass;
-        existing.GoodsDescription     = patch.GoodsDescription;
-        existing.HsCode               = patch.HsCode;
-        existing.Dimensions           = patch.Dimensions;
-        existing.VolumeCbm            = patch.VolumeCbm;
-        existing.Slac                 = patch.Slac;
-        existing.Currency             = patch.Currency;
-        existing.DeclaredValueCarriage = patch.DeclaredValueCarriage;
-        existing.DeclaredValueCustoms  = patch.DeclaredValueCustoms;
-
-        await _db.SaveChangesAsync();
+        var ctx = new WorkflowContext(WorkflowOperationType.Update, await CurrentUserAsync(), patch, _handler);
+        await _orchestrator.RunAsync(ctx);
     }
 
     // ── Workflow actions ──────────────────────────────────────────────────────
