@@ -1,0 +1,79 @@
+@page "/bills/sync"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject BillingSyncService SyncService
+@inject IToastService ToastService
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@_running" Label="Synchronizing bills..."></SfSpinner>
+    <div class="row"><div class="col-md-8"><div class="card">
+        <div class="card-header d-flex align-items-center">
+            <span><b>Billing Synchronization</b></span>
+            <div class="ms-auto">
+                <SfButton OnClick="@RunSync" CssClass="e-small" IconCss="e-icons e-refresh" IsPrimary="true" Disabled="@_running">
+                    Run Sync
+                </SfButton>
+            </div>
+        </div>
+        <div class="card-body">
+            <p class="muted" style="margin-bottom:14px;">
+                Reconciles every existing <b>Clearance</b> and <b>Forwarding</b> job with its
+                <b>1:1 linked bill</b> (matched on <code>JobId</code> + mode). Safe to run repeatedly:
+                a missing bill is <b>created</b>, an existing bill has its header fields (customer, branch,
+                currency) <b>updated</b> — bills are never duplicated. Dashboard counters refresh when done.
+            </p>
+
+            @if (_result is not null)
+            {
+                <div class="alert @(_result.Failed > 0 ? "alert-warning" : "alert-success")"
+                     style="padding:10px 12px;font-size:13px;">
+                    <div><b>@_result.Total</b> job(s) processed.</div>
+                    <div style="margin-top:4px;">
+                        Created: <b>@_result.Created</b> &nbsp;•&nbsp;
+                        Updated: <b>@_result.Updated</b> &nbsp;•&nbsp;
+                        Skipped: <b>@_result.Skipped</b> &nbsp;•&nbsp;
+                        Failed: <b>@_result.Failed</b>
+                    </div>
+                    @if (_result.Errors.Count > 0)
+                    {
+                        <ul style="margin:8px 0 0 16px;">
+                            @foreach (var e in _result.Errors.Take(20))
+                            {
+                                <li>@e</li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private bool _running;
+    private BillingSyncResult? _result;
+
+    private async Task RunSync()
+    {
+        _running = true;
+        try
+        {
+            _result = await SyncService.SyncAllAsync(updateExisting: true);
+            ToastService.Show(new()
+            {
+                Title = "Sync complete",
+                Content = _result.ToString(),
+                CssClass = _result.Failed > 0 ? "e-toast-warning" : "e-toast-success",
+            });
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+}

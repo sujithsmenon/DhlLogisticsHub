@@ -86,6 +86,10 @@ public class JobOrder
     public bool IsNominated     { get; set; }   // nominated by overseas agent
     public bool IsEmergency     { get; set; }
 
+    /// <summary>When set, the job carries a transport leg and also raises a Transportation (TB)
+    /// bill linked to the same JobId, kept in sync alongside its primary CB/FB bill.</summary>
+    public bool RequiresTransportation { get; set; }
+
     // Audit trail
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     public string?  CreatedBy { get; set; }
@@ -112,4 +116,7 @@ public class JobOrder
     public string? Remarks { get; set; }
 
     public List<JobOrderEvent> Events { get; set; } = new();
+
+    /// <summary>Business operations carried out within this job (Clearance / Transport / etc.).</summary>
+    public List<JobOrderOperation> Operations { get; set; } = new();
 }

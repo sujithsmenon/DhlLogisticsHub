@@ -79,9 +79,10 @@
                     <GridEvents OnToolbarClick="ToolbarClick" CommandClicked="OnCommandClicked" TValue="Bill" />
                     <GridPageSettings PageSize="15" PageSizes="@pagerDropdown" />
                     <GridColumns>
-                        <GridColumn HeaderText="Manage" Width="80" TextAlign="TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
+                        <GridColumn HeaderText="Manage" Width="150" TextAlign="TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
                             <GridCommandColumns>
                                 <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
+                                <GridCommandColumn Type="CommandButtonType.None"   ButtonOption="@(new() { Content = "Submit", IconCss = "e-icons e-send-1", CssClass = "e-flat e-primary" })" />
                                 <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })" />
                             </GridCommandColumns>
                         </GridColumn>
@@ -120,7 +121,9 @@
     public EventCallback LoadOnSaveReference { get; set; }
     private bool loader = false;
     public string[] pagerDropdown { get; set; } = new[] { "All", "5", "10", "15", "20" };
-    private List<Object> Toolbaritems = new() { new ItemModel() { Text = "Add New Bill", TooltipText = "Add New Forwarding Bill", PrefixIcon = "e-add", Id = "AddNew" }, "Search" };
+    // Bills are NEVER created manually — a Forwarding bill is generated automatically when its Job Order
+    // is approved. List is view/edit-only.
+    private List<Object> Toolbaritems = new() { "Search" };
 
     private List<Bill> model = new();
     private List<Bill> filtered = new();
@@ -220,7 +223,18 @@
     {
         try
         {
-            if (args.CommandColumn.Type == CommandButtonType.Edit)
+            if (args.CommandColumn?.ButtonOption?.Content == "Submit")
+            {
+                if (args.RowData.Status != BillStatus.Draft)
+                {
+                    ToastService.Show(new() { Title = "Not allowed", Content = "Only Draft bills can be submitted for verification.", CssClass = "e-toast-warning" });
+                    return;
+                }
+                await Service.SubmitAsync(args.RowData.Id);
+                ToastService.Show(new() { Title = "Submitted", Content = $"Bill {args.RowData.BillNo} submitted for verification.", CssClass = "e-toast-success" });
+                await LoadOnSave();
+            }
+            else if (args.CommandColumn.Type == CommandButtonType.Edit)
             {
                 var o = new BsModalOptions();
                 o.ControlParameters.Add("Id", args.RowData.Id);

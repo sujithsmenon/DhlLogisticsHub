@@ -24,6 +24,9 @@
     #Card { height: 165px !important; width: 100%; }
     .e-dialog .e-dlg-header { font-size: small; }
     .e-dialog.e-popup { max-height: fit-content !important; }
+    .ops-table { width:100%; font-size:11px; border-collapse:collapse; }
+    .ops-table th { background:#198781b0; color:#fff; padding:4px 5px; text-align:left; font-weight:600; }
+    .ops-table td { padding:3px 4px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
 </style>
 
 <div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
@@ -179,19 +182,81 @@
                                     <div class="col-md-3"><label class="form-Custom-label">Emergency:</label></div>
                                     <div class="col-md-3"><SfCheckBox @bind-Checked="@item.IsEmergency" Label="Yes" /></div>
                                 </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6"><label class="form-Custom-label">Transportation:</label></div>
+                                    <div class="col-md-6">
+                                        <SfCheckBox @bind-Checked="@item.RequiresTransportation" Label="Raise a linked Transportation (TB) bill" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- ── Card 2: Operations (placeholder) ──────────────────────────────── -->
+                    <!-- ── Card 2: Operations sub-grid ───────────────────────────────────── -->
                     <div class="col-md-4">
                         <div class="card">
-                            <div class="card-header">Operations</div>
-                            <div class="card-body custom-scroll" style="height:280px;">
-                                <p class="muted" style="font-size:11px;text-align:center;padding-top:80px;">
-                                    JobOrderOperations sub-grid<br/>
-                                    <em>(deferred — coming with the next M4 slice)</em>
-                                </p>
+                            <div class="card-header d-flex align-items-center" style="padding:4px 10px;">
+                                <span><b>Operations</b></span>
+                                <div class="ms-auto">
+                                    <SfButton OnClick="@AddOperation" CssClass="e-small" IconCss="e-icons e-add" IsPrimary="true">Add</SfButton>
+                                </div>
+                            </div>
+                            <div class="card-body custom-scroll" style="height:280px;padding:6px;">
+                                @if (item.Operations.Count == 0)
+                                {
+                                    <p class="muted" style="font-size:11px;text-align:center;padding-top:70px;">
+                                        No operations yet. Click <b>Add</b> to record a<br/>business operation for this job.
+                                    </p>
+                                }
+                                else
+                                {
+                                    <table class="ops-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:22px;">#</th>
+                                                <th>Operation</th>
+                                                <th>Operated By (Vendor)</th>
+                                                <th>Staff</th>
+                                                <th style="width:90px;">Exp. Head</th>
+                                                <th style="width:80px;" class="num">Cost</th>
+                                                <th style="width:26px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @for (int i = 0; i < item.Operations.Count; i++)
+                                            {
+                                                var idx = i;
+                                                var op = item.Operations[idx];
+                                                <tr>
+                                                    <td>@(idx + 1)</td>
+                                                    <td><SfTextBox @bind-Value="@op.OperationName" CssClass="e-small" Placeholder="e.g. Customs Clearance" /></td>
+                                                    <td>
+                                                        <SfComboBox @bind-Value="@op.OperatedByClientId" TItem="DhlClient" TValue="int?"
+                                                                    DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                                                    Placeholder="In-house">
+                                                            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                                                        </SfComboBox>
+                                                    </td>
+                                                    <td>
+                                                        <SfComboBox @bind-Value="@op.HandledByStaffId" TItem="Staff" TValue="int?"
+                                                                    DataSource="@_staff" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                                                    Placeholder="Staff">
+                                                            <ComboBoxFieldSettings Text="FullName" Value="Id" />
+                                                        </SfComboBox>
+                                                    </td>
+                                                    <td>
+                                                        <SfComboBox @bind-Value="@op.ExpenseCategory" TItem="ChargeCategory" TValue="ChargeCategory"
+                                                                    DataSource="@_expenseCategories" CssClass="e-small" />
+                                                    </td>
+                                                    <td class="num">
+                                                        <SfNumericTextBox TValue="decimal?" @bind-Value="@op.Cost" CssClass="e-small" Format="N2" ShowSpinButton="false" />
+                                                    </td>
+                                                    <td><SfButton OnClick="@(() => RemoveOperation(idx))" CssClass="e-small delete-btn" IconCss="e-icons e-delete" /></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
                             </div>
                         </div>
                     </div>
@@ -355,6 +420,18 @@
         {
             ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
         }
+    }
+
+    private static readonly ChargeCategory[] _expenseCategories =
+        (ChargeCategory[])Enum.GetValues(typeof(ChargeCategory));
+
+    private void AddOperation() =>
+        item.Operations.Add(new JobOrderOperation { DisplayOrder = item.Operations.Count + 1 });
+
+    private void RemoveOperation(int idx)
+    {
+        if (idx < 0 || idx >= item.Operations.Count) return;
+        item.Operations.RemoveAt(idx);
     }
 
     private async Task Submit()

@@ -1,5 +1,6 @@
 ﻿@page "/jobs/forwarding"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using DhlLogistics.Web.Components.Pages.Billing
 @inject JobOrderService Service
 @inject CompanyBranchService BranchService
 @inject ShipmentActivityService ActivityService
@@ -128,6 +129,13 @@
                                         <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
                                         <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat" })" />
                                     </GridCommandColumns>
+                                </GridColumn>
+                                <GridColumn HeaderText="Bill" Width="55" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                                    <Template>
+                                        @{ var jr = (context as JobOrder); }
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-billing-details"
+                                                  Title="Create bill from this job" OnClick="@(() => CreateBill(jr))" />
+                                    </Template>
                                 </GridColumn>
                                 <GridColumn Field="@nameof(JobOrder.Id)" HeaderText="ID" IsPrimaryKey="true" TextAlign="TextAlign.Right" Width="120" Visible="false" />
                                 <GridColumn Field="Branch.BranchName"            HeaderText="Branch"           Width="150" />
@@ -321,6 +329,24 @@
         }
     }
 
+    private async Task CreateBill(JobOrder? job)
+    {
+        if (job is null) return;
+        if (job.Status != JobOrderStatus.Approved && job.Status != JobOrderStatus.Closed)
+        {
+            ToastService.Show(new() { Title = "Not billable", Content = "Only Approved or Closed jobs can be billed.", CssClass = "e-toast-warning" });
+            return;
+        }
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("Id", 0L);
+        o.ControlParameters.Add("JobOrderId", job.Id);
+        o.ControlParameters.Add("Title", "New Forwarding Bill — " + job.JobOrderNo);
+        o.ControlParameters.Add("Mode", BillMode.Forwarding);
+        o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+        var r = await _modal!.Context.ShowAsync<BillPopup>(o);
+        if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+    }
+
     public async Task OnCommandClicked(CommandClickEventArgs<JobOrder> args)
     {
         try
@@ -337,7 +363,7 @@
             }
             else if (args.CommandColumn.Type == CommandButtonType.Delete)
             {
-                if (await DialogService.ConfirmAsync($"Delete job {args.RowData.JobOrderNo}? Only Draft jobs can be deleted.", "Confirm delete"))
+                if (await DialogService.ConfirmAsync($"Delete job {args.RowData.JobOrderNo}? Only unverified jobs can be deleted.", "Confirm delete"))
                 {
                     await Service.DeleteAsync(args.RowData.Id);
                     ToastService.Show(new() { Title = "Success!", Content = "Record Deleted Successfully.", CssClass = "e-toast-success" });

@@ -1,20 +1,42 @@
 namespace DhlLogistics.Web.Service;
 
-using System.Security.Claims;
 using DhlLogistics.Shared.Models;
 using DhlLogistics.Web.Database;
+using DhlLogistics.Web.Workflow;
+using DhlLogistics.Web.Workflow.Handlers;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 
+/// <summary>
+/// Application service for job orders. Add/Edit/Delete are routed through the shared
+/// <see cref="WorkflowOrchestrator"/> (numbering, persistence, auto-billing, timeline, activity,
+/// audit, dashboard, notification) via <see cref="JobOrderWorkflowHandler"/>. Queries and the
+/// status-lifecycle transitions stay here.
+/// </summary>
 public class JobOrderService
 {
     private readonly AppDbContext _db;
     private readonly AuthenticationStateProvider _authProvider;
+    private readonly DashboardState _dash;
+    private readonly WorkflowOrchestrator _orchestrator;
+    private readonly JobOrderWorkflowHandler _handler;
+    private readonly BillService _bills;
+    private readonly AccountingService _accounting;
+    private readonly WorkflowLogService _wflog;
 
-    public JobOrderService(AppDbContext db, AuthenticationStateProvider authProvider)
+    public JobOrderService(AppDbContext db, AuthenticationStateProvider authProvider,
+                           DashboardState dash, WorkflowOrchestrator orchestrator,
+                           JobOrderWorkflowHandler handler, BillService bills,
+                           AccountingService accounting, WorkflowLogService wflog)
     {
         _db = db;
         _authProvider = authProvider;
+        _dash = dash;
+        _orchestrator = orchestrator;
+        _handler = handler;
+        _bills = bills;
+        _accounting = accounting;
+        _wflog = wflog;
     }
 
     private async Task<string> CurrentUserAsync()
@@ -44,61 +66,34 @@ public class JobOrderService
         WithRefs().Where(j => statuses.Contains(j.Status)).OrderByDescending(j => j.Id).ToListAsync();
 
     public Task<JobOrder?> GetByIdAsync(long id) =>
-        WithRefs().Include(j => j.Events).FirstOrDefaultAsync(j => j.Id == id);
+        WithRefs()
+            .Include(j => j.Events)
+            .Include(j => j.Operations)
+            .FirstOrDefaultAsync(j => j.Id == id);
 
     // ── Numbering ────────────────────────────────────────────────────────────
 
     public static int ComputeFinYear(DateTime d) => d.Month >= 4 ? d.Year : d.Year - 1;
 
-    private async Task<string> NextJobOrderNoAsync(JobMode mode, int finYear)
-    {
-        var prefix    = mode == JobMode.Clearance ? "CLR" : "FWD";
-        var fyDisplay = $"{(finYear % 100):D2}-{((finYear + 1) % 100):D2}";
-
-        var lastNo = await _db.Set<JobOrder>()
-            .Where(j => j.Mode == mode && j.FinYear == finYear)
-            .OrderByDescending(j => j.Id)
-            .Select(j => j.JobOrderNo)
-            .FirstOrDefaultAsync();
-
-        var seq = 1;
-        if (!string.IsNullOrEmpty(lastNo))
-        {
-            var tail = lastNo.Split('/').Last();
-            if (int.TryParse(tail, out var n)) seq = n + 1;
-        }
-        return $"{prefix}/{fyDisplay}/{seq:D4}";
-    }
-
-    // ── Lifecycle ────────────────────────────────────────────────────────────
+    // ── Add / Edit / Delete — routed through the Workflow Engine ───────────────
+    // All three run the shared pipeline (validate → tx → number → persist → billing →
+    // timeline → activity → audit → commit → dashboard/search/notify). Domain specifics
+    // (numbering, save, auto-billing, timeline) live in JobOrderWorkflowHandler.
 
     public async Task<JobOrder> CreateAsync(JobOrder job)
     {
-        var user = await CurrentUserAsync();
-        job.FinYear    = ComputeFinYear(job.JobOrderDate);
-        job.JobOrderNo = await NextJobOrderNoAsync(job.Mode, job.FinYear);
-        job.Status     = JobOrderStatus.Draft;
-        job.CreatedBy  = user;
-        job.CreatedOn  = DateTime.UtcNow;
-        _db.Add(job);
-        await _db.SaveChangesAsync();
-
-        await LogEventAsync(job.Id, JobOrderEventType.Created, $"Job created as Draft.", user);
+        var ctx = new WorkflowContext(WorkflowOperationType.Create, await CurrentUserAsync(), job, _handler);
+        await _orchestrator.RunAsync(ctx);
         return job;
     }
 
     public async Task UpdateAsync(JobOrder job)
     {
-        var user = await CurrentUserAsync();
-        job.ModifiedBy = user;
-        job.ModifiedOn = DateTime.UtcNow;
-        _db.Entry(job).State = EntityState.Modified;
-        await _db.SaveChangesAsync();
-
-        await LogEventAsync(job.Id,
-            job.Status == JobOrderStatus.Approved ? JobOrderEventType.PostVerifyEdited : JobOrderEventType.Updated,
-            null, user);
+        var ctx = new WorkflowContext(WorkflowOperationType.Update, await CurrentUserAsync(), job, _handler);
+        await _orchestrator.RunAsync(ctx);
     }
+
+    // ── Status lifecycle ───────────────────────────────────────────────────────
 
     public async Task SubmitAsync(long id)
     {
@@ -113,6 +108,8 @@ public class JobOrderService
         j.RejectedBy  = null; j.RejectedOn = null; j.RejectionReason = null;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, JobOrderEventType.Submitted, "Submitted for verification.", user);
+        await _wflog.LogTransitionAsync("Job Order", "JobOrder", id, j.JobOrderNo, WorkflowOperationType.Submit, user, $"Job {j.JobOrderNo} submitted for verification.");
+        _dash.NotifyChanged();
     }
 
     public async Task VerifyAsync(long id, string? note = null)
@@ -127,6 +124,8 @@ public class JobOrderService
         j.VerifiedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, JobOrderEventType.Verified, note, user);
+        await _wflog.LogTransitionAsync("Job Order", "JobOrder", id, j.JobOrderNo, WorkflowOperationType.Verify, user, $"Job {j.JobOrderNo} verified; awaiting approval.");
+        _dash.NotifyChanged();
     }
 
     public async Task ApproveAsync(long id, string? note = null)
@@ -136,11 +135,29 @@ public class JobOrderService
         if (j.Status != JobOrderStatus.Verified)
             throw new InvalidOperationException($"Only Verified jobs can be approved (current: {j.Status}).");
 
-        j.Status     = JobOrderStatus.Approved;
-        j.ApprovedBy = user;
-        j.ApprovedOn = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        await LogEventAsync(id, JobOrderEventType.Approved, note, user);
+        // Approval is the single trigger that brings a job into Billing + Accounts (rules #3, #11). The
+        // status change, the auto-created bills (CB/FB, and TB if the job carries a transport leg) and the
+        // vendor expense/payable postings all commit atomically or roll back together.
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            j.Status     = JobOrderStatus.Approved;
+            j.ApprovedBy = user;
+            j.ApprovedOn = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            await LogEventAsync(id, JobOrderEventType.Approved, note, user);
+
+            await _bills.UpsertForJobAsync(j, user);          // generate the linked bill(s) — Draft/Pending
+            await _accounting.PostJobExpensesAsync(j, user);  // post any vendor costs already entered
+            await _wflog.LogTransitionAsync("Job Order", "JobOrder", id, j.JobOrderNo, WorkflowOperationType.Approve, user, $"Job {j.JobOrderNo} approved; bill(s) generated.", notifyManagers: true);
+            await tx.CommitAsync();
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
+        _dash.NotifyChanged();
     }
 
     public async Task RejectAsync(long id, string reason)
@@ -159,6 +176,8 @@ public class JobOrderService
         j.RejectionReason = reason;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, JobOrderEventType.Rejected, reason, user);
+        await _wflog.LogTransitionAsync("Job Order", "JobOrder", id, j.JobOrderNo, WorkflowOperationType.Reject, user, $"Job {j.JobOrderNo} rejected: {reason}", notifyManagers: true);
+        _dash.NotifyChanged();
     }
 
     public async Task CloseAsync(long id, string? note = null)
@@ -173,6 +192,8 @@ public class JobOrderService
         j.ClosedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, JobOrderEventType.Closed, note, user);
+        await _wflog.LogTransitionAsync("Job Order", "JobOrder", id, j.JobOrderNo, WorkflowOperationType.Close, user, $"Job {j.JobOrderNo} closed.");
+        _dash.NotifyChanged();
     }
 
     public async Task ReopenAsync(long id, string reason)
@@ -188,17 +209,18 @@ public class JobOrderService
         j.Status = JobOrderStatus.Reopened;
         await _db.SaveChangesAsync();
         await LogEventAsync(id, JobOrderEventType.Reopened, reason, user);
+        _dash.NotifyChanged();
     }
 
-    public async Task<bool> DeleteAsync(long id)
+    // Delete runs through the workflow too: the handler blocks deletion when non-Draft bills exist
+    // and cascade-removes untouched Draft bills within the same transaction.
+    public async Task<bool> DeleteAsync(long id, bool cascade = false)
     {
         var j = await _db.Set<JobOrder>().FindAsync(id);
         if (j is null) return false;
-        if (j.Status != JobOrderStatus.Draft)
-            throw new InvalidOperationException("Only Draft jobs can be deleted; use Reject or Close otherwise.");
 
-        _db.Remove(j);
-        await _db.SaveChangesAsync();
+        var ctx = new WorkflowContext(WorkflowOperationType.Delete, await CurrentUserAsync(), j, _handler, cascade);
+        await _orchestrator.RunAsync(ctx);
         return true;
     }
 

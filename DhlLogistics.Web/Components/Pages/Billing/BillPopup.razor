@@ -15,6 +15,10 @@
     .charges-table .num input { text-align:right; }
     .charges-table tfoot td { font-weight:600; background:var(--surface2); }
     .billed-by { color:var(--text); font-weight:600; }
+    .job-link-card { margin-bottom:8px; }
+    .job-link-body { display:grid; grid-template-columns:repeat(4,1fr); gap:4px 14px; padding:8px 10px; font-size:12px; }
+    .job-link-body .jl { display:flex; flex-direction:column; line-height:1.2; }
+    .job-link-body .jl span { color:var(--muted,#888); font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; }
 </style>
 
 <div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
@@ -54,9 +58,9 @@
                     </div>
                     <div class="mb-3 col-md-2">
                         <label class="form-Custom-label">Job Order:</label>
-                        <SfComboBox @bind-Value="@item.JobOrderId" TItem="JobOrder" TValue="long?"
+                        <SfComboBox TItem="JobOrder" TValue="long?" Value="@item.JobOrderId"
                                     DataSource="@_jobs" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
-                                    Placeholder="Optional..">
+                                    Placeholder="Optional.." ValueChanged="@OnJobPicked">
                             <ComboBoxFieldSettings Text="JobOrderNo" Value="Id" />
                         </SfComboBox>
                     </div>
@@ -77,6 +81,30 @@
                     </div>
                 </div>
 
+                <!-- Linked parent Job (read-only — pulled through FK, never duplicated) -->
+                @if (_job is not null)
+                {
+                    <div class="card job-link-card">
+                        <div class="card-header d-flex align-items-center" style="padding:4px 10px;">
+                            <span><b>Linked Job</b> — <span class="billed-by">@_job.JobOrderNo</span></span>
+                        </div>
+                        <div class="card-body job-link-body">
+                            <div class="jl"><span>Job Date</span><b>@_job.JobOrderDate.ToString("dd-MMM-yyyy")</b></div>
+                            <div class="jl"><span>Mode</span><b>@_job.Mode / @_job.ShipmentMode / @_job.ShipmentType</b></div>
+                            <div class="jl"><span>Activity</span><b>@_job.ShipmentType (@_job.CargoType)</b></div>
+                            <div class="jl"><span>Customer</span><b>@(_job.BillingClient?.CompanyName ?? "-")</b></div>
+                            <div class="jl"><span>Branch</span><b>@(_job.Branch?.BranchName ?? "-")</b></div>
+                            <div class="jl"><span>Shipper</span><b>@(_job.Shipper?.CompanyName ?? "-")</b></div>
+                            <div class="jl"><span>Consignee</span><b>@(_job.Consignee?.CompanyName ?? "-")</b></div>
+                            <div class="jl"><span>Commodity</span><b>@(_job.Commodity?.CommodityName ?? "-")</b></div>
+                            <div class="jl"><span>Container</span><b>@(_job.ContainerSize?.SizeName ?? _job.CargoDescription)</b></div>
+                            <div class="jl"><span>Load Port</span><b>@(_job.LoadPort?.PortName ?? "-")</b></div>
+                            <div class="jl"><span>Discharge Port</span><b>@(_job.DischargePort?.PortName ?? "-")</b></div>
+                            <div class="jl"><span>Currency</span><b>@(_job.Currency?.CurrencyCode ?? "-")</b></div>
+                        </div>
+                    </div>
+                }
+
                 <!-- Charges card -->
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
@@ -96,6 +124,7 @@
                                 <thead>
                                     <tr>
                                         <th style="width:34px;">#</th>
+                                        <th style="width:130px;">Category</th>
                                         <th style="width:200px;">Charge Code</th>
                                         <th style="width:120px;">SAC</th>
                                         <th>Description</th>
@@ -115,6 +144,11 @@
                                         var c = item.Charges[idx];
                                         <tr>
                                             <td>@(idx + 1)</td>
+                                            <td>
+                                                <SfComboBox TItem="ChargeCategory" TValue="ChargeCategory" DataSource="@_categories"
+                                                            Value="@c.Category" CssClass="e-small"
+                                                            ValueChanged="@((ChargeCategory v) => { c.Category = v; Recalc(); })" />
+                                            </td>
                                             <td>
                                                 <SfComboBox TItem="ChargeCode" TValue="int?" DataSource="@_chargeCodes"
                                                             Value="@c.ChargeCodeId" CssClass="e-small" ShowClearButton="true"
@@ -152,7 +186,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="6" style="text-align:right;">Totals:</td>
+                                        <td colspan="7" style="text-align:right;">Totals:</td>
                                         <td class="num">@item.SubTotal.ToString("N2")</td>
                                         <td></td>
                                         <td class="num">@item.GstAmount.ToString("N2")</td>
@@ -218,8 +252,11 @@
     [Parameter] public long Id { get; set; }
     [Parameter] public string? Title { get; set; }
     [Parameter] public BillMode Mode { get; set; } = BillMode.Clearance;
+    /// <summary>When launched from a Job row, pre-links the new bill to that job.</summary>
+    [Parameter] public long JobOrderId { get; set; }
 
     private Bill item = new();
+    private JobOrder? _job;      // parent job for the read-only "Linked Job" panel
     private string btnText => Id == 0 ? "Save" : "Update";
 
     private List<DhlClient>     _clients      = new();
@@ -228,6 +265,9 @@
     private List<ChargeCode>    _chargeCodes  = new();
     private List<Sac>           _sacs         = new();
     private List<JobOrder>      _jobs         = new();
+
+    private static readonly ChargeCategory[] _categories =
+        (ChargeCategory[])Enum.GetValues(typeof(ChargeCategory));
 
     protected override async Task OnInitializedAsync()
     {
@@ -244,10 +284,44 @@
         {
             var e = await Service.GetByIdAsync(Id);
             if (e is not null) { item = e; Recalc(); }
+            if (item.JobOrderId.HasValue)
+                _job = await JobOrderService.GetByIdAsync(item.JobOrderId.Value);
+        }
+        else if (JobOrderId != 0)
+        {
+            // Launched from a Job row — prepare a bill pre-linked to (and auto-filled from) the job.
+            _job = await JobOrderService.GetByIdAsync(JobOrderId);
+            item = _job is not null
+                ? BillService.PrepareForJob(_job, Mode)
+                : new Bill { Mode = Mode, BillDate = DateTime.UtcNow.Date, ExchangeRate = 1m };
         }
         else
         {
             item = new Bill { Mode = Mode, BillDate = DateTime.UtcNow.Date, ExchangeRate = 1m };
+        }
+    }
+
+    /// <summary>
+    /// When a job is chosen, link it and pull header fields (Customer / Branch / Currency)
+    /// off the job. Shipper / Consignee / Commodity / Port etc. stay on the job and show
+    /// read-only in the Linked Job panel — never copied onto the bill.
+    /// </summary>
+    private async Task OnJobPicked(long? jobId)
+    {
+        item.JobOrderId = jobId;
+        if (jobId.HasValue)
+        {
+            _job = _jobs.FirstOrDefault(j => j.Id == jobId) ?? await JobOrderService.GetByIdAsync(jobId.Value);
+            if (_job is not null)
+            {
+                item.BranchId        = _job.BranchId;
+                item.BillingClientId = _job.BillingClientId;
+                if (_job.CurrencyId.HasValue) item.CurrencyId = _job.CurrencyId;
+            }
+        }
+        else
+        {
+            _job = null;
         }
     }
 
