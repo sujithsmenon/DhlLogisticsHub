@@ -556,6 +556,7 @@
         {
             await InvoiceService.IssueInvoiceAsync(item.Id, item.PaymentTerms, item.InvoiceRemarks);
             await LoadDocumentsAsync();
+            StateHasChanged();   // immediately reflect Invoice No / Date / Status / Preview / Download
             ToastService.Show(new() { Title = "Invoice issued", Content = $"Invoice {item.InvoiceNumber} generated.", CssClass = "e-toast-success" });
             if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
         }

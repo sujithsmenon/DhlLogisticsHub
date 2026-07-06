@@ -383,6 +383,20 @@ using (var scope = app.Services.CreateScope())
     {
         Console.WriteLine($"[Billing Backfill] skipped: {ex.Message}");
     }
+
+    // Invoice-document backfill (idempotent): copies any legacy on-disk invoice PDFs into the DB
+    // Content column so they're served from the shared DB on every environment. Only affects rows
+    // with null content whose file is readable on THIS host (e.g. dev), so prod boots are a no-op.
+    try
+    {
+        var inv = scope.ServiceProvider.GetRequiredService<DhlLogistics.Web.Service.InvoiceService>();
+        var migrated = await inv.BackfillContentFromDiskAsync();
+        if (migrated > 0) Console.WriteLine($"[Invoice Backfill] migrated {migrated} document(s) to DB storage.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Invoice Backfill] skipped: {ex.Message}");
+    }
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────

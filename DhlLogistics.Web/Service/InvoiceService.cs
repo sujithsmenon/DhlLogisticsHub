@@ -27,14 +27,17 @@ public class InvoiceService
     private readonly AuthenticationStateProvider _auth;
     private readonly IWebHostEnvironment _env;
     private readonly DashboardState _dash;
+    private readonly ILogger<InvoiceService> _log;
 
     public InvoiceService(AppDbContext db, AuthenticationStateProvider auth,
-                          IWebHostEnvironment env, DashboardState dash)
+                          IWebHostEnvironment env, DashboardState dash,
+                          ILogger<InvoiceService> log)
     {
         _db = db;
         _auth = auth;
         _env = env;
         _dash = dash;
+        _log = log;
     }
 
     private string StorageRoot => Path.Combine(_env.ContentRootPath, "App_Data", "invoices");
@@ -54,15 +57,26 @@ public class InvoiceService
     public Task<InvoiceDocument?> GetDocumentAsync(long docId) =>
         _db.InvoiceDocuments.FirstOrDefaultAsync(d => d.Id == docId);
 
-    /// <summary>Reads a stored document's bytes for download / inline display.</summary>
+    /// <summary>Reads a stored document's bytes for download / inline display.
+    /// Source of truth is the DB (<see cref="InvoiceDocument.Content"/>); falls back to the
+    /// legacy on-disk file only for rows created before content was stored in the DB.</summary>
     public async Task<(byte[] Bytes, string ContentType, string FileName)?> GetFileAsync(long docId)
     {
         var doc = await GetDocumentAsync(docId);
         if (doc is null) return null;
-        var full = Path.Combine(StorageRoot, doc.FilePath);
-        if (!File.Exists(full)) return null;
-        var bytes = await File.ReadAllBytesAsync(full);
-        return (bytes, doc.ContentType, doc.OriginalFileName);
+
+        if (doc.Content is { Length: > 0 })
+            return (doc.Content, doc.ContentType, doc.OriginalFileName);
+
+        // Legacy fallback: file stored on this host's disk (pre-DB-content rows).
+        if (!string.IsNullOrEmpty(doc.FilePath))
+        {
+            var full = Path.Combine(StorageRoot, doc.FilePath);
+            if (File.Exists(full))
+                return (await File.ReadAllBytesAsync(full), doc.ContentType, doc.OriginalFileName);
+        }
+        _log.LogWarning("Invoice document {DocId} has no DB content and no disk file ({Path}).", docId, doc.FilePath);
+        return null;
     }
 
     // ── Issue (generate customer invoice from the Bill) ───────────────────────
@@ -117,16 +131,16 @@ public class InvoiceService
             .Where(d => d.DocumentType == InvoiceDocumentType.CustomerInvoice)
             .Select(d => d.Version).DefaultIfEmpty(0).Max() + 1;
 
-        // Generate + store the PDF.
-        var dir = Path.Combine(StorageRoot, bill.Id.ToString());
-        Directory.CreateDirectory(dir);
+        // Generate the PDF into memory — the bytes are the source of truth (stored in the DB),
+        // so issuing never depends on a writable/persistent local filesystem (EB is neither).
         var storedName   = $"{Guid.NewGuid():N}.pdf";
         var friendlyName = $"Invoice-{bill.InvoiceNumber?.Replace('/', '-')}-v{nextVersion}.pdf";
-        var fullPath     = Path.Combine(dir, storedName);
-        GeneratePdf(bill, fullPath);
-
-        var relPath = Path.Combine(bill.Id.ToString(), storedName).Replace('\\', '/');
+        var relPath      = $"{bill.Id}/{storedName}";
+        var pdfBytes     = GeneratePdf(bill);
         bill.InvoicePdfPath = relPath;
+
+        // Best-effort local copy (nice for on-box inspection; failure is non-fatal — the DB has it).
+        TryWriteToDisk(relPath, pdfBytes);
 
         _db.InvoiceDocuments.Add(new InvoiceDocument
         {
@@ -135,6 +149,7 @@ public class InvoiceService
             FileName         = storedName,
             OriginalFileName = friendlyName,
             FilePath         = relPath,
+            Content          = pdfBytes,
             ContentType      = "application/pdf",
             UploadedBy       = user,
             UploadedDate     = DateTime.UtcNow,
@@ -143,6 +158,8 @@ public class InvoiceService
         });
 
         await _db.SaveChangesAsync();
+        _log.LogInformation("Issued invoice {InvoiceNo} for bill {BillNo} ({Bytes} bytes stored in DB).",
+            bill.InvoiceNumber, bill.BillNo, pdfBytes.Length);
         _dash.NotifyChanged();
         return bill;
     }
@@ -156,15 +173,16 @@ public class InvoiceService
             ?? throw new InvalidOperationException("Bill not found.");
         var user = actor ?? await CurrentUserAsync();
 
-        var dir = Path.Combine(StorageRoot, bill.Id.ToString());
-        Directory.CreateDirectory(dir);
+        // Read the upload fully into memory → stored in the DB (env-agnostic, like invoices).
+        using var ms = new MemoryStream();
+        await content.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+
         var ext        = Path.GetExtension(originalFileName);
         var storedName = $"{Guid.NewGuid():N}{ext}";
-        var fullPath   = Path.Combine(dir, storedName);
-        await using (var fs = File.Create(fullPath))
-            await content.CopyToAsync(fs);
+        var relPath    = $"{bill.Id}/{storedName}";
+        TryWriteToDisk(relPath, bytes);   // best-effort local copy
 
-        var relPath = Path.Combine(bill.Id.ToString(), storedName).Replace('\\', '/');
         var nextVersion = await _db.InvoiceDocuments
             .Where(d => d.BillId == billId && d.DocumentType == type)
             .Select(d => d.Version).DefaultIfEmpty(0).MaxAsync() + 1;
@@ -176,6 +194,7 @@ public class InvoiceService
             FileName         = storedName,
             OriginalFileName = originalFileName,
             FilePath         = relPath,
+            Content          = bytes,
             ContentType      = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
             UploadedBy       = user,
             UploadedDate     = DateTime.UtcNow,
@@ -193,6 +212,42 @@ public class InvoiceService
         if (doc is null) return;
         doc.IsActive = false;
         await _db.SaveChangesAsync();
+    }
+
+    /// <summary>Best-effort local copy of a document. Never throws — the DB holds the
+    /// authoritative bytes, so a read-only/locked-down app filesystem (EB) is harmless.</summary>
+    private void TryWriteToDisk(string relPath, byte[] bytes)
+    {
+        try
+        {
+            var full = Path.Combine(StorageRoot, relPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            File.WriteAllBytes(full, bytes);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Local invoice copy skipped for {Path} (non-fatal; DB has the bytes).", relPath);
+        }
+    }
+
+    /// <summary>One-time migration for legacy rows: copies any on-disk PDF into the DB
+    /// <see cref="InvoiceDocument.Content"/> column so documents become environment-independent.
+    /// Idempotent — only touches rows with null content and a readable file on THIS host.</summary>
+    public async Task<int> BackfillContentFromDiskAsync()
+    {
+        var legacy = await _db.InvoiceDocuments
+            .Where(d => d.Content == null && d.FilePath != "")
+            .ToListAsync();
+        int migrated = 0;
+        foreach (var d in legacy)
+        {
+            var full = Path.Combine(StorageRoot, d.FilePath);
+            if (!File.Exists(full)) continue;
+            d.Content = await File.ReadAllBytesAsync(full);
+            migrated++;
+        }
+        if (migrated > 0) await _db.SaveChangesAsync();
+        return migrated;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -218,8 +273,9 @@ public class InvoiceService
     private const string CoContact = "Tel: +91 484 000 0000  ·  Email: accounts@pvgt.co.in  ·  www.pvgt.co.in";
     private const string CoGstin   = "GSTIN: 32ABCDE1234F1Z5  ·  PAN: ABCDE1234F";
 
-    /// <summary>Builds the professional customer-invoice PDF from Bill (+ its Job) data.</summary>
-    private void GeneratePdf(Bill bill, string path)
+    /// <summary>Builds the professional customer-invoice PDF from Bill (+ its Job) data,
+    /// returning the bytes (stored in the DB — no dependency on the local filesystem).</summary>
+    private byte[] GeneratePdf(Bill bill)
     {
         var bold   = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
         var normal = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
@@ -229,9 +285,10 @@ public class InvoiceService
         var line   = new SolidBorder(new DeviceRgb(210, 216, 224), 0.8f);
         var cur    = bill.Currency?.CurrencyCode ?? "INR";
 
-        using var writer = new PdfWriter(path);
+        using var ms     = new MemoryStream();
+        using var writer = new PdfWriter(ms);
         using var pdf    = new PdfDocument(writer);
-        using var doc    = new Document(pdf);
+        var doc          = new Document(pdf);
         doc.SetMargins(34, 34, 34, 34);
 
         // ── Header: logo (left) + company details (right) ──────────────────────
@@ -356,7 +413,8 @@ public class InvoiceService
         doc.Add(new Paragraph($"Generated on {DateTime.Now:dd-MMM-yyyy HH:mm}")
             .SetFont(normal).SetFontSize(7).SetFontColor(ColorConstants.GRAY).SetTextAlignment(TextAlignment.CENTER).SetMarginTop(10));
 
-        doc.Close();
+        doc.Close();               // flushes writer → ms
+        return ms.ToArray();       // valid after close; DB stores these bytes
     }
 
     // ── PDF cell helpers ───────────────────────────────────────────────────────

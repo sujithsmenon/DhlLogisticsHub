@@ -33,8 +33,14 @@ public class InvoiceDocument
     /// <summary>Original name as uploaded / the friendly invoice file name.</summary>
     public string OriginalFileName { get; set; } = string.Empty;
 
-    /// <summary>Path (relative to the invoice storage root) where the file lives.</summary>
+    /// <summary>Legacy path (relative to the invoice storage root) where the file lives on
+    /// disk. Kept for backward compatibility; <see cref="Content"/> is now the source of truth.</summary>
     public string FilePath { get; set; } = string.Empty;
+
+    /// <summary>The file bytes, stored in the DB so the document is available on any server
+    /// instance / environment (the app filesystem on EB is per-instance and not persistent).
+    /// Nullable only for legacy rows created before this column existed (served from disk).</summary>
+    public byte[]? Content { get; set; }
 
     public string ContentType { get; set; } = "application/pdf";
 
