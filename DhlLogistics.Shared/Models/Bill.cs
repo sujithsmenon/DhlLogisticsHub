@@ -17,6 +17,16 @@ public enum BillStatus
     Closed    = 50,
 }
 
+/// <summary>Issuance state of a Bill *as an invoice*. Separate from the Bill
+/// approval lifecycle (<see cref="BillStatus"/>) — a Bill is only issued as an
+/// invoice after it is Approved. Room to add Sent / PartiallyPaid / Paid later.</summary>
+public enum InvoiceStatus
+{
+    NotIssued = 0,
+    Issued    = 10,
+    Cancelled = 20,
+}
+
 public class Bill
 {
     public long Id { get; set; }
@@ -83,6 +93,23 @@ public class Bill
     public DateTime? ClosedOn { get; set; }
     public string?   ClosedBy { get; set; }
 
+    // ── Invoice metadata (the Bill IS the ERP invoice — no separate entity) ──
+    // Populated by InvoiceService.IssueInvoiceAsync once the Bill is Approved.
+    // Reuses the Bill's own charges / GST / totals / accounting — nothing duplicated.
+    public string?        InvoiceNumber  { get; set; }
+    public DateTime?      InvoiceDate    { get; set; }
+    public InvoiceStatus  InvoiceStatus  { get; set; } = InvoiceStatus.NotIssued;
+    public bool           IsIssued       { get; set; }
+    public DateTime?      IssueDate      { get; set; }
+    public DateTime?      DueDate        { get; set; }
+    public string?        PaymentTerms   { get; set; }
+    public string?        InvoicePdfPath { get; set; }
+    public string?        InvoiceRemarks { get; set; }
+
     public List<BillCharge> Charges { get; set; } = new();
     public List<BillEvent>  Events  { get; set; } = new();
+
+    /// <summary>Generated (customer-invoice PDF) and uploaded (vendor invoice /
+    /// credit / debit note) documents attached to this Bill. One Bill → many docs.</summary>
+    public List<InvoiceDocument> InvoiceDocuments { get; set; } = new();
 }

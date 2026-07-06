@@ -29,8 +29,8 @@
                 <GridColumns>
                     <GridColumn HeaderText="Action" Width="160" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
                         <GridCommandColumns>
-                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Approve", IconCss = "e-icons e-check",        CssClass = "e-flat e-primary" })" />
-                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Reject",  IconCss = "e-icons e-circle-close", CssClass = "e-flat delete-btn" })" />
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Approve", IconCss = "e-icons e-check",        CssClass = "wf-btn-approve" })" />
+                            <GridCommandColumn Type="CommandButtonType.None" ButtonOption="@(new() { Content = "Reject",  IconCss = "e-icons e-circle-close", CssClass = "wf-btn-reject" })" />
                         </GridCommandColumns>
                     </GridColumn>
                     <GridColumn Field="@nameof(Bill.Id)" HeaderText="Id" IsPrimaryKey="true" Visible="false" />

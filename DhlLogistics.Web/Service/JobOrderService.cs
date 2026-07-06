@@ -62,6 +62,11 @@ public class JobOrderService
     public Task<List<JobOrder>> GetByModeAsync(JobMode mode) =>
         WithRefs().Where(j => j.Mode == mode).OrderByDescending(j => j.Id).ToListAsync();
 
+    /// <summary>All job orders across every mode (Clearance + Forwarding, Import/Export
+    /// via <see cref="JobOrder.ShipmentType"/>) — feeds the master Operations → Jobs dashboard.</summary>
+    public Task<List<JobOrder>> GetAllAsync() =>
+        WithRefs().OrderByDescending(j => j.Id).ToListAsync();
+
     public Task<List<JobOrder>> GetByStatusAsync(params JobOrderStatus[] statuses) =>
         WithRefs().Where(j => statuses.Contains(j.Status)).OrderByDescending(j => j.Id).ToListAsync();
 

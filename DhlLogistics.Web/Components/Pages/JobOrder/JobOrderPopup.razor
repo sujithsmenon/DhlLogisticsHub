@@ -9,7 +9,8 @@
 @inject IToastService ToastService
 
 <style>
-    .custom-modal .modal-dialog { max-width: 1100px !important; }
+    .custom-modal .modal-dialog { max-width: min(95vw, 1800px) !important; width: min(95vw, 1800px); }
+    @@media (max-width: 1200px) { .custom-modal .modal-dialog { max-width: 96vw !important; width: 96vw; } }
     .custom-scroll {
         max-height: 425px;
         overflow-y: auto;
@@ -24,9 +25,16 @@
     #Card { height: 165px !important; width: 100%; }
     .e-dialog .e-dlg-header { font-size: small; }
     .e-dialog.e-popup { max-height: fit-content !important; }
-    .ops-table { width:100%; font-size:11px; border-collapse:collapse; }
-    .ops-table th { background:#198781b0; color:#fff; padding:4px 5px; text-align:left; font-weight:600; }
-    .ops-table td { padding:3px 4px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .ops-scroll { width:100%; max-height:262px; overflow:auto; }
+    .ops-table { width:100%; min-width:820px; font-size:12.5px; border-collapse:collapse; }
+    .ops-table thead th { position:sticky; top:0; z-index:2; background:#198781; color:#fff;
+                          padding:8px 9px; text-align:left; font-weight:700; white-space:nowrap; }
+    .ops-table th.num, .ops-table td.num { text-align:right; }
+    .ops-table td { padding:6px 9px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .ops-table .e-input-group, .ops-table .e-control-wrapper { height:36px !important; min-width:90px; }
+    .ops-table .e-input-group input, .ops-table input.e-numerictextbox,
+    .ops-table .e-input-group .e-input { height:34px !important; font-size:13px !important; }
+    .ops-table .num input { text-align:right; }
 </style>
 
 <div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
@@ -210,16 +218,17 @@
                                 }
                                 else
                                 {
+                                    <div class="ops-scroll">
                                     <table class="ops-table">
                                         <thead>
                                             <tr>
-                                                <th style="width:22px;">#</th>
-                                                <th>Operation</th>
-                                                <th>Operated By (Vendor)</th>
-                                                <th>Staff</th>
-                                                <th style="width:90px;">Exp. Head</th>
-                                                <th style="width:80px;" class="num">Cost</th>
-                                                <th style="width:26px;"></th>
+                                                <th style="width:32px;">#</th>
+                                                <th style="min-width:170px;">Operation</th>
+                                                <th style="min-width:180px;">Operated By (Vendor)</th>
+                                                <th style="min-width:150px;">Staff</th>
+                                                <th style="width:140px;">Exp. Head</th>
+                                                <th style="width:120px;" class="num">Cost</th>
+                                                <th style="width:44px;"></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -256,6 +265,7 @@
                                             }
                                         </tbody>
                                     </table>
+                                    </div>
                                 }
                             </div>
                         </div>

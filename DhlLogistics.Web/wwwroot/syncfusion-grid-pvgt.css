@@ -25,9 +25,10 @@
 .e-grid .e-detailheadercell {
     background-color: #0868B2;
     color: #ffffff;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 12px;
-    padding: 8px 12px;
+    padding: 9px 12px;
+    letter-spacing: .3px;
     text-transform: uppercase;
     border: none;
 }
@@ -44,20 +45,23 @@
     color: #ffffff !important;
 }
 
-/* Rows */
+/* Rows — a little more vertical breathing room; readable, aligned. */
 .e-grid .e-rowcell {
-    padding: 2px 10px;
+    padding: 6px 12px;
     background: #ffffff;
-    font-size: 12px !important;
+    font-size: 12.5px !important;
+    vertical-align: middle;
+    color: #1f2937;
 }
 
-.e-grid .e-altrow {
-    background: #E8F1FA; /* tinted PVGT blue */
+.e-grid .e-altrow,
+.e-grid .e-altrow .e-rowcell {
+    background: #EEF5FC; /* tinted PVGT blue */
 }
 
-/* Hover */
+/* Hover — clearer feedback than the old near-white */
 .e-grid .e-row:hover .e-rowcell {
-    background-color: #f9fafb;
+    background-color: #dcecfa;
 }
 
 /* Selection */
@@ -110,3 +114,14 @@
 .e-grid .delete-btn:hover {
     background: #fee2e2 !important;
 }
+
+/* ── Polish pass additions ─────────────────────────────────────────────────── */
+/* Subtle row separators for scannability */
+.e-grid .e-rowcell { border-bottom: 1px solid #eef1f5; }
+/* Readable pager */
+.e-grid .e-gridpager .e-pagercontainer,
+.e-grid .e-gridpager .e-pagerconstant,
+.e-grid .e-gridpager .e-numericitem { font-size: 12.5px; }
+.e-grid .e-gridpager .e-currentitem { font-weight: 700; }
+/* Empty-state text a touch larger/centered */
+.e-grid .e-emptyrow td { font-size: 12.5px; color: #5A6573; text-align: center; padding: 14px; }

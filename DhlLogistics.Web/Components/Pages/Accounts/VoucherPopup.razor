@@ -5,12 +5,19 @@
 @inject IToastService ToastService
 
 <style>
-    .custom-modal .modal-dialog { max-width: 1100px !important; }
-    .lines-table { width:100%; font-size:12px; border-collapse:collapse; }
-    .lines-table th { background:#198781b0; color:#fff; padding:6px 8px; text-align:left; font-weight:600; }
-    .lines-table td { padding:4px 6px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .custom-modal .modal-dialog { max-width: min(95vw, 1600px) !important; width: min(95vw, 1600px); }
+    .lines-scroll { width:100%; overflow:auto; max-height:52vh; border:1px solid var(--border); border-radius:6px; }
+    .lines-table { width:100%; min-width:1000px; font-size:13px; border-collapse:collapse; }
+    .lines-table thead th { position:sticky; top:0; z-index:3; background:#198781; color:#fff;
+                            padding:10px 12px; text-align:left; font-weight:700; white-space:nowrap; }
+    .lines-table th.num, .lines-table td.num { text-align:right; }
+    .lines-table td { padding:8px 12px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .lines-table tfoot td { position:sticky; bottom:0; z-index:2; font-weight:700; background:var(--surface2); }
+    .lines-table .e-input-group, .lines-table .e-control-wrapper { height:40px !important; min-width:90px; }
+    .lines-table .e-input-group input, .lines-table input.e-numerictextbox,
+    .lines-table .e-input-group .e-input { height:38px !important; font-size:14px !important; }
     .lines-table .num input { text-align:right; }
-    .lines-table tfoot td { font-weight:600; background:var(--surface2); }
+    @@media (max-width: 1200px) { .custom-modal .modal-dialog { max-width: 96vw !important; width: 96vw; } }
     .balance-ok   { color:#198781; font-weight:600; }
     .balance-bad  { color:#AB1921; font-weight:600; }
 </style>
@@ -100,15 +107,16 @@
                         }
                         else
                         {
+                            <div class="lines-scroll">
                             <table class="lines-table">
                                 <thead>
                                     <tr>
-                                        <th style="width:34px;">#</th>
-                                        <th style="width:340px;">Account Head</th>
-                                        <th style="width:90px;">Dr / Cr</th>
-                                        <th style="width:140px;" class="num">Amount</th>
-                                        <th>Narration</th>
-                                        <th style="width:40px;"></th>
+                                        <th style="width:36px;">#</th>
+                                        <th style="width:360px;">Account Head</th>
+                                        <th style="width:120px;">Dr / Cr</th>
+                                        <th style="width:170px;" class="num">Amount</th>
+                                        <th style="min-width:260px;">Narration</th>
+                                        <th style="width:56px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -153,6 +161,7 @@
                                     </tr>
                                 </tfoot>
                             </table>
+                            </div>
                         }
                     </div>
                 </div>

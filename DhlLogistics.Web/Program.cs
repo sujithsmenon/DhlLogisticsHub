@@ -200,6 +200,8 @@ builder.Services.AddScoped<JobOrderService>();
 
 // ── M4 Billing + Accounts services ───────────────────────────────────────────
 builder.Services.AddScoped<BillService>();
+// Invoice layer over Bill: issue (generate customer-invoice PDF) + upload vendor/credit/debit docs.
+builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<VoucherService>();
 builder.Services.AddScoped<AccountHeadService>();
 // Automatic accounting engine: bill approval → revenue voucher, job approval → expense/payable,
@@ -452,6 +454,18 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/api/ping", () => Results.Ok(new { ok = true, at = DateTime.UtcNow }))
    .AllowAnonymous();
 app.MapGet("/health", () => Results.Ok("OK"));
+
+// ── Invoice / document download (authenticated) ─────────────────────────────
+// Serves generated customer-invoice PDFs and uploaded vendor/credit/debit docs.
+// ?dl=true forces an attachment download; otherwise the file opens inline (for print).
+app.MapGet("/invoices/doc/{id:long}", async (long id, bool? dl, InvoiceService invoices) =>
+{
+    var file = await invoices.GetFileAsync(id);
+    if (file is null) return Results.NotFound();
+    return (dl == true)
+        ? Results.File(file.Value.Bytes, file.Value.ContentType, file.Value.FileName)
+        : Results.File(file.Value.Bytes, file.Value.ContentType);
+}).RequireAuthorization();
 // ── File-tree diagnostic (Development only) ─────────────────────────────────
 // Lists what files exist on disk so the local publish output can be compared
 // against the deployed app. AllowAnonymous + full path disclosure means this must

@@ -5,20 +5,47 @@
 @inject CurrencyService CurrencyService
 @inject ChargeCodeService ChargeCodeService
 @inject SacService SacService
+@inject InvoiceService InvoiceService
 @inject IToastService ToastService
 
 <style>
-    .custom-modal .modal-dialog { max-width: 1100px !important; }
-    .charges-table { width:100%; font-size:12px; border-collapse:collapse; }
-    .charges-table th { background:#198781b0; color:#fff; padding:6px 8px; text-align:left; font-weight:600; }
-    .charges-table td { padding:4px 6px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    /* Wide, responsive dialog so the full charge grid fits on desktop/tablet. */
+    .custom-modal .modal-dialog { max-width: min(95vw, 1800px) !important; width: min(95vw, 1800px); }
+    /* Scroll wrapper: horizontal scroll when needed; sticky header stays visible. */
+    .charges-scroll { width:100%; overflow:auto; max-height:52vh; border:1px solid var(--border); border-radius:6px; }
+    .charges-table { width:100%; min-width:1500px; font-size:13px; border-collapse:collapse; }
+    .charges-table thead th { position:sticky; top:0; z-index:3; background:#198781; color:#fff;
+                              padding:10px 12px; text-align:left; font-weight:700; white-space:nowrap; }
+    .charges-table th.num, .charges-table td.num { text-align:right; }
+    .charges-table td { padding:8px 12px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .charges-table tfoot td { position:sticky; bottom:0; z-index:2; font-weight:700; background:var(--surface2); }
+    /* Editors: taller (≈40px), larger font, never clip the value. */
+    .charges-table .e-input-group, .charges-table .e-control-wrapper { height:40px !important; min-width:90px; }
+    .charges-table .e-input-group input, .charges-table input.e-numerictextbox,
+    .charges-table .e-input-group .e-input { height:38px !important; font-size:14px !important; }
     .charges-table .num input { text-align:right; }
-    .charges-table tfoot td { font-weight:600; background:var(--surface2); }
+    @@media (max-width: 1200px) { .custom-modal .modal-dialog { max-width: 96vw !important; width: 96vw; } }
     .billed-by { color:var(--text); font-weight:600; }
     .job-link-card { margin-bottom:8px; }
     .job-link-body { display:grid; grid-template-columns:repeat(4,1fr); gap:4px 14px; padding:8px 10px; font-size:12px; }
     .job-link-body .jl { display:flex; flex-direction:column; line-height:1.2; }
     .job-link-body .jl span { color:var(--muted,#888); font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; }
+    .invoice-panel { margin-top:14px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .invoice-hdr { background:linear-gradient(135deg,#198781 0%,#14706b 100%); color:#fff; font-weight:700;
+                   padding:8px 12px; display:flex; align-items:center; justify-content:space-between; font-size:13px; }
+    .invoice-body { padding:14px 16px; }
+    .inv-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px 18px; }
+    .inv-field { display:flex; flex-direction:column; gap:3px; }
+    .inv-field-wide { grid-column:span 2; }
+    .inv-lbl { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted,#5A6573); }
+    .inv-val { font-weight:700; font-size:14px; color:var(--text,#0E2A47); min-height:20px; }
+    .inv-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+                   margin-top:14px; padding-top:12px; border-top:1px dashed var(--border); }
+    .inv-sep { flex:1 1 12px; }
+    .inv-status { font-size:11px; font-weight:700; padding:3px 12px; border-radius:12px; background:#e2e8f0; color:#334155; }
+    .inv-status.inv-issued { background:#dcfce7; color:#166534; }
+    .inv-status.inv-cancelled { background:#fee2e2; color:#991b1b; }
+    @@media (max-width: 900px) { .inv-field-wide { grid-column:span 1; } }
 </style>
 
 <div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
@@ -120,21 +147,22 @@
                         }
                         else
                         {
+                            <div class="charges-scroll">
                             <table class="charges-table">
                                 <thead>
                                     <tr>
-                                        <th style="width:34px;">#</th>
-                                        <th style="width:130px;">Category</th>
-                                        <th style="width:200px;">Charge Code</th>
-                                        <th style="width:120px;">SAC</th>
-                                        <th>Description</th>
-                                        <th style="width:80px;" class="num">Qty</th>
-                                        <th style="width:100px;" class="num">Rate</th>
-                                        <th style="width:110px;" class="num">Amount</th>
-                                        <th style="width:70px;" class="num">GST %</th>
-                                        <th style="width:110px;" class="num">GST Amt</th>
-                                        <th style="width:120px;" class="num">Net</th>
-                                        <th style="width:40px;"></th>
+                                        <th style="width:36px;">#</th>
+                                        <th style="width:150px;">Category</th>
+                                        <th style="width:230px;">Charge Code</th>
+                                        <th style="width:150px;">SAC</th>
+                                        <th style="min-width:280px;">Description</th>
+                                        <th style="width:120px;" class="num">Qty</th>
+                                        <th style="width:140px;" class="num">Rate</th>
+                                        <th style="width:140px;" class="num">Amount</th>
+                                        <th style="width:135px;" class="num">GST %</th>
+                                        <th style="width:140px;" class="num">GST Amt</th>
+                                        <th style="width:150px;" class="num">Net Amount</th>
+                                        <th style="width:56px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -195,6 +223,7 @@
                                     </tr>
                                 </tfoot>
                             </table>
+                            </div>
                         }
                     </div>
                 </div>
@@ -217,6 +246,94 @@
                         (by @item.RejectedBy on @(item.RejectedOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")))
                     </div>
                 }
+
+                @* ── Invoice panel — the Bill IS the invoice; issue it + attach documents ── *@
+                @if (Id != 0 && (item.Status == BillStatus.Approved || item.Status == BillStatus.Closed))
+                {
+                    <div class="invoice-panel">
+                        <div class="invoice-hdr">
+                            <span>Invoice</span>
+                            <span class="inv-status inv-@item.InvoiceStatus.ToString().ToLower()">@item.InvoiceStatus</span>
+                        </div>
+                        <div class="invoice-body">
+                            <div class="inv-grid">
+                                <div class="inv-field"><span class="inv-lbl">Invoice Number</span>
+                                    <span class="inv-val">@(item.InvoiceNumber ?? "— not issued —")</span></div>
+                                <div class="inv-field"><span class="inv-lbl">Invoice Date</span>
+                                    <span class="inv-val">@(item.InvoiceDate?.ToString("dd-MMM-yyyy") ?? "—")</span></div>
+                                <div class="inv-field"><span class="inv-lbl">Due Date</span>
+                                    <span class="inv-val">@(item.DueDate?.ToString("dd-MMM-yyyy") ?? "—")</span></div>
+                                <div class="inv-field"><span class="inv-lbl">Payment Terms</span>
+                                    <SfTextBox @bind-Value="@item.PaymentTerms" CssClass="e-small" Placeholder="e.g. 30 days" /></div>
+                                <div class="inv-field inv-field-wide"><span class="inv-lbl">Invoice Remarks</span>
+                                    <SfTextBox @bind-Value="@item.InvoiceRemarks" CssClass="e-small" /></div>
+                            </div>
+
+                            <div class="inv-actions">
+                                <SfButton CssClass="e-small wf-btn-submit" IconCss="e-icons e-file-document"
+                                          OnClick="@GenerateInvoice">@(item.IsIssued ? "Re-issue Invoice" : "Generate Invoice")</SfButton>
+                                @if (_activeInvoiceDocId is not null)
+                                {
+                                    <a class="e-btn e-small wf-btn-open" href="/invoices/doc/@_activeInvoiceDocId" target="_blank">
+                                        <span class="e-icons e-preview"></span> Preview PDF</a>
+                                    <a class="e-btn e-small wf-btn-verify" href="/invoices/doc/@_activeInvoiceDocId?dl=true">
+                                        <span class="e-icons e-download"></span> Download PDF</a>
+                                    <SfButton CssClass="e-small wf-btn-approve" IconCss="e-icons e-send-1" OnClick="@EmailInvoice">Email Invoice</SfButton>
+                                }
+                                <span class="inv-sep"></span>
+                                <label class="inv-lbl mb-0">Attachment</label>
+                                <SfComboBox TItem="InvoiceDocumentType" TValue="InvoiceDocumentType" DataSource="@_uploadTypes"
+                                            @bind-Value="_uploadType" Width="170px" CssClass="e-small" />
+                                <label class="e-btn e-small wf-btn-open" style="margin:0;cursor:pointer;">
+                                    <span class="e-icons e-upload"></span> Choose file…
+                                    <InputFile OnChange="OnFileSelected" style="display:none;" />
+                                </label>
+                                <small class="text-muted">Vendor invoice / credit / debit note</small>
+                            </div>
+
+                            @if (_documents.Count > 0)
+                            {
+                                <div class="charges-scroll" style="margin-top:10px;">
+                                    <table class="charges-table" style="min-width:760px;">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:150px;">Type</th>
+                                                <th>File</th>
+                                                <th style="width:60px;" class="num">Ver</th>
+                                                <th style="width:130px;">Uploaded By</th>
+                                                <th style="width:150px;">Uploaded</th>
+                                                <th style="width:70px;">Active</th>
+                                                <th style="width:150px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var d in _documents)
+                                            {
+                                                <tr style="@(d.IsActive ? "" : "opacity:.55;")">
+                                                    <td>@Pretty(d.DocumentType)</td>
+                                                    <td>@d.OriginalFileName</td>
+                                                    <td class="num">@d.Version</td>
+                                                    <td>@d.UploadedBy</td>
+                                                    <td>@d.UploadedDate.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</td>
+                                                    <td>@(d.IsActive ? "Yes" : "No")</td>
+                                                    <td>
+                                                        <a class="e-btn e-small e-flat" href="/invoices/doc/@d.Id" target="_blank" title="View">View</a>
+                                                        <a class="e-btn e-small e-flat" href="/invoices/doc/@d.Id?dl=true" title="Download">Get</a>
+                                                        @if (d.IsActive)
+                                                        {
+                                                            <SfButton CssClass="e-small delete-btn" IconCss="e-icons e-delete"
+                                                                      OnClick="@(() => DeactivateDoc(d.Id))" Title="Deactivate" />
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
             </EditForm>
         </div>
 
@@ -229,7 +346,7 @@
                 <div class="col-md-2 text-center">
                     @if (Id != 0 && item.Status == BillStatus.Draft)
                     {
-                        <SfButton OnClick="@Submit" CssClass="e-small" IconCss="e-icons e-send-1">Submit</SfButton>
+                        <SfButton OnClick="@Submit" CssClass="e-small wf-btn-submit" IconCss="e-icons e-send-1">Submit</SfButton>
                     }
                     <SfButton IsPrimary="true" OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save-as">@btnText</SfButton>
                     <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Close</SfButton>
@@ -269,6 +386,28 @@
     private static readonly ChargeCategory[] _categories =
         (ChargeCategory[])Enum.GetValues(typeof(ChargeCategory));
 
+    // ── Invoice panel state ───────────────────────────────────────────────────
+    private List<InvoiceDocument> _documents = new();
+    private long? _activeInvoiceDocId;
+    private InvoiceDocumentType _uploadType = InvoiceDocumentType.VendorInvoice;
+    // Customer invoice is generated (not uploaded), so it's excluded from the upload picker.
+    private static readonly InvoiceDocumentType[] _uploadTypes =
+    {
+        InvoiceDocumentType.VendorInvoice,
+        InvoiceDocumentType.CreditNote,
+        InvoiceDocumentType.DebitNote,
+        InvoiceDocumentType.Other,
+    };
+
+    private static string Pretty(InvoiceDocumentType t) => t switch
+    {
+        InvoiceDocumentType.CustomerInvoice => "Customer Invoice",
+        InvoiceDocumentType.VendorInvoice   => "Vendor Invoice",
+        InvoiceDocumentType.CreditNote      => "Credit Note",
+        InvoiceDocumentType.DebitNote       => "Debit Note",
+        _                                   => "Other",
+    };
+
     protected override async Task OnInitializedAsync()
     {
         _branches    = await BranchService.GetAllAsync();
@@ -286,6 +425,7 @@
             if (e is not null) { item = e; Recalc(); }
             if (item.JobOrderId.HasValue)
                 _job = await JobOrderService.GetByIdAsync(item.JobOrderId.Value);
+            await LoadDocumentsAsync();
         }
         else if (JobOrderId != 0)
         {
@@ -398,6 +538,68 @@
         {
             ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
         }
+    }
+
+    // ── Invoice actions ───────────────────────────────────────────────────────
+    private async Task LoadDocumentsAsync()
+    {
+        if (item.Id == 0) { _documents = new(); _activeInvoiceDocId = null; return; }
+        _documents = await InvoiceService.GetDocumentsAsync(item.Id);
+        _activeInvoiceDocId = _documents
+            .Where(d => d.DocumentType == InvoiceDocumentType.CustomerInvoice && d.IsActive)
+            .Select(d => (long?)d.Id).FirstOrDefault();
+    }
+
+    private async Task GenerateInvoice()
+    {
+        try
+        {
+            await InvoiceService.IssueInvoiceAsync(item.Id, item.PaymentTerms, item.InvoiceRemarks);
+            await LoadDocumentsAsync();
+            ToastService.Show(new() { Title = "Invoice issued", Content = $"Invoice {item.InvoiceNumber} generated.", CssClass = "e-toast-success" });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var f = e.File;
+            await using var stream = f.OpenReadStream(25 * 1024 * 1024); // 25 MB cap
+            await InvoiceService.UploadDocumentAsync(item.Id, stream, f.Name, f.ContentType, _uploadType);
+            await LoadDocumentsAsync();
+            ToastService.Show(new() { Title = "Uploaded", Content = $"{Pretty(_uploadType)} attached.", CssClass = "e-toast-success" });
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private async Task DeactivateDoc(long docId)
+    {
+        await InvoiceService.DeactivateDocumentAsync(docId);
+        await LoadDocumentsAsync();
+    }
+
+    // Placeholder — outbound invoice email is not yet wired (MailKit is used only for
+    // inbound IMAP polling). Surfaces intent without touching email/accounting logic.
+    private void EmailInvoice()
+    {
+        var to = item.BillingClient?.ContactEmail;
+        ToastService.Show(new()
+        {
+            Title = "Email Invoice",
+            Content = string.IsNullOrWhiteSpace(to)
+                ? "Email integration is not yet available. (No customer email on file.)"
+                : $"Email integration is not yet available. Invoice {item.InvoiceNumber} would be sent to {to}.",
+            CssClass = "e-toast-info"
+        });
     }
 
     private void Toast(string msg) =>

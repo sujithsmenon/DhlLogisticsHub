@@ -1,0 +1,49 @@
+namespace DhlLogistics.Shared.Models;
+
+/// <summary>
+/// Type of financial document attached to a Bill. The Bill itself is the customer
+/// invoice; this enum lets the same table also hold vendor invoices and credit /
+/// debit notes so those future flows need no schema redesign.
+/// </summary>
+public enum InvoiceDocumentType
+{
+    CustomerInvoice = 1,   // generated from Bill data (our outgoing invoice)
+    VendorInvoice   = 2,   // uploaded — supplier's invoice against this job/bill
+    CreditNote      = 3,
+    DebitNote       = 4,
+    Other           = 9,
+}
+
+/// <summary>
+/// A generated or uploaded document file linked to a <see cref="Bill"/>.
+/// The ONLY new invoice table — no duplicate charges / totals / GST / party data.
+/// </summary>
+public class InvoiceDocument
+{
+    public long Id { get; set; }
+
+    public long  BillId { get; set; }
+    public Bill? Bill   { get; set; }
+
+    public InvoiceDocumentType DocumentType { get; set; } = InvoiceDocumentType.CustomerInvoice;
+
+    /// <summary>Stored file name on disk (unique, e.g. a GUID + extension).</summary>
+    public string FileName { get; set; } = string.Empty;
+
+    /// <summary>Original name as uploaded / the friendly invoice file name.</summary>
+    public string OriginalFileName { get; set; } = string.Empty;
+
+    /// <summary>Path (relative to the invoice storage root) where the file lives.</summary>
+    public string FilePath { get; set; } = string.Empty;
+
+    public string ContentType { get; set; } = "application/pdf";
+
+    public string?  UploadedBy   { get; set; }
+    public DateTime UploadedDate { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Incrementing version per Bill — re-issuing an invoice bumps this.</summary>
+    public int  Version  { get; set; } = 1;
+
+    /// <summary>Superseded documents are kept for audit but flagged inactive.</summary>
+    public bool IsActive { get; set; } = true;
+}

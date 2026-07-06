@@ -1,160 +1,210 @@
 @page "/jobs"
-@inject LogisticsService Svc
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using JobOrderPages = DhlLogistics.Web.Components.Pages.JobOrder
+@using JobOrderModel = DhlLogistics.Shared.Models.JobOrder
+@inject JobOrderService JobService
+@inject BillService BillService
+
+@*
+    Operations → Jobs — master job dashboard over the ERP JobOrder entity
+    (all modes: Clearance + Forwarding; Import/Export via ShipmentType).
+    NOTE: this page previously bound to the legacy PickupJob entity (LogisticsService),
+    which has no rows in the ERP, so it always showed "no jobs". It now reads JobOrder.
+*@
 
 <div class="page-hdr">
     <div>
         <h1>Jobs</h1>
-        <div class="sub">@_jobs.Count job(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
+        <div class="sub">@_all.Count job(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
     </div>
 </div>
 
-<!-- Filter bar -->
+<!-- Category filter bar -->
 <div class="filter-bar">
-    @foreach (var f in _filters)
+    @foreach (var f in _categories)
     {
-        <button class="filter-btn @(_activeFilter == f ? "active" : "")"
-                @onclick="() => SetFilter(f)">@f</button>
+        <button class="filter-btn @(_activeCategory == f ? "active" : "")"
+                @onclick="() => SetCategory(f)">@f</button>
     }
+    <div class="ms-auto d-flex align-items-center gap-2">
+        <label class="form-Custom-label mb-0">Status:</label>
+        <SfDropDownList TItem="StatusFilter" TValue="string" DataSource="@_statuses" Width="150px" CssClass="e-small"
+                        @bind-Value="_activeStatus">
+            <DropDownListFieldSettings Text="Label" Value="Value" />
+            <DropDownListEvents TItem="StatusFilter" TValue="string" ValueChange="@(_ => ApplyFilter())" />
+        </SfDropDownList>
+        <SfButton OnClick="@Reload" CssClass="e-small" IconCss="e-icons e-refresh" IsPrimary="true">Refresh</SfButton>
+    </div>
 </div>
 
-@if (_loading)
-{
-    <div class="loading-wrap">Loading jobs…</div>
-}
-else
-{
-    <div class="equal-col" style="align-items:start;">
+<SfSpinner @bind-Visible="@_loading" Label="Loading jobs..." />
 
-        <!-- Jobs list -->
-        <div class="card">
-            <div class="card-head">Jobs <span class="tag">@_filtered.Count</span></div>
-            <div class="scroll-y" style="max-height:calc(100vh - 260px);">
-                @foreach (var job in _filtered)
-                {
-                    <div class="data-row @(_selected?.Id == job.Id ? "selected" : "")"
-                         @onclick="() => _selected = job">
-                        <div style="width:130px;">
-                            <div class="mono" style="font-size:11px;color:var(--red);font-weight:700;">@job.JobCode</div>
-                            <div style="font-size:10px;color:var(--muted);">@job.CreatedAt.ToString("dd MMM")</div>
-                        </div>
-                        <div style="flex:1;">
-                            <div style="font-weight:600;font-size:13px;">@job.ClientName</div>
-                            <div style="font-size:11px;color:var(--muted);">@job.PickupCity</div>
-                        </div>
-                        <div>
-                            <span class="pill @StatusPill(job.Status)">
-                                <span class="dot"></span>@job.Status
-                            </span>
-                        </div>
-                    </div>
-                }
-                @if (!_filtered.Any())
-                {
-                    <div class="empty-state">No jobs match this filter</div>
-                }
-            </div>
-        </div>
-
-        <!-- Detail panel -->
-        <div>
-            @if (_selected is null)
-            {
-                <div class="card">
-                    <div class="card-body empty-state">Select a job to see details</div>
-                </div>
-            }
-            else
-            {
-                <div class="card">
-                    <div class="card-head">
-                        @_selected.JobCode
-                        <span class="pill @StatusPill(_selected.Status)">
-                            <span class="dot"></span>@_selected.Status
-                        </span>
-                    </div>
-                    <div class="card-body">
-                        <table style="width:100%;border-collapse:collapse;">
-                            @DetailRow("Client",      _selected.ClientName)
-                            @DetailRow("Address",     _selected.PickupAddress)
-                            @DetailRow("City",        _selected.PickupCity)
-                            @DetailRow("Destination", _selected.Destination)
-                            @DetailRow("DHL Ref",     _selected.DhlReference)
-                            @DetailRow("Volume",      $"{_selected.VolumeCbm} CBM")
-                            @DetailRow("Weight",      $"{_selected.WeightKg} kg")
-                            @DetailRow("Pickup Date", _selected.PickupDate?.ToString("dd MMM yyyy") ?? "—")
-                            @DetailRow("Assigned",    _selected.AssignedExecutiveId ?? "Unassigned")
-                            @DetailRow("Created",     _selected.CreatedAt.ToString("dd MMM yyyy HH:mm"))
-                        </table>
-
-                        @if (_selected.AssignedVehicle is not null)
-                        {
-                            <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
-                                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:8px;">Vehicle</div>
-                                <div class="vehicle-plate">@_selected.AssignedVehicle.PlateNumber</div>
-                                <div class="vehicle-type">@_selected.AssignedVehicle.VehicleType</div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-        </div>
+<div class="card">
+    <div class="card-body">
+        <SfGrid TValue="JobRow" DataSource="@_filtered" @ref="_grid" AllowPaging="true" AllowSorting="true"
+                AllowResizing="true" AllowReordering="true" CssClass="e-small"
+                Toolbar="@(new List<string>{ "Search" })" Height="calc(100vh - 260px)" RowHeight="26" Width="100%">
+            <GridPageSettings PageSize="20" PageSizes="@(new[] { "All", "10", "20", "50" })" />
+            <GridEvents CommandClicked="OnOpen" TValue="JobRow" />
+            <GridColumns>
+                <GridColumn HeaderText="Open" Width="70" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                    <GridCommandColumns>
+                        <GridCommandColumn Type="CommandButtonType.None"
+                                           ButtonOption="@(new() { Content = "Open", IconCss = "e-icons e-eye", CssClass = "wf-btn-open" })" />
+                    </GridCommandColumns>
+                </GridColumn>
+                <GridColumn Field="@nameof(JobRow.JobNo)"       HeaderText="Job No"        Width="140" />
+                <GridColumn Field="@nameof(JobRow.JobType)"     HeaderText="Job Type"      Width="90"  />
+                <GridColumn Field="@nameof(JobRow.Mode)"        HeaderText="Mode"          Width="110" />
+                <GridColumn Field="@nameof(JobRow.Branch)"      HeaderText="Branch"        Width="140" />
+                <GridColumn Field="@nameof(JobRow.Customer)"    HeaderText="Customer"      Width="220" />
+                <GridColumn Field="@nameof(JobRow.Status)"      HeaderText="Status"        Width="110" />
+                <GridColumn Field="@nameof(JobRow.Verification)" HeaderText="Verification" Width="120" />
+                <GridColumn Field="@nameof(JobRow.Approval)"    HeaderText="Approval"      Width="110" />
+                <GridColumn Field="@nameof(JobRow.BillStatus)"  HeaderText="Bill Status"   Width="130" />
+                <GridColumn Field="@nameof(JobRow.CreatedDate)" HeaderText="Created"       Width="110" Format="dd-MMM-yyyy" Type="ColumnType.Date" />
+            </GridColumns>
+        </SfGrid>
     </div>
-}
+</div>
+
+<BsModalDialog @ref="_modal" />
 
 @code {
-    private List<PickupJob> _jobs     = [];
-    private List<PickupJob> _filtered = [];
-    private PickupJob?      _selected;
-    private bool            _loading  = true;
-    private string          _activeFilter = "All";
+    public record StatusFilter(string Value, string Label);
 
-    private static readonly string[] _filters =
-        ["All", "Pending", "Assigned", "InTransit", "PickedUp", "Stored", "Cancelled"];
+    /// <summary>Flattened row for the dashboard grid — built from JobOrder + the per-job bill rollup.</summary>
+    public class JobRow
+    {
+        public long     JobId        { get; set; }
+        public JobMode  RawMode      { get; set; }
+        public string   JobNo        { get; set; } = "";
+        public string   JobType      { get; set; } = "";   // Import / Export (ShipmentType)
+        public string   Mode         { get; set; } = "";   // Clearance / Forwarding
+        public string   Branch       { get; set; } = "";
+        public string   Customer     { get; set; } = "";
+        public string   Status       { get; set; } = "";
+        public string   Verification { get; set; } = "";
+        public string   Approval     { get; set; } = "";
+        public string   BillStatus   { get; set; } = "";
+        public DateTime CreatedDate  { get; set; }
+    }
 
-    // Deep-link filter: dashboard KPI cards navigate to /jobs?status=Pending etc.
+    private SfGrid<JobRow>? _grid;
+    private BsModalDialog?  _modal;
+    private bool _loading = true;
+
+    private List<JobOrderModel> _jobs = new();
+    private Dictionary<long, JobBillInfo> _bills = new();
+    private List<JobRow> _all      = new();
+    private List<JobRow> _filtered = new();
+
+    public EventCallback LoadOnSaveReference { get; set; }
+
+    private string _activeCategory = "All";
+    private string _activeStatus    = "ALL";
+
+    private static readonly string[] _categories = { "All", "Clearance", "Forwarding", "Import", "Export" };
+    private static readonly List<StatusFilter> _statuses = new()
+    {
+        new("ALL",       "All"),
+        new("DRAFT",     "Draft"),
+        new("SUBMITTED", "Submitted"),
+        new("VERIFIED",  "Verified"),
+        new("APPROVED",  "Approved"),
+        new("REJECTED",  "Rejected"),
+        new("CLOSED",    "Closed"),
+    };
+
+    // Dashboard KPI cards / deep-links may pass ?status=Approved etc.
     [SupplyParameterFromQuery(Name = "status")]
     private string? StatusQuery { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        _jobs = await Svc.GetAllJobsAsync();
-        // Honour the ?status= query (from a dashboard card) if it's a known filter.
+        LoadOnSaveReference = EventCallback.Factory.Create(this, Reload);
+
         if (!string.IsNullOrWhiteSpace(StatusQuery) &&
-            _filters.Contains(StatusQuery, StringComparer.OrdinalIgnoreCase))
+            _statuses.Any(s => s.Value.Equals(StatusQuery, StringComparison.OrdinalIgnoreCase)))
         {
-            _activeFilter = _filters.First(f => f.Equals(StatusQuery, StringComparison.OrdinalIgnoreCase));
+            _activeStatus = _statuses.First(s => s.Value.Equals(StatusQuery, StringComparison.OrdinalIgnoreCase)).Value;
         }
-        ApplyFilter();
-        _loading = false;
+
+        await LoadData();
     }
 
-    private void SetFilter(string f)
+    private async Task LoadData()
     {
-        _activeFilter = f;
-        _selected     = null;
-        ApplyFilter();
+        _loading = true;
+        try
+        {
+            _jobs  = await JobService.GetAllAsync();
+            _bills = await BillService.GetJobBillMapAsync();
+            _all   = _jobs.Select(ToRow).ToList();
+            ApplyFilter();
+        }
+        finally { _loading = false; StateHasChanged(); }
     }
+
+    private JobRow ToRow(JobOrderModel j)
+    {
+        _bills.TryGetValue(j.Id, out var bill);
+        return new JobRow
+        {
+            JobId        = j.Id,
+            RawMode      = j.Mode,
+            JobNo        = j.JobOrderNo,
+            JobType      = j.ShipmentType.ToString(),
+            Mode         = j.Mode.ToString(),
+            Branch       = j.Branch?.BranchName ?? "—",
+            Customer     = j.BillingClient?.CompanyName ?? "—",
+            Status       = j.Status.ToString(),
+            Verification = j.VerifiedOn.HasValue ? "Verified"
+                         : j.Status == JobOrderStatus.Rejected ? "Rejected"
+                         : j.Status >= JobOrderStatus.Submitted ? "Pending" : "—",
+            Approval     = j.ApprovedOn.HasValue ? "Approved"
+                         : j.Status == JobOrderStatus.Rejected ? "Rejected"
+                         : j.Status >= JobOrderStatus.Verified ? "Pending" : "—",
+            BillStatus   = bill is null ? "No Bill"
+                         : bill.Issued ? $"{bill.Status} · Invoiced"
+                         : bill.Status.ToString(),
+            CreatedDate  = j.CreatedOn,
+        };
+    }
+
+    private void SetCategory(string c) { _activeCategory = c; ApplyFilter(); }
 
     private void ApplyFilter()
     {
-        _filtered = _activeFilter == "All"
-            ? _jobs
-            : _jobs.Where(j => j.Status.ToString() == _activeFilter).ToList();
+        IEnumerable<JobRow> q = _all;
+
+        q = _activeCategory switch
+        {
+            "Clearance"  => q.Where(r => r.RawMode == JobMode.Clearance),
+            "Forwarding" => q.Where(r => r.RawMode == JobMode.Forwarding),
+            "Import"     => q.Where(r => r.JobType == nameof(JobShipmentType.Import)),
+            "Export"     => q.Where(r => r.JobType == nameof(JobShipmentType.Export)),
+            _            => q,
+        };
+
+        if (_activeStatus != "ALL")
+            q = q.Where(r => r.Status.Equals(_activeStatus, StringComparison.OrdinalIgnoreCase));
+
+        _filtered = q.ToList();
+        StateHasChanged();
     }
 
-    private static string StatusPill(JobStatus s) => s switch
-    {
-        JobStatus.InTransit => "pill-transit",
-        JobStatus.Assigned  => "pill-assigned",
-        JobStatus.PickedUp  => "pill-pickedup",
-        JobStatus.Stored    => "pill-stored",
-        JobStatus.Cancelled => "pill-cancelled",
-        _                   => "pill-pending",
-    };
+    private async Task Reload() { await LoadData(); if (_grid is not null) await _grid.Refresh(); }
 
-    private RenderFragment DetailRow(string label, string value) =>
-        @<tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:8px 0;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;width:110px;">@label</td>
-            <td style="padding:8px 0;font-size:13px;">@value</td>
-        </tr>;
+    private async Task OnOpen(CommandClickEventArgs<JobRow> args)
+    {
+        var row = args.RowData;
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("Id", row.JobId);
+        o.ControlParameters.Add("Title", $"{row.Mode} Job - {row.JobNo}");
+        o.ControlParameters.Add("Mode", row.RawMode);
+        o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+        var r = await _modal!.Context.ShowAsync<JobOrderPages.JobOrderPopup>(o);
+        if (r.ResultType == ModalResultType.OK) await Reload();
+    }
 }

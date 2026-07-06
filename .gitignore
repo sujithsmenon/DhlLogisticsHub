@@ -377,3 +377,6 @@ currentprojectpopupwindowlook.png
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+# Runtime invoice/document storage (generated PDFs + uploads)
+DhlLogistics.Web/App_Data/

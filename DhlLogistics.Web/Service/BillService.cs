@@ -7,6 +7,9 @@ using DhlLogistics.Web.Workflow.Handlers;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 
+/// <summary>Per-job billing rollup for the master Jobs dashboard.</summary>
+public record JobBillInfo(BillStatus Status, bool Issued);
+
 public class BillService
 {
     private readonly AppDbContext _db;
@@ -56,6 +59,25 @@ public class BillService
     /// <summary>True when at least one bill is linked to the JobOrder — used to block job deletion.</summary>
     public Task<bool> AnyForJobAsync(long jobOrderId) =>
         _db.Bills.AnyAsync(b => b.JobOrderId == jobOrderId);
+
+    /// <summary>Compact per-job billing summary — the most-advanced bill status and
+    /// whether any linked bill has been issued as an invoice. One grouped query;
+    /// used by the master Jobs dashboard to show Bill / Invoice status per row.</summary>
+    public async Task<Dictionary<long, JobBillInfo>> GetJobBillMapAsync()
+    {
+        var rows = await _db.Bills
+            .Where(b => b.JobOrderId != null)
+            .Select(b => new { JobId = b.JobOrderId!.Value, b.Status, b.IsIssued })
+            .ToListAsync();
+
+        return rows
+            .GroupBy(r => r.JobId)
+            .ToDictionary(
+                g => g.Key,
+                g => new JobBillInfo(
+                    g.Max(r => r.Status),        // BillStatus is an ordered enum (Draft<…<Closed)
+                    g.Any(r => r.IsIssued)));
+    }
 
     /// <summary>
     /// Prepares (does not persist) a Draft bill pre-linked to a JobOrder. Only the

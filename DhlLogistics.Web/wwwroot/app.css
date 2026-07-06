@@ -430,11 +430,11 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
-@@media (max-width: 1100px) {
+@media (max-width: 1100px) {
     .two-col   { grid-template-columns: 1fr; }
     .three-col { grid-template-columns: repeat(2, 1fr); }
 }
-@@media (max-width: 768px) {
+@media (max-width: 768px) {
     /* SfSidebar auto-collapses via MediaQuery prop — no extra CSS needed */
     .three-col { grid-template-columns: 1fr; }
     .kpi-grid  { grid-template-columns: repeat(2, 1fr); }
@@ -442,7 +442,7 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
     .equal-col { grid-template-columns: 1fr; }
     .dhl-page  { padding: 16px; }
 }
-@@media (max-width: 480px) {
+@media (max-width: 480px) {
     .kpi-grid  { grid-template-columns: 1fr; }
     .exec-grid { grid-template-columns: 1fr; }
     .vehicle-grid { grid-template-columns: 1fr; }
@@ -458,7 +458,7 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 .col-md-4  { flex: 0 0 33.3333%; max-width: 33.3333%; }
 .col-md-6  { flex: 0 0 50%;       max-width: 50%; }
 .col-md-12 { flex: 0 0 100%;     max-width: 100%; }
-@@media (max-width: 768px) {
+@media (max-width: 768px) {
     .col-md-2, .col-md-3, .col-md-4, .col-md-6 { flex: 0 0 100%; max-width: 100%; }
 }
 .mb-3 { margin-bottom: 14px; }
@@ -481,6 +481,86 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 }
 .e-grid .e-altrow { background-color: rgba(198, 238, 253, .15); }
 .delete-btn .e-icons.e-delete { color: #c40000; }
+
+/* ── High-contrast workflow action buttons ────────────────────────────────── */
+/* Solid fills + white bold text so Submit / Verify / Approve / Reject / Open
+   read clearly in grid command columns (the old .e-flat variants were low-contrast).
+   All meet WCAG-AA (≥4.5:1) with #fff text. */
+.wf-btn-verify.e-btn, .wf-btn-approve.e-btn, .wf-btn-submit.e-btn,
+.wf-btn-reject.e-btn, .wf-btn-open.e-btn,
+.e-grid .wf-btn-verify.e-btn, .e-grid .wf-btn-approve.e-btn, .e-grid .wf-btn-submit.e-btn,
+.e-grid .wf-btn-reject.e-btn, .e-grid .wf-btn-open.e-btn {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    padding: 5px 14px !important;
+    min-height: 30px;
+    border-radius: 6px !important;
+    border: 1px solid transparent !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,.12);
+    transition: filter .12s ease, box-shadow .12s ease;
+}
+.wf-btn-verify.e-btn, .e-grid .wf-btn-verify.e-btn,
+.wf-btn-approve.e-btn, .e-grid .wf-btn-approve.e-btn {
+    background: var(--green) !important; border-color: #128a3e !important;
+}
+.wf-btn-submit.e-btn, .e-grid .wf-btn-submit.e-btn {
+    background: var(--blue) !important; border-color: var(--blue-dark) !important;
+}
+.wf-btn-reject.e-btn, .e-grid .wf-btn-reject.e-btn {
+    background: var(--red) !important; border-color: var(--red-dark) !important;
+}
+.wf-btn-open.e-btn, .e-grid .wf-btn-open.e-btn {
+    background: var(--navy) !important; border-color: #0a2038 !important;
+}
+.wf-btn-verify.e-btn:hover, .wf-btn-approve.e-btn:hover, .wf-btn-submit.e-btn:hover,
+.wf-btn-reject.e-btn:hover, .wf-btn-open.e-btn:hover,
+.e-grid .wf-btn-verify.e-btn:hover, .e-grid .wf-btn-approve.e-btn:hover,
+.e-grid .wf-btn-submit.e-btn:hover, .e-grid .wf-btn-reject.e-btn:hover,
+.e-grid .wf-btn-open.e-btn:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 2px 6px rgba(0,0,0,.22);
+    color: #ffffff !important;
+}
+.wf-btn-verify.e-btn .e-icons, .wf-btn-approve.e-btn .e-icons,
+.wf-btn-submit.e-btn .e-icons, .wf-btn-reject.e-btn .e-icons,
+.wf-btn-open.e-btn .e-icons { color: #ffffff !important; }
+
+/* ── Popup footer buttons — consistent across ALL ~28 popups (Save/Update/Close/Cancel/Submit) ──
+   The footer markup is shared (<div class="modal-footer"><SfButton…>), so styling it once
+   fixes every master + lifecycle popup at the same time. UI only — no behaviour change. */
+.modal-footer .e-btn {
+    min-height: 40px !important;
+    padding: 0 20px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    letter-spacing: .2px;
+    transition: filter .12s ease, box-shadow .12s ease, background .12s ease;
+}
+/* Primary = Save / Update → solid PVGT-red, white bold (contrast ≈ 6.9:1) */
+.modal-footer .e-btn.e-primary {
+    background: linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%) !important;
+    border: 1px solid var(--red-dark) !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,.16);
+}
+.modal-footer .e-btn.e-primary:hover { filter: brightness(1.08); box-shadow: 0 2px 6px rgba(0,0,0,.24); }
+/* Secondary = Close / Cancel → outlined navy on white (contrast ≈ 11:1), clearly a button */
+.modal-footer .e-btn:not(.e-primary):not(.wf-btn-submit):not(.wf-btn-verify):not(.wf-btn-approve):not(.wf-btn-reject):not(.wf-btn-open) {
+    background: #ffffff !important;
+    color: var(--navy) !important;
+    border: 1.5px solid var(--navy) !important;
+}
+.modal-footer .e-btn:not(.e-primary):not(.wf-btn-submit):not(.wf-btn-verify):not(.wf-btn-approve):not(.wf-btn-reject):not(.wf-btn-open):hover {
+    background: var(--surface2) !important;
+}
+.modal-footer .e-btn .e-btn-icon { font-size: 15px; }
+@media (prefers-color-scheme: dark) {
+    .modal-footer .e-btn:not(.e-primary):not([class*="wf-btn-"]) {
+        background: transparent !important; color: #dbe4f0 !important; border-color: #dbe4f0 !important;
+    }
+}
 
 /* ── CBM-style list card header (teal) ────────────────────────────────────── */
 /* Used by all master/list pages: <div class="card"><div class="card-header">...</div></div> */
@@ -964,3 +1044,78 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 [data-dark="true"] .modal-contentnew .e-grid .e-altrow .e-rowcell { background-color: #19273C !important; }
 [data-dark="true"] .e-dialog .e-grid .e-row:hover .e-rowcell,
 [data-dark="true"] .modal-contentnew .e-grid .e-row:hover .e-rowcell { background-color: #243349 !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ERP UI POLISH PASS — systemic primitives (LIGHT mode). 2026-07-06.
+   Appended LAST in app.css so it overrides default.css's legacy `!important`
+   (equal specificity → later source wins). Dark-mode blocks above are untouched.
+   Grid-specific polish is in syncfusion-grid-pvgt.css (loads last of all).
+   Goal: consistent typography, control sizing, spacing, button contrast and
+   responsive behaviour across all ~90 screens — no markup/logic changes.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* 1 ── Field labels — default.css forced `x-small` (~10px, Verdana). Restore a
+        readable, consistent label with AA contrast on white (#334155 ≈ 8.9:1). */
+.form-Custom-label {
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    font-family: inherit !important;
+    color: #334155 !important;
+    letter-spacing: .1px;
+    line-height: 1.3;
+    margin-bottom: 4px !important;
+    text-transform: none;
+}
+
+/* 2 ── Form controls — one comfortable, readable size for every Syncfusion input
+        (text / combo / dropdown / date / numeric). In-cell grid editors keep their
+        own more-specific sizing (.charges-table / .lines-table / .ops-table), so
+        the charge & voucher grids are unaffected by this. */
+.e-small .e-input-group, .e-input-group.e-small,
+.e-small .e-input-group.e-control-wrapper { min-height: 30px !important; }
+.e-small .e-input-group .e-input, .e-input-group.e-small .e-input,
+.e-small input.e-input, .e-small .e-input-group input,
+.e-small input.e-numerictextbox, .e-small .e-dropdownbase {
+    height: 28px !important;
+    line-height: 28px !important;
+    font-size: 13px !important;
+}
+.e-input-group .e-input, input.e-input, textarea.e-input { font-size: 13px; }
+.e-dropdownbase .e-list-item, .e-ddl.e-popup .e-list-item { font-size: 13px; line-height: 1.7; }
+
+/* 3 ── Checkbox labels — legacy x-small → readable */
+.e-checkbox-wrapper .e-label, .e-css.e-checkbox-wrapper .e-label,
+.e-small .e-checkbox-wrapper .e-label { font-size: 12px !important; font-weight: 600; }
+
+/* 4 ── Spacing — default.css crushed card padding to ~0 and field gaps to 4px.
+        Add breathing room without materially changing the dense layouts. */
+.card-body { padding: 8px 12px !important; }
+.mb-3 { margin-bottom: 10px !important; }
+
+/* 5 ── Buttons — unify EVERY primary action to the PVGT-red gradient already used
+        by Add New / Show / Clear / Save, so Refresh and friends stop being off-brand
+        blue. White bold text, WCAG-AA (~6.9:1). Grid command buttons keep their look. */
+.e-btn.e-primary, .e-css.e-btn.e-primary {
+    background: linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%) !important;
+    border: 1px solid var(--red-dark) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+.e-btn.e-primary:hover, .e-css.e-btn.e-primary:hover { filter: brightness(1.08); }
+.e-btn.e-primary:disabled, .e-btn.e-primary.e-disabled,
+.e-css.e-btn.e-primary:disabled, .e-css.e-btn.e-primary.e-disabled {
+    background: #cf9a9d !important; border-color: #cf9a9d !important; color: #fff !important;
+}
+.e-btn:not(.e-flat):not(.e-icon-btn) { font-weight: 600; }
+
+/* 6 ── Responsive — control clusters wrap; grids scroll internally, never the page.
+        On tablets the dense 12-column filter rows fold to 2-up / 1-up instead of
+        squeezing into unreadable slivers. */
+.card > .card-header .d-flex, .card-body > .row { flex-wrap: wrap; }
+.e-grid { max-width: 100%; }
+@media (max-width: 992px) {
+    .card-body > .row > [class*="col-md-"] { flex: 0 0 50% !important; max-width: 50% !important; }
+}
+@media (max-width: 620px) {
+    .card-body > .row > [class*="col-md-"] { flex: 0 0 100% !important; max-width: 100% !important; }
+}

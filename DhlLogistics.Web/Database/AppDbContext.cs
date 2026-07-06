@@ -77,9 +77,10 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<ShipmentActivity> ShipmentActivities => Set<ShipmentActivity>();
 
     // ── M4 Billing ───────────────────────────────────────────────────────────
-    public DbSet<Bill>        Bills        => Set<Bill>();
-    public DbSet<BillCharge>  BillCharges  => Set<BillCharge>();
-    public DbSet<BillEvent>   BillEvents   => Set<BillEvent>();
+    public DbSet<Bill>            Bills            => Set<Bill>();
+    public DbSet<BillCharge>      BillCharges      => Set<BillCharge>();
+    public DbSet<BillEvent>       BillEvents       => Set<BillEvent>();
+    public DbSet<InvoiceDocument> InvoiceDocuments => Set<InvoiceDocument>();
 
     // ── M4 Accounts ──────────────────────────────────────────────────────────
     public DbSet<AccountHead>   AccountHeads   => Set<AccountHead>();
@@ -297,6 +298,12 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasOne(e => e.Bill).WithMany(b => b.Events).HasForeignKey(e => e.BillId)
             .OnDelete(DeleteBehavior.Cascade);
         mb.Entity<BillEvent>().HasIndex(e => new { e.BillId, e.At });
+
+        // ── Invoice documents (customer-invoice PDF + uploaded vendor/credit/debit docs) ──
+        mb.Entity<InvoiceDocument>()
+            .HasOne(d => d.Bill).WithMany(b => b.InvoiceDocuments).HasForeignKey(d => d.BillId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<InvoiceDocument>().HasIndex(d => new { d.BillId, d.IsActive });
 
         // ── Workflow Engine audit/activity log (no hard FK — survives entity deletion) ──
         mb.Entity<WorkflowAuditLog>().HasIndex(l => new { l.Kind, l.At });

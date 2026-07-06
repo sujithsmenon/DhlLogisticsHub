@@ -82,7 +82,7 @@
                         <GridColumn HeaderText="Manage" Width="150" TextAlign="TextAlign.Center" AutoFit="true" AllowReordering="false" AllowResizing="false">
                             <GridCommandColumns>
                                 <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
-                                <GridCommandColumn Type="CommandButtonType.None"   ButtonOption="@(new() { Content = "Submit", IconCss = "e-icons e-send-1", CssClass = "e-flat e-primary" })" />
+                                <GridCommandColumn Type="CommandButtonType.None"   ButtonOption="@(new() { Content = "Submit", IconCss = "e-icons e-send-1", CssClass = "wf-btn-submit" })" />
                                 <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })" />
                             </GridCommandColumns>
                         </GridColumn>
@@ -97,6 +97,8 @@
                         <GridColumn Field="@nameof(Bill.GstAmount)"    HeaderText="GST"           Width="100" Format="N2" TextAlign="TextAlign.Right" />
                         <GridColumn Field="@nameof(Bill.TotalAmount)"  HeaderText="Total"         Width="120" Format="N2" TextAlign="TextAlign.Right" />
                         <GridColumn Field="@nameof(Bill.Status)"       HeaderText="Status"        Width="100" />
+                        <GridColumn Field="@nameof(Bill.InvoiceStatus)" HeaderText="Invoice"      Width="90" />
+                        <GridColumn Field="@nameof(Bill.InvoiceNumber)" HeaderText="Invoice No"   Width="130" />
                         <GridColumn Field="@nameof(Bill.CreatedBy)"    HeaderText="Created By"    Width="100" />
                         <GridColumn Field="@nameof(Bill.VerifiedBy)"   HeaderText="Verified By"   Width="100" />
                         <GridColumn Field="@nameof(Bill.ApprovedBy)"   HeaderText="Approved By"   Width="100" />
