@@ -74,11 +74,35 @@ public class JobOrderService
         WithRefs()
             .Include(j => j.Events)
             .Include(j => j.Operations)
+            .Include(j => j.Charges).ThenInclude(c => c.ChargeCode)
+            .Include(j => j.Charges).ThenInclude(c => c.Sac)
             .FirstOrDefaultAsync(j => j.Id == id);
 
     // ── Numbering ────────────────────────────────────────────────────────────
 
     public static int ComputeFinYear(DateTime d) => d.Month >= 4 ? d.Year : d.Year - 1;
+
+    // ── Sale-charge totals ─────────────────────────────────────────────────────
+    /// <summary>Recomputes each charge line (Amount / GST / Net) and the job's rolled-up
+    /// SubTotal / GstTotal / TotalAmount. Same rules as <see cref="BillService.RecalcTotals"/>
+    /// (Discount lines subtract) so the job totals match the bill they generate.</summary>
+    public static void RecalcTotals(JobOrder job)
+    {
+        decimal sub = 0, gst = 0, total = 0;
+        foreach (var c in job.Charges)
+        {
+            var sign = c.Category == ChargeCategory.Discount ? -1m : 1m;
+            c.Amount    = decimal.Round(c.Quantity * c.Rate, 2);
+            c.GstAmount = decimal.Round(c.Amount * c.GstRate / 100m, 2);
+            c.NetAmount = c.Amount + c.GstAmount;
+            sub   += sign * c.Amount;
+            gst   += sign * c.GstAmount;
+            total += sign * c.NetAmount;
+        }
+        job.SubTotal    = sub;
+        job.GstTotal    = gst;
+        job.TotalAmount = total;
+    }
 
     // ── Add / Edit / Delete — routed through the Workflow Engine ───────────────
     // All three run the shared pipeline (validate → tx → number → persist → billing →

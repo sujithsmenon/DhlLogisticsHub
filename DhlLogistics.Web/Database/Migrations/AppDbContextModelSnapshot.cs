@@ -1109,6 +1109,68 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.ToTable("InvoiceDocuments");
                 });
 
+            modelBuilder.Entity("DhlLogistics.Shared.Models.JobCharge", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ChargeCodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("GstAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("GstRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<long>("JobOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int?>("SacId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChargeCodeId");
+
+                    b.HasIndex("JobOrderId");
+
+                    b.HasIndex("SacId");
+
+                    b.ToTable("JobCharges");
+                });
+
             modelBuilder.Entity("DhlLogistics.Shared.Models.JobOrder", b =>
                 {
                     b.Property<long>("Id")
@@ -1174,6 +1236,10 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasPrecision(12, 3)
                         .HasColumnType("numeric(12,3)");
 
+                    b.Property<decimal>("GstTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<bool>("IsEmergency")
                         .HasColumnType("boolean");
 
@@ -1236,11 +1302,19 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("SubTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("SubmittedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("SubmittedOn")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("VerifiedBy")
                         .HasColumnType("text");
@@ -2774,6 +2848,31 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Navigation("Bill");
                 });
 
+            modelBuilder.Entity("DhlLogistics.Shared.Models.JobCharge", b =>
+                {
+                    b.HasOne("DhlLogistics.Shared.Models.ChargeCode", "ChargeCode")
+                        .WithMany()
+                        .HasForeignKey("ChargeCodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DhlLogistics.Shared.Models.JobOrder", "JobOrder")
+                        .WithMany("Charges")
+                        .HasForeignKey("JobOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DhlLogistics.Shared.Models.Sac", "Sac")
+                        .WithMany()
+                        .HasForeignKey("SacId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ChargeCode");
+
+                    b.Navigation("JobOrder");
+
+                    b.Navigation("Sac");
+                });
+
             modelBuilder.Entity("DhlLogistics.Shared.Models.JobOrder", b =>
                 {
                     b.HasOne("DhlLogistics.Shared.Models.DhlClient", "BillingClient")
@@ -3165,6 +3264,8 @@ namespace DhlLogistics.Web.Database.Migrations
 
             modelBuilder.Entity("DhlLogistics.Shared.Models.JobOrder", b =>
                 {
+                    b.Navigation("Charges");
+
                     b.Navigation("Events");
 
                     b.Navigation("Operations");

@@ -4,6 +4,7 @@ using DhlLogistics.Shared.Models;
 using DhlLogistics.Web.Database;
 using DhlLogistics.Web.Service;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Workflow adapter for Clearance / Forwarding / Import job orders (all one <see cref="JobOrder"/>
@@ -17,12 +18,44 @@ public sealed class JobOrderWorkflowHandler : IWorkflowHandler
     private readonly AppDbContext _db;
     private readonly BillService  _bills;
     private readonly AccountingService _accounting;
+    private readonly ILogger<JobOrderWorkflowHandler> _log;
 
-    public JobOrderWorkflowHandler(AppDbContext db, BillService bills, AccountingService accounting)
+    public JobOrderWorkflowHandler(AppDbContext db, BillService bills, AccountingService accounting,
+                                   ILogger<JobOrderWorkflowHandler> log)
     {
         _db    = db;
         _bills = bills;
         _accounting = accounting;
+        _log   = log;
+    }
+
+    /// <summary>
+    /// Logs CurrencyId / CurrencyCode / JobOrderNo immediately before SaveChanges and validates the
+    /// optional Currency foreign key. A non-null CurrencyId that is not present in the Currencies lookup
+    /// would raise <c>FK_JobOrders_Currencies_CurrencyId</c> on insert; catching it here surfaces the exact
+    /// offending value in the log with a clear message instead of an opaque Postgres 23503. We do NOT
+    /// mutate the value (no silent null-coercion) or disable the FK — the fix is a correct/complete
+    /// Currencies lookup + correct dropdown binding (Value = Currency.Id).
+    /// </summary>
+    private async Task LogAndCheckCurrencyAsync(JobOrder job)
+    {
+        string code;
+        if (job.CurrencyId is null)
+        {
+            code = "(none)";
+        }
+        else
+        {
+            code = await _db.Currencies.Where(c => c.Id == job.CurrencyId)
+                                       .Select(c => c.CurrencyCode).FirstOrDefaultAsync() ?? "(MISSING)";
+            if (code == "(MISSING)")
+                _log.LogError("JobOrder {JobNo}: CurrencyId={CurrencyId} does not exist in Currencies — " +
+                              "this would violate FK_JobOrders_Currencies_CurrencyId. Check the currency " +
+                              "dropdown binding (Value must be Currency.Id) and that the Currencies lookup is seeded.",
+                              job.JobOrderNo, job.CurrencyId);
+        }
+        _log.LogInformation("JobOrder pre-save: JobOrderNo={JobNo} CurrencyId={CurrencyId} CurrencyCode={Code}",
+                            string.IsNullOrEmpty(job.JobOrderNo) ? "(pending)" : job.JobOrderNo, job.CurrencyId, code);
     }
 
     public string Module     => "Job Order";
@@ -78,7 +111,11 @@ public sealed class JobOrderWorkflowHandler : IWorkflowHandler
             case WorkflowOperationType.Create:
                 int order = 1;
                 foreach (var o in job.Operations) if (o.DisplayOrder == 0) o.DisplayOrder = order++;
-                _db.Add(job);                                    // operations added with the graph
+                int co = 1;
+                foreach (var c in job.Charges) if (c.DisplayOrder == 0) c.DisplayOrder = co++;
+                JobOrderService.RecalcTotals(job);               // charge lines + rolled-up totals
+                await LogAndCheckCurrencyAsync(job);             // pre-save: log + verify Currency FK
+                _db.Add(job);                                    // operations + charges added with the graph
                 await _db.SaveChangesAsync();
                 break;
 
@@ -106,6 +143,22 @@ public sealed class JobOrderWorkflowHandler : IWorkflowHandler
                     if (match is null) { o.Id = 0; _db.JobOrderOperations.Add(o); }
                     else _db.Entry(match).CurrentValues.SetValues(o);
                 }
+
+                // REPLACE sale charges (delete existing + re-add). Unlike operations, charges carry no
+                // accounting key, so churning Ids is safe and keeps the mapping to bill charges simple.
+                var existingCharges = await _db.JobCharges.Where(c => c.JobOrderId == job.Id).ToListAsync();
+                _db.JobCharges.RemoveRange(existingCharges);
+                int uc = 1;
+                foreach (var c in job.Charges)
+                {
+                    c.Id = 0;
+                    c.JobOrderId = job.Id;
+                    if (c.DisplayOrder == 0) c.DisplayOrder = uc;
+                    uc++;
+                    _db.JobCharges.Add(c);
+                }
+                JobOrderService.RecalcTotals(job);   // refresh rolled-up SubTotal / GstTotal / TotalAmount
+                await LogAndCheckCurrencyAsync(job); // pre-save: log + verify Currency FK
                 await _db.SaveChangesAsync();
                 break;
 

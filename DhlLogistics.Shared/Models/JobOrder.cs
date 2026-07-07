@@ -119,4 +119,13 @@ public class JobOrder
 
     /// <summary>Business operations carried out within this job (Clearance / Transport / etc.).</summary>
     public List<JobOrderOperation> Operations { get; set; } = new();
+
+    /// <summary>Customer-facing sale charge lines (Qty × Rate + GST). Copied into the linked bill's
+    /// charges on approval, so the auto-generated bill carries the full charge set and totals.</summary>
+    public List<JobCharge> Charges { get; set; } = new();
+
+    // ── Computed sale totals (re-computed from Charges on save; mirror Bill totals) ──
+    public decimal SubTotal    { get; set; }
+    public decimal GstTotal    { get; set; }
+    public decimal TotalAmount { get; set; }
 }

@@ -73,6 +73,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<JobOrder>         JobOrders         => Set<JobOrder>();
     public DbSet<JobOrderEvent>    JobOrderEvents    => Set<JobOrderEvent>();
     public DbSet<JobOrderOperation> JobOrderOperations => Set<JobOrderOperation>();
+    public DbSet<JobCharge>         JobCharges         => Set<JobCharge>();
     public DbSet<CompanyBranch>    CompanyBranches   => Set<CompanyBranch>();
     public DbSet<ShipmentActivity> ShipmentActivities => Set<ShipmentActivity>();
 
@@ -253,6 +254,29 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasOne(o => o.HandledByStaff).WithMany().HasForeignKey(o => o.HandledByStaffId)
             .OnDelete(DeleteBehavior.SetNull);
         mb.Entity<JobOrderOperation>().HasIndex(o => o.JobOrderId);
+
+        // JobOrder sale charge lines (customer-facing; copied into the bill on approval).
+        mb.Entity<JobOrder>().Property(j => j.SubTotal).HasPrecision(18, 2);
+        mb.Entity<JobOrder>().Property(j => j.GstTotal).HasPrecision(18, 2);
+        mb.Entity<JobOrder>().Property(j => j.TotalAmount).HasPrecision(18, 2);
+
+        mb.Entity<JobCharge>().Property(c => c.Quantity).HasPrecision(12, 3);
+        mb.Entity<JobCharge>().Property(c => c.Rate).HasPrecision(18, 4);
+        mb.Entity<JobCharge>().Property(c => c.Amount).HasPrecision(18, 2);
+        mb.Entity<JobCharge>().Property(c => c.GstRate).HasPrecision(5, 2);
+        mb.Entity<JobCharge>().Property(c => c.GstAmount).HasPrecision(18, 2);
+        mb.Entity<JobCharge>().Property(c => c.NetAmount).HasPrecision(18, 2);
+
+        mb.Entity<JobCharge>()
+            .HasOne(c => c.JobOrder).WithMany(j => j.Charges).HasForeignKey(c => c.JobOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<JobCharge>()
+            .HasOne(c => c.ChargeCode).WithMany().HasForeignKey(c => c.ChargeCodeId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<JobCharge>()
+            .HasOne(c => c.Sac).WithMany().HasForeignKey(c => c.SacId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<JobCharge>().HasIndex(c => c.JobOrderId);
 
         // ── M4 Billing ────────────────────────────────────────────────────────
         mb.Entity<Bill>().Property(b => b.ExchangeRate).HasPrecision(18, 6);

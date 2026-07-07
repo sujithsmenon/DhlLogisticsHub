@@ -147,10 +147,36 @@ public class BillService
             bill.Status   = BillStatus.Draft;
             bill.CreatedBy = user;
             bill.CreatedOn = DateTime.UtcNow;
-            RecalcTotals(bill);                         // zeroes for an empty bill
+
+            // Carry the job's sale charge lines onto the bill so the auto-generated bill already holds the
+            // full charge set (Qty / Rate / GST / Amount / Net) and totals — nothing is re-keyed. Only the
+            // job's PRIMARY-mode bill inherits the charges; a secondary Transportation (TB) bill starts empty
+            // (its transport charges are billed separately), matching the existing header-only TB behaviour.
+            if (mode == BillModeFor(job.Mode))
+            {
+                var jobCharges = await _db.JobCharges
+                    .Where(c => c.JobOrderId == job.Id)
+                    .OrderBy(c => c.DisplayOrder).ThenBy(c => c.Id)
+                    .ToListAsync();
+                foreach (var jc in jobCharges)
+                    bill.Charges.Add(new BillCharge
+                    {
+                        Category     = jc.Category,
+                        ChargeCodeId = jc.ChargeCodeId,
+                        SacId        = jc.SacId,
+                        Description  = jc.Description,
+                        Quantity     = jc.Quantity,
+                        Rate         = jc.Rate,
+                        GstRate      = jc.GstRate,
+                        DisplayOrder = jc.DisplayOrder,
+                    });
+            }
+
+            RecalcTotals(bill);                         // computes Amount/GST/Net per line + bill totals
             _db.Bills.Add(bill);
             await _db.SaveChangesAsync();
-            await LogEventAsync(bill.Id, BillEventType.Created, $"Auto-created from job {job.JobOrderNo}.", user);
+            var chargeNote = bill.Charges.Count > 0 ? $" with {bill.Charges.Count} charge line(s) (total {bill.TotalAmount:N2})" : "";
+            await LogEventAsync(bill.Id, BillEventType.Created, $"Auto-created from job {job.JobOrderNo}{chargeNote}.", user);
             return bill;
         }
 

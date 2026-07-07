@@ -31,7 +31,11 @@
                 ToastModel.Icon = model.Icon;
                 ToastModel.Timeout = model.Timeout;
                 ToastModel.ShowCloseButton = true;
-                ToastModel.Target = "#toast_target";
+                // NOTE: do NOT pin Target to "#toast_target" — no such element exists, which parented
+                // the toast under a low stacking context (.dhl-page) so it rendered *behind* any open
+                // modal dialog. With no Target the toast attaches to the viewport (fixed, top-right) and
+                // its z-index wins over the modal, so validation/error feedback is actually visible while
+                // a popup is open. (Symptom otherwise: click Save with a missing field → "nothing happens".)
 
                 await Toast.ShowAsync(ToastModel);
             });

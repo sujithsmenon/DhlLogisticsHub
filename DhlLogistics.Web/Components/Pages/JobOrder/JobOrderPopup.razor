@@ -6,6 +6,8 @@
 @inject ContainerSizeService ContainerSizeService
 @inject StaffService StaffService
 @inject CurrencyService CurrencyService
+@inject ChargeCodeService ChargeCodeService
+@inject SacService SacService
 @inject IToastService ToastService
 
 <style>
@@ -35,6 +37,20 @@
     .ops-table .e-input-group input, .ops-table input.e-numerictextbox,
     .ops-table .e-input-group .e-input { height:34px !important; font-size:13px !important; }
     .ops-table .num input { text-align:right; }
+    /* Sale-charges grid — job-scoped class names (jc-*) so these global rules can never
+       collide with BillPopup's identically-named .charges-table / .charges-scroll styles. */
+    .jc-scroll { width:100%; overflow:auto; max-height:40vh; border:1px solid var(--border); border-radius:6px; }
+    .jc-table { width:100%; min-width:1680px; font-size:13px; border-collapse:collapse; }
+    .jc-table thead th { position:sticky; top:0; z-index:3; background:#198781; color:#fff;
+                              padding:9px 11px; text-align:left; font-weight:700; white-space:nowrap; }
+    .jc-table th.num, .jc-table td.num { text-align:right; }
+    .jc-table td { padding:7px 11px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .jc-table tfoot td { position:sticky; bottom:0; z-index:2; font-weight:700; background:var(--surface2); }
+    .jc-table .e-input-group, .jc-table .e-control-wrapper { height:38px !important; min-width:100%; width:100%; }
+    .jc-table .e-input-group input, .jc-table input.e-numerictextbox,
+    .jc-table .e-input-group .e-input { height:36px !important; font-size:13.5px !important; }
+    .jc-table .num input { text-align:right; }
+    .jc-table .num .e-input-group { min-width:120px; }
 </style>
 
 <div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
@@ -295,6 +311,100 @@
                     </div>
                 </div>
 
+                <!-- ── Sale Charges — copied into the linked bill on approval ─────────────── -->
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <span><b>Charges</b> <small class="muted">— billed to the customer; flow into the auto-generated bill on approval</small></span>
+                        <div class="ms-auto">
+                            <SfButton OnClick="@AddCharge" CssClass="e-small" IconCss="e-icons e-add" IsPrimary="true">Add Charge</SfButton>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:6px;">
+                        @if (item.Charges.Count == 0)
+                        {
+                            <p class="muted" style="text-align:center;padding:14px 0;">No charges yet. Click <b>Add Charge</b> to add billable lines.</p>
+                        }
+                        else
+                        {
+                            <div class="jc-scroll">
+                            <table class="jc-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:40px;">#</th>
+                                        <th style="width:160px;">Category</th>
+                                        <th style="width:260px;">Charge Code</th>
+                                        <th style="width:180px;">SAC</th>
+                                        <th style="min-width:320px;">Description</th>
+                                        <th style="width:140px;" class="num">Qty</th>
+                                        <th style="width:150px;" class="num">Rate</th>
+                                        <th style="width:150px;" class="num">Amount</th>
+                                        <th style="width:130px;" class="num">GST %</th>
+                                        <th style="width:150px;" class="num">GST Amt</th>
+                                        <th style="width:160px;" class="num">Net Amount</th>
+                                        <th style="width:52px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < item.Charges.Count; i++)
+                                    {
+                                        var idx = i;
+                                        var c = item.Charges[idx];
+                                        <tr>
+                                            <td>@(idx + 1)</td>
+                                            <td>
+                                                <SfComboBox TItem="ChargeCategory" TValue="ChargeCategory" DataSource="@_chargeCategories"
+                                                            Value="@c.Category" CssClass="e-small"
+                                                            ValueChanged="@((ChargeCategory v) => { c.Category = v; Recalc(); })" />
+                                            </td>
+                                            <td>
+                                                <SfComboBox TItem="ChargeCode" TValue="int?" DataSource="@_chargeCodes"
+                                                            Value="@c.ChargeCodeId" CssClass="e-small" ShowClearButton="true"
+                                                            ValueChanged="@((int? v) => OnChargeCodePicked(idx, v))" AllowFiltering="true">
+                                                    <ComboBoxFieldSettings Text="ChargeName" Value="Id" />
+                                                </SfComboBox>
+                                            </td>
+                                            <td>
+                                                <SfComboBox TItem="Sac" TValue="int?" DataSource="@_sacs"
+                                                            @bind-Value="@c.SacId" CssClass="e-small" ShowClearButton="true" AllowFiltering="true">
+                                                    <ComboBoxFieldSettings Text="SacCode" Value="Id" />
+                                                </SfComboBox>
+                                            </td>
+                                            <td><SfTextBox @bind-Value="@c.Description" CssClass="e-small" /></td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal" Value="@c.Quantity" CssClass="e-small" Format="N3" ShowSpinButton="false"
+                                                                  ValueChanged="@((decimal v) => { c.Quantity = v; Recalc(); })" />
+                                            </td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal" Value="@c.Rate" CssClass="e-small" Format="N4" ShowSpinButton="false"
+                                                                  ValueChanged="@((decimal v) => { c.Rate = v; Recalc(); })" />
+                                            </td>
+                                            <td class="num">@c.Amount.ToString("N2")</td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal" Value="@c.GstRate" CssClass="e-small" Format="N2" ShowSpinButton="false"
+                                                                  ValueChanged="@((decimal v) => { c.GstRate = v; Recalc(); })" />
+                                            </td>
+                                            <td class="num">@c.GstAmount.ToString("N2")</td>
+                                            <td class="num">@c.NetAmount.ToString("N2")</td>
+                                            <td><SfButton OnClick="@(() => RemoveCharge(idx))" CssClass="e-small delete-btn" IconCss="e-icons e-delete" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="7" style="text-align:right;">Totals:</td>
+                                        <td class="num">@item.SubTotal.ToString("N2")</td>
+                                        <td></td>
+                                        <td class="num">@item.GstTotal.ToString("N2")</td>
+                                        <td class="num">@item.TotalAmount.ToString("N2")</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+
                 @if (item.Status == JobOrderStatus.Rejected && !string.IsNullOrEmpty(item.RejectionReason))
                 {
                     <div class="alert alert-warning" style="padding:6px 10px;font-size:12px;margin-top:8px;">
@@ -363,6 +473,11 @@
     private List<Staff>          _staff           = new();
     private List<Currency>       _currencies      = new();
     private List<CompanyBranch>  _branches        = new();
+    private List<ChargeCode>     _chargeCodes     = new();
+    private List<Sac>            _sacs            = new();
+
+    private static readonly ChargeCategory[] _chargeCategories =
+        (ChargeCategory[])Enum.GetValues(typeof(ChargeCategory));
 
     private static readonly List<EnumItem<JobShipmentMode>> _shipmentModes = new()
     {
@@ -393,11 +508,13 @@
         _containerSizes = await ContainerSizeService.GetAllAsync();
         _staff          = await StaffService.GetAllAsync();
         _currencies     = await CurrencyService.GetAllAsync();
+        _chargeCodes    = await ChargeCodeService.GetAllAsync();
+        _sacs           = await SacService.GetAllAsync();
 
         if (Id != 0)
         {
             var e = await Service.GetByIdAsync(Id);
-            if (e is not null) item = e;
+            if (e is not null) { item = e; JobOrderService.RecalcTotals(item); }
         }
         else
         {
@@ -443,6 +560,41 @@
         if (idx < 0 || idx >= item.Operations.Count) return;
         item.Operations.RemoveAt(idx);
     }
+
+    // ── Sale charges (flow into the linked bill on approval) ──────────────────
+    private void AddCharge()
+    {
+        item.Charges.Add(new JobCharge { Quantity = 1m, DisplayOrder = item.Charges.Count + 1 });
+        Recalc();
+    }
+
+    private void RemoveCharge(int idx)
+    {
+        if (idx < 0 || idx >= item.Charges.Count) return;
+        item.Charges.RemoveAt(idx);
+        Recalc();
+    }
+
+    private void OnChargeCodePicked(int idx, int? chargeCodeId)
+    {
+        if (idx < 0 || idx >= item.Charges.Count) return;
+        var c = item.Charges[idx];
+        c.ChargeCodeId = chargeCodeId;
+        if (chargeCodeId.HasValue)
+        {
+            var cc = _chargeCodes.FirstOrDefault(x => x.Id == chargeCodeId);
+            if (cc is not null)
+            {
+                if (string.IsNullOrWhiteSpace(c.Description)) c.Description = cc.ChargeName;
+                if (c.Rate == 0 && cc.DefaultAmount > 0)      c.Rate = cc.DefaultAmount;
+                if (cc.SacId.HasValue)                         c.SacId = cc.SacId;
+                if (c.GstRate == 0 && cc.Sac is not null)      c.GstRate = cc.Sac.GstRate;
+            }
+        }
+        Recalc();
+    }
+
+    private void Recalc() => JobOrderService.RecalcTotals(item);
 
     private async Task Submit()
     {

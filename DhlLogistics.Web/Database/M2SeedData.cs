@@ -118,8 +118,12 @@ public static class M2SeedData
 
     static async Task SeedCurrenciesAsync(AppDbContext db)
     {
-        if (await db.Currencies.AnyAsync()) return;
-        db.Currencies.AddRange(
+        // Idempotent BY CODE (not create-only): insert any standard currency that is missing. A
+        // create-only guard left a partially-populated Currencies table incomplete, which could leave
+        // the Currency dropdown missing entries and any job/bill referencing them orphaned. Ensuring the
+        // full standard set always exists keeps the JobOrder/Bill CurrencyId foreign key satisfiable.
+        var standard = new[]
+        {
             new Currency { CurrencyCode = "INR", CurrencyName = "Indian Rupee",      Symbol = "₹",  ExchangeRateToInr = 1m },
             new Currency { CurrencyCode = "USD", CurrencyName = "US Dollar",         Symbol = "$",  ExchangeRateToInr = 83.5m },
             new Currency { CurrencyCode = "EUR", CurrencyName = "Euro",              Symbol = "€",  ExchangeRateToInr = 90m },
@@ -130,7 +134,12 @@ public static class M2SeedData
             new Currency { CurrencyCode = "SAR", CurrencyName = "Saudi Riyal",       Symbol = "﷼",  ExchangeRateToInr = 22.2m },
             new Currency { CurrencyCode = "JPY", CurrencyName = "Japanese Yen",      Symbol = "¥",  ExchangeRateToInr = 0.56m },
             new Currency { CurrencyCode = "AUD", CurrencyName = "Australian Dollar", Symbol = "A$", ExchangeRateToInr = 55m }
-        );
+        };
+
+        var existingCodes = await db.Currencies.Select(c => c.CurrencyCode).ToListAsync();
+        var missing = standard.Where(s => !existingCodes.Contains(s.CurrencyCode)).ToList();
+        if (missing.Count == 0) return;
+        db.Currencies.AddRange(missing);
         await db.SaveChangesAsync();
     }
 
