@@ -1,0 +1,136 @@
+@page "/masters/company-details"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject CompanyDetailsService Service
+@inject IToastService ToastService
+@inject IWebHostEnvironment Env
+
+<div class="main-div">
+    <SfSpinner @bind-Visible="@loader" Label="Loading Data...."></SfSpinner>
+    <div class="row"><div class="col-md-12"><div class="card">
+        <div class="card-header"><b>Company Details</b></div>
+        <div class="card-body">
+            <EditForm Model="@item"><DataAnnotationsValidator />
+
+                <h6 class="mb-2">Company Information</h6>
+                <div class="row">
+                    <div class="col-md-6 mb-3"><label class="form-Custom-label">Company Name: *</label><SfTextBox @bind-Value="@item.CompanyName" CssClass="e-small" /></div>
+                    <div class="col-md-6 mb-3"><label class="form-Custom-label">Tagline:</label><SfTextBox @bind-Value="@item.Tagline" CssClass="e-small" /></div>
+                </div>
+
+                <h6 class="mb-2">Address</h6>
+                <div class="row">
+                    <div class="col-md-6 mb-3"><label class="form-Custom-label">Address Line 1: *</label><SfTextBox @bind-Value="@item.AddressLine1" CssClass="e-small" /></div>
+                    <div class="col-md-6 mb-3"><label class="form-Custom-label">Address Line 2:</label><SfTextBox @bind-Value="@item.AddressLine2" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">City:</label><SfTextBox @bind-Value="@item.City" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">State:</label><SfTextBox @bind-Value="@item.State" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Country:</label><SfTextBox @bind-Value="@item.Country" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Pincode:</label><SfTextBox @bind-Value="@item.Pincode" CssClass="e-small" /></div>
+                </div>
+
+                <h6 class="mb-2">Contact Details</h6>
+                <div class="row">
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Phone: *</label><SfTextBox @bind-Value="@item.Phone" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Mobile:</label><SfTextBox @bind-Value="@item.Mobile" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Email: *</label><SfTextBox @bind-Value="@item.Email" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Website:</label><SfTextBox @bind-Value="@item.Website" CssClass="e-small" /></div>
+                </div>
+
+                <h6 class="mb-2">Tax Information</h6>
+                <div class="row">
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">GSTIN: *</label><SfTextBox @bind-Value="@item.GSTIN" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">PAN:</label><SfTextBox @bind-Value="@item.PAN" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">CIN:</label><SfTextBox @bind-Value="@item.CIN" CssClass="e-small" /></div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">IEC:</label><SfTextBox @bind-Value="@item.IEC" CssClass="e-small" /></div>
+                </div>
+
+                <h6 class="mb-2">Banking Details</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">Bank Name:</label><SfTextBox @bind-Value="@item.BankName" CssClass="e-small" /></div>
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">Account Name:</label><SfTextBox @bind-Value="@item.AccountName" CssClass="e-small" /></div>
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">Account Number:</label><SfTextBox @bind-Value="@item.AccountNumber" CssClass="e-small" /></div>
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">IFSC:</label><SfTextBox @bind-Value="@item.IFSC" CssClass="e-small" /></div>
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">SWIFT Code:</label><SfTextBox @bind-Value="@item.SwiftCode" CssClass="e-small" /></div>
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">Bank Branch:</label><SfTextBox @bind-Value="@item.Branch" CssClass="e-small" /></div>
+                </div>
+
+                <h6 class="mb-2">Invoice Settings</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">Authorised Signatory:</label><SfTextBox @bind-Value="@item.AuthorisedSignatory" CssClass="e-small" /></div>
+                    <div class="col-md-8 mb-3"><label class="form-Custom-label">Invoice Footer:</label><SfTextBox @bind-Value="@item.InvoiceFooter" CssClass="e-small" /></div>
+                    <div class="col-md-12 mb-3"><label class="form-Custom-label">Terms &amp; Conditions:</label><SfTextBox @bind-Value="@item.TermsAndConditions" CssClass="e-small" Multiline="true" /></div>
+                </div>
+
+                <h6 class="mb-2">Logo Upload</h6>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-Custom-label">Logo:</label>
+                        <label class="e-btn e-small" style="margin:0;cursor:pointer;">
+                            <span class="e-icons e-upload"></span> Choose logo…
+                            <InputFile OnChange="OnLogoSelected" accept="image/*" style="display:none;" />
+                        </label>
+                        @if (!string.IsNullOrWhiteSpace(item.LogoPath))
+                        {
+                            <div class="mt-2"><img src="/@item.LogoPath" style="max-height:60px;max-width:180px;" alt="logo" /></div>
+                        }
+                    </div>
+                    <div class="col-md-3 mb-3"><label class="form-Custom-label">Active:</label><SfCheckBox @bind-Checked="@item.IsActive" Label="Active" /></div>
+                </div>
+
+                <div class="mt-2">
+                    <SfButton OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save" IsPrimary="true">Save</SfButton>
+                    <SfButton OnClick="@Cancel" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+                </div>
+            </EditForm>
+        </div>
+    </div></div></div>
+</div>
+
+<ToastComponent />
+
+@code {
+    private CompanyDetails item = new() { IsActive = true };
+    private bool loader = false;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        try { loader = true; item = await Service.GetOrCreateAsync(); }
+        finally { loader = false; StateHasChanged(); }
+    }
+
+    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            var ext  = Path.GetExtension(file.Name);
+            var dir  = Path.Combine(Env.WebRootPath, "img", "company");
+            Directory.CreateDirectory(dir);
+            var storedName = $"{Guid.NewGuid():N}{ext}";
+            await using (var fs = File.Create(Path.Combine(dir, storedName)))
+                await file.OpenReadStream(5 * 1024 * 1024).CopyToAsync(fs);
+            item.LogoPath = $"img/company/{storedName}";   // web-root-relative
+            ToastService.Show(new() { Title = "Logo", Content = "Logo uploaded. Save to apply.", CssClass = "e-toast-success" });
+        }
+        catch (Exception ex) { ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" }); }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(item.CompanyName)) { Invalid("Company Name is required."); return; }
+        if (string.IsNullOrWhiteSpace(item.AddressLine1)) { Invalid("Address is required."); return; }
+        if (string.IsNullOrWhiteSpace(item.Phone)) { Invalid("Phone is required."); return; }
+        if (string.IsNullOrWhiteSpace(item.Email)) { Invalid("Email is required."); return; }
+        if (string.IsNullOrWhiteSpace(item.GSTIN)) { Invalid("GSTIN is required."); return; }
+        try
+        {
+            item = await Service.UpdateAsync(item);
+            ToastService.Show(new() { Title = "Success!", Content = "Company details saved successfully.", CssClass = "e-toast-success" });
+        }
+        catch (Exception ex) { ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" }); }
+    }
+
+    private void Invalid(string msg) => ToastService.Show(new() { Title = "Validation", Content = msg, CssClass = "e-toast-danger" });
+    private async Task Cancel() => await LoadData();
+}

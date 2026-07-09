@@ -33,6 +33,11 @@ public class ActivityItem
     public string? VoyageNumber  { get; set; }
     public DateTime ReceivedAt   { get; set; }
     public DateTime? LastEventAt { get; set; }
+
+    // ── Cargo Totals (populated for JobOrder-sourced rows; null for AWB/Export) ──
+    public decimal? GrossWeightKg  { get; set; }
+    public decimal? VolumeCbm      { get; set; }
+    public decimal? EstimatedValue { get; set; }
 }
 
 public class QuadrantReport
@@ -46,6 +51,11 @@ public class QuadrantReport
     public int Completed  { get; set; }
     public List<ActivityItem> Items { get; set; } = [];
     public int Total => Received + InTransit + AtPort + Cleared + Completed;
+
+    // Cargo rollups across this quadrant's items (JobOrder-sourced rows carry the values)
+    public decimal TotalGrossWeightKg  => Items.Sum(i => i.GrossWeightKg ?? 0);
+    public decimal TotalVolumeCbm      => Items.Sum(i => i.VolumeCbm ?? 0);
+    public decimal TotalEstimatedValue => Items.Sum(i => i.EstimatedValue ?? 0);
 }
 
 public class ActivityReport
@@ -60,4 +70,9 @@ public class ActivityReport
     public int TotalCleared   => Quadrants.Sum(q => q.Cleared);
     public int TotalCompleted => Quadrants.Sum(q => q.Completed);
     public int GrandTotal     => Quadrants.Sum(q => q.Total);
+
+    // Cargo totals across the whole report
+    public decimal TotalGrossWeightKg  => Quadrants.Sum(q => q.TotalGrossWeightKg);
+    public decimal TotalVolumeCbm      => Quadrants.Sum(q => q.TotalVolumeCbm);
+    public decimal TotalEstimatedValue => Quadrants.Sum(q => q.TotalEstimatedValue);
 }

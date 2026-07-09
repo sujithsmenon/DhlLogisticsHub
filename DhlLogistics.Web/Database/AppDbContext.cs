@@ -74,8 +74,12 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<JobOrderEvent>    JobOrderEvents    => Set<JobOrderEvent>();
     public DbSet<JobOrderOperation> JobOrderOperations => Set<JobOrderOperation>();
     public DbSet<JobCharge>         JobCharges         => Set<JobCharge>();
+    // Job Operations foundation (new standalone tracking entity; does not alter existing JobOrder tables)
+    public DbSet<JobOperation>      JobOperations      => Set<JobOperation>();
     public DbSet<CompanyBranch>    CompanyBranches   => Set<CompanyBranch>();
     public DbSet<ShipmentActivity> ShipmentActivities => Set<ShipmentActivity>();
+    // Issuer company details for invoice branding (replaces InvoiceService hard-coded constants)
+    public DbSet<CompanyDetails>   CompanyDetails    => Set<CompanyDetails>();
 
     // ── M4 Billing ───────────────────────────────────────────────────────────
     public DbSet<Bill>            Bills            => Set<Bill>();
@@ -276,7 +280,18 @@ public class AppDbContext : IdentityDbContext<AppUser>
         mb.Entity<JobCharge>()
             .HasOne(c => c.Sac).WithMany().HasForeignKey(c => c.SacId)
             .OnDelete(DeleteBehavior.SetNull);
+        // Optional owning operation — deleting an operation just unlinks its charges (keeps the lines).
+        mb.Entity<JobCharge>()
+            .HasOne(c => c.JobOperation).WithMany().HasForeignKey(c => c.JobOperationId)
+            .OnDelete(DeleteBehavior.SetNull);
         mb.Entity<JobCharge>().HasIndex(c => c.JobOrderId);
+        mb.Entity<JobCharge>().HasIndex(c => c.JobOperationId);
+
+        // ── Job Operations foundation (new standalone tracking table) ───────────
+        mb.ApplyConfiguration(new Configurations.JobOperationConfiguration());
+
+        // ── Company Details (invoice-issuer branding master) ────────────────────
+        mb.ApplyConfiguration(new Configurations.CompanyDetailsConfiguration());
 
         // ── M4 Billing ────────────────────────────────────────────────────────
         mb.Entity<Bill>().Property(b => b.ExchangeRate).HasPrecision(18, 6);
@@ -317,6 +332,8 @@ public class AppDbContext : IdentityDbContext<AppUser>
         mb.Entity<BillCharge>()
             .HasOne(c => c.Sac).WithMany().HasForeignKey(c => c.SacId)
             .OnDelete(DeleteBehavior.SetNull);
+        // Plain reference back to the source operation (no FK — an issued bill stays stable). Indexed for grouping.
+        mb.Entity<BillCharge>().HasIndex(c => c.JobOperationId);
 
         mb.Entity<BillEvent>()
             .HasOne(e => e.Bill).WithMany(b => b.Events).HasForeignKey(e => e.BillId)

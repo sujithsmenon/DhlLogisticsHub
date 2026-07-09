@@ -16,6 +16,12 @@ public class JobCharge
     public long JobOrderId { get; set; }
     public JobOrder? JobOrder { get; set; }
 
+    /// <summary>Optional owning operation (Customs Clearance / Freight / Transportation / …). Lets each
+    /// <see cref="JobOperation"/> own its own charge lines; copied onto the bill so billing can group by
+    /// operation. Null = a general job-level charge not tied to any single operation.</summary>
+    public long? JobOperationId { get; set; }
+    public JobOperation? JobOperation { get; set; }
+
     /// <summary>Functional bucket (Labour / Freight / Transport / Customs / …). Mirrors <see cref="BillCharge.Category"/>.</summary>
     public ChargeCategory Category { get; set; } = ChargeCategory.General;
 

@@ -42,8 +42,8 @@
 <div class="card">
     <div class="card-body">
         <SfGrid TValue="JobRow" DataSource="@_filtered" @ref="_grid" AllowPaging="true" AllowSorting="true"
-                AllowResizing="true" AllowReordering="true" CssClass="e-small"
-                Toolbar="@(new List<string>{ "Search" })" Height="calc(100vh - 260px)" RowHeight="26" Width="100%">
+                AllowResizing="true" AllowReordering="true" CssClass="e-small" ShowColumnChooser="true"
+                Toolbar="@(new List<string>{ "Search", "ColumnChooser" })" Height="calc(100vh - 260px)" RowHeight="26" Width="100%">
             <GridPageSettings PageSize="20" PageSizes="@(new[] { "All", "10", "20", "50" })" />
             <GridEvents CommandClicked="OnOpen" TValue="JobRow" />
             <GridColumns>
@@ -63,6 +63,10 @@
                 <GridColumn Field="@nameof(JobRow.Approval)"    HeaderText="Approval"      Width="110" />
                 <GridColumn Field="@nameof(JobRow.BillStatus)"  HeaderText="Bill Status"   Width="130" />
                 <GridColumn Field="@nameof(JobRow.CreatedDate)" HeaderText="Created"       Width="110" Format="dd-MMM-yyyy" Type="ColumnType.Date" />
+                <!-- Cargo Totals — optional columns (hidden by default; toggle via Column Chooser) -->
+                <GridColumn Field="@nameof(JobRow.GrossWeightKg)"  HeaderText="Gross Wt (kg)" Width="120" Format="N3" TextAlign="TextAlign.Right" Visible="false" />
+                <GridColumn Field="@nameof(JobRow.VolumeCbm)"      HeaderText="Volume (CBM)"  Width="120" Format="N3" TextAlign="TextAlign.Right" Visible="false" />
+                <GridColumn Field="@nameof(JobRow.EstimatedValue)" HeaderText="Est. Value"    Width="120" Format="N2" TextAlign="TextAlign.Right" Visible="false" />
             </GridColumns>
         </SfGrid>
     </div>
@@ -88,6 +92,10 @@
         public string   Approval     { get; set; } = "";
         public string   BillStatus   { get; set; } = "";
         public DateTime CreatedDate  { get; set; }
+        // Cargo Totals (optional columns)
+        public decimal? GrossWeightKg  { get; set; }
+        public decimal? VolumeCbm      { get; set; }
+        public decimal? EstimatedValue { get; set; }
     }
 
     private SfGrid<JobRow>? _grid;
@@ -169,6 +177,9 @@
                          : bill.Issued ? $"{bill.Status} · Invoiced"
                          : bill.Status.ToString(),
             CreatedDate  = j.CreatedOn,
+            GrossWeightKg  = j.GrossWeightKg,
+            VolumeCbm      = j.VolumeCbm,
+            EstimatedValue = j.EstimatedValue,
         };
     }
 

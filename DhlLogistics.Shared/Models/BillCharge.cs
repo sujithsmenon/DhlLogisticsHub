@@ -27,6 +27,15 @@ public class BillCharge
     public long BillId { get; set; }
     public Bill? Bill   { get; set; }
 
+    /// <summary>Optional link back to the job operation this line was billed for (copied from
+    /// <see cref="JobCharge.JobOperationId"/> when the bill is generated). Plain reference — no FK —
+    /// so an issued bill is never affected by later operation edits/deletes.</summary>
+    public long? JobOperationId { get; set; }
+
+    /// <summary>Snapshot of the operation's name at bill-generation time, used to group and label the
+    /// charges inside billing. Null = a general charge not tied to any operation.</summary>
+    public string? OperationName { get; set; }
+
     /// <summary>Functional bucket (Labour / Freight / Transport / Customs / …).</summary>
     public ChargeCategory Category { get; set; } = ChargeCategory.General;
 

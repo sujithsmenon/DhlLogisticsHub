@@ -78,6 +78,38 @@ public class JobOrderService
             .Include(j => j.Charges).ThenInclude(c => c.Sac)
             .FirstOrDefaultAsync(j => j.Id == id);
 
+    // ── Cargo Totals (read-only projections; reusable by PDF/reports/dashboard/portal/mobile) ──
+
+    /// <summary>Cargo Totals (weight / volume / value / currency / remarks) for a single job.</summary>
+    public async Task<JobCargoInfoDto?> GetCargoInfoAsync(long jobOrderId)
+    {
+        var j = await _db.Set<JobOrder>().AsNoTracking()
+            .Include(x => x.Currency)
+            .FirstOrDefaultAsync(x => x.Id == jobOrderId);
+        return j is null ? null : JobCargoInfoDto.FromJob(j);
+    }
+
+    /// <summary>Aggregate cargo totals across jobs (optionally filtered by status and/or date range).
+    /// Feeds dashboard KPI tiles and future Customer Portal / Mobile clients.</summary>
+    public async Task<CargoTotalsDto> GetCargoTotalsAsync(
+        JobOrderStatus[]? statuses = null, DateTime? from = null, DateTime? to = null)
+    {
+        var q = _db.Set<JobOrder>().AsNoTracking();
+        IQueryable<JobOrder> query = q;
+        if (statuses is { Length: > 0 }) query = query.Where(j => statuses.Contains(j.Status));
+        if (from.HasValue) query = query.Where(j => j.JobOrderDate >= from.Value.Date);
+        if (to.HasValue)   query = query.Where(j => j.JobOrderDate <= to.Value.Date);
+
+        var rows = await query.Select(j => new { j.GrossWeightKg, j.VolumeCbm, j.EstimatedValue }).ToListAsync();
+        return new CargoTotalsDto
+        {
+            JobCount            = rows.Count,
+            TotalGrossWeightKg  = rows.Sum(x => x.GrossWeightKg ?? 0),
+            TotalVolumeCbm      = rows.Sum(x => x.VolumeCbm ?? 0),
+            TotalEstimatedValue = rows.Sum(x => x.EstimatedValue ?? 0),
+        };
+    }
+
     // ── Numbering ────────────────────────────────────────────────────────────
 
     public static int ComputeFinYear(DateTime d) => d.Month >= 4 ? d.Year : d.Year - 1;

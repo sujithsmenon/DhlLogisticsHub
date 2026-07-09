@@ -47,16 +47,17 @@ public static class MenuSeed
         }
 
         // Child leaf under a group.
-        void Child(List<Menu> group, string name, string icon, string page, bool matchAll = false)
+        void Child(List<Menu> group, string name, string icon, string page, bool matchAll = false, bool requiresPermission = true)
         {
             group.Add(new Menu
             {
-                MenuName  = name,
-                Icon      = icon,
-                PageName  = page,
-                ShowOrder = order += 10,
-                MatchAll  = matchAll,
-                Active    = true,
+                MenuName           = name,
+                Icon               = icon,
+                PageName           = page,
+                ShowOrder          = order += 10,
+                MatchAll           = matchAll,
+                RequiresPermission = requiresPermission,
+                Active             = true,
             });
         }
 
@@ -97,9 +98,11 @@ public static class MenuSeed
         Child(masters, "States",              "📍", "masters/states");
         Child(masters, "Ports",               "⚓", "masters/ports");
         Child(masters, "SEZ Locations",       "🏭", "masters/sez-locations");
+        Child(masters, "Company Details",     "🏢", "masters/company-details");
 
         // ── Operations ───────────────────────────────────────────────────────
         var ops = Group("Operations", "⚙");
+        Child(ops, "Operations Dashboard", "📊", "operations/dashboard", requiresPermission: false);
         Child(ops, "AWB Shipments", "✈", "awb");
         Child(ops, "Export Jobs",   "📤", "export");
         Child(ops, "Jobs",          "📋", "jobs");
@@ -258,6 +261,73 @@ public static class MenuSeed
 
         if (toAdd.Count == 0) return;
         db.Menus.AddRange(toAdd);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Idempotent additive seed for the Operations Dashboard leaf under the existing <b>Operations</b>
+    /// group. Because <see cref="SeedAsync"/> only runs on an empty table, already-seeded installs would
+    /// never gain the new page — this inserts it if missing (keyed by PageName). Placed first in the
+    /// group and permission-free so it's visible to every authenticated user. Safe on every startup.
+    /// </summary>
+    public static async Task EnsureOperationsMenusAsync(IDbContextFactory<AppDbContext> factory)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        if (!await db.Menus.AnyAsync()) return;   // fresh DB — SeedAsync will cover it
+
+        const string page = "operations/dashboard";
+        if (await db.Menus.AnyAsync(m => m.PageName == page)) return;   // already present
+
+        var ops = await db.Menus.FirstOrDefaultAsync(m => m.ParentId == null && m.MenuName == "Operations");
+        if (ops is null) return;
+
+        // Sort just ahead of the group's current first child so it heads the list.
+        var minChildOrder = await db.Menus.Where(m => m.ParentId == ops.MenuId)
+            .MinAsync(m => (int?)m.ShowOrder) ?? (ops.ShowOrder + 1);
+
+        db.Menus.Add(new Menu
+        {
+            MenuName           = "Operations Dashboard",
+            Icon               = "📊",
+            PageName           = page,
+            ParentId           = ops.MenuId,
+            ShowOrder          = minChildOrder - 1,
+            RequiresPermission = false,
+            Active             = true,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Idempotent additive seed for the Masters → Company Details leaf on already-seeded installs.
+    /// Because <see cref="SeedAsync"/> only runs on an empty table, existing databases would never gain
+    /// the new page — this inserts it (keyed by PageName) under the existing <b>Masters</b> group.
+    /// Safe on every startup: existing rows are left untouched.
+    /// </summary>
+    public static async Task EnsureCompanyDetailsMenuAsync(IDbContextFactory<AppDbContext> factory)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        if (!await db.Menus.AnyAsync()) return;   // fresh DB — SeedAsync will cover it
+
+        const string page = "masters/company-details";
+        if (await db.Menus.AnyAsync(m => m.PageName == page)) return;   // already present
+
+        var masters = await db.Menus.FirstOrDefaultAsync(m => m.ParentId == null && m.MenuName == "Masters");
+        if (masters is null) return;
+
+        var nextOrder = (await db.Menus.Where(m => m.ParentId == masters.MenuId)
+            .MaxAsync(m => (int?)m.ShowOrder) ?? masters.ShowOrder) + 1;
+
+        db.Menus.Add(new Menu
+        {
+            MenuName           = "Company Details",
+            Icon               = "🏢",
+            PageName           = page,
+            ParentId           = masters.MenuId,
+            ShowOrder          = nextOrder,
+            RequiresPermission = true,
+            Active             = true,
+        });
         await db.SaveChangesAsync();
     }
 

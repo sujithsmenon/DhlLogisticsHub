@@ -158,9 +158,31 @@ public class BillService
                     .Where(c => c.JobOrderId == job.Id)
                     .OrderBy(c => c.DisplayOrder).ThenBy(c => c.Id)
                     .ToListAsync();
+
+                // Snapshot each operation's name + status so the bill can group/label its charges by
+                // operation without depending on the (independently editable/deletable) JobOperation rows.
+                var ops = await _db.JobOperations
+                    .Where(o => o.JobOrderId == job.Id)
+                    .Select(o => new { o.Id, o.OperationType, o.Status })
+                    .ToListAsync();
+                var opNames  = ops.ToDictionary(o => o.Id, o => o.OperationType);
+                var opStatus = ops.ToDictionary(o => o.Id, o => o.Status);
+
                 foreach (var jc in jobCharges)
+                {
+                    // Workflow rule: a Cancelled operation cannot generate charges — its lines are excluded
+                    // from the bill. Charges with no operation (general job charges) always flow through,
+                    // so existing bills are unaffected.
+                    if (jc.JobOperationId.HasValue
+                        && opStatus.TryGetValue(jc.JobOperationId.Value, out var st)
+                        && st == JobOperationStatus.Cancelled)
+                        continue;
+
                     bill.Charges.Add(new BillCharge
                     {
+                        JobOperationId = jc.JobOperationId,
+                        OperationName  = jc.JobOperationId.HasValue && opNames.TryGetValue(jc.JobOperationId.Value, out var opName)
+                                             ? opName : null,
                         Category     = jc.Category,
                         ChargeCodeId = jc.ChargeCodeId,
                         SacId        = jc.SacId,
@@ -170,6 +192,7 @@ public class BillService
                         GstRate      = jc.GstRate,
                         DisplayOrder = jc.DisplayOrder,
                     });
+                }
             }
 
             RecalcTotals(bill);                         // computes Amount/GST/Net per line + bill totals

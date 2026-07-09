@@ -165,6 +165,10 @@ public class ReportService
         VoyageNumber  = null,
         ReceivedAt    = j.CreatedOn,
         LastEventAt   = j.ClosedOn ?? j.ApprovedOn ?? j.VerifiedOn ?? j.SubmittedOn,
+        // Cargo Totals — surfaced in the shipment report drill-down
+        GrossWeightKg  = j.GrossWeightKg,
+        VolumeCbm      = j.VolumeCbm,
+        EstimatedValue = j.EstimatedValue,
     };
 
     // ── Status → canonical stage maps ────────────────────────────────────────

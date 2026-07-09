@@ -28,16 +28,18 @@ public class InvoiceService
     private readonly IWebHostEnvironment _env;
     private readonly DashboardState _dash;
     private readonly ILogger<InvoiceService> _log;
+    private readonly CompanyDetailsService _companyDetails;
 
     public InvoiceService(AppDbContext db, AuthenticationStateProvider auth,
                           IWebHostEnvironment env, DashboardState dash,
-                          ILogger<InvoiceService> log)
+                          ILogger<InvoiceService> log, CompanyDetailsService companyDetails)
     {
         _db = db;
         _auth = auth;
         _env = env;
         _dash = dash;
         _log = log;
+        _companyDetails = companyDetails;
     }
 
     private string StorageRoot => Path.Combine(_env.ContentRootPath, "App_Data", "invoices");
@@ -136,7 +138,8 @@ public class InvoiceService
         var storedName   = $"{Guid.NewGuid():N}.pdf";
         var friendlyName = $"Invoice-{bill.InvoiceNumber?.Replace('/', '-')}-v{nextVersion}.pdf";
         var relPath      = $"{bill.Id}/{storedName}";
-        var pdfBytes     = GeneratePdf(bill);
+        var company      = await _companyDetails.GetOrCreateAsync();
+        var pdfBytes     = GeneratePdf(bill, company);
         bill.InvoicePdfPath = relPath;
 
         // Best-effort local copy (nice for on-box inspection; failure is non-fatal — the DB has it).
@@ -266,17 +269,42 @@ public class InvoiceService
         return m.Success ? issueDate.AddDays(int.Parse(m.Value)) : (DateTime?)null;
     }
 
-    // ── Company header details (issuer). Central constants — move to config later. ──
-    private const string CoName    = "PVGT Logistics Pvt. Ltd.";
-    private const string CoTagline = "DHL Authorised Freight Agent · Customs Clearance & Forwarding";
-    private const string CoAddr    = "2nd Floor, Willingdon Island, Cochin, Kerala 682003, India";
-    private const string CoContact = "Tel: +91 484 000 0000  ·  Email: accounts@pvgt.co.in  ·  www.pvgt.co.in";
-    private const string CoGstin   = "GSTIN: 32ABCDE1234F1Z5  ·  PAN: ABCDE1234F";
+    // ── Company header details (issuer) — sourced from the CompanyDetails master. ──
+    // Composes the single-line header/footer strings the layout expects from the record's fields.
+    private static string CoAddrLine(CompanyDetails c) => string.Join(", ", new[]
+        { c.AddressLine1, c.AddressLine2, c.City, c.State, c.Pincode, c.Country }
+        .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+    private static string CoContactLine(CompanyDetails c)
+    {
+        var parts = new List<string>();
+        var tel = string.Join(" / ", new[] { c.Phone, c.Mobile }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        if (!string.IsNullOrWhiteSpace(tel))         parts.Add("Tel: " + tel);
+        if (!string.IsNullOrWhiteSpace(c.Email))     parts.Add("Email: " + c.Email);
+        if (!string.IsNullOrWhiteSpace(c.Website))   parts.Add(c.Website!);
+        return string.Join("  ·  ", parts);
+    }
+
+    private static string CoGstinLine(CompanyDetails c)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(c.GSTIN)) parts.Add("GSTIN: " + c.GSTIN);
+        if (!string.IsNullOrWhiteSpace(c.PAN))   parts.Add("PAN: "   + c.PAN);
+        return string.Join("  ·  ", parts);
+    }
 
     /// <summary>Builds the professional customer-invoice PDF from Bill (+ its Job) data,
-    /// returning the bytes (stored in the DB — no dependency on the local filesystem).</summary>
-    private byte[] GeneratePdf(Bill bill)
+    /// returning the bytes (stored in the DB — no dependency on the local filesystem).
+    /// Issuer/branding text comes from the <see cref="CompanyDetails"/> master.</summary>
+    private byte[] GeneratePdf(Bill bill, CompanyDetails co)
     {
+        var CoName    = co.CompanyName;
+        var CoTagline = co.Tagline ?? string.Empty;
+        var CoAddr    = CoAddrLine(co);
+        var CoContact = CoContactLine(co);
+        var CoGstin   = CoGstinLine(co);
+        var CoFooter  = string.IsNullOrWhiteSpace(co.InvoiceFooter) ? "This is a computer-generated invoice." : co.InvoiceFooter!;
+        var CoSignatory = string.IsNullOrWhiteSpace(co.AuthorisedSignatory) ? "Authorised Signatory" : co.AuthorisedSignatory!;
         var bold   = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
         var normal = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
         var teal   = new DeviceRgb(25, 135, 129);
@@ -294,7 +322,14 @@ public class InvoiceService
         // ── Header: logo (left) + company details (right) ──────────────────────
         var header = new Table(UnitValue.CreatePercentArray(new float[] { 1.1f, 2f })).UseAllAvailableWidth();
         var logoCell = new Cell().SetBorder(Border.NO_BORDER).SetVerticalAlignment(VerticalAlignment.MIDDLE);
-        var logoPath = Path.Combine(_env.WebRootPath ?? "", "img", "pvgt-logo.png");
+        // Use the profile's uploaded logo when present; otherwise fall back to the bundled logo.
+        var webRoot  = _env.WebRootPath ?? "";
+        var logoPath = Path.Combine(webRoot, "img", "pvgt-logo.png");
+        if (!string.IsNullOrWhiteSpace(co.LogoPath))
+        {
+            var uploaded = Path.Combine(webRoot, co.LogoPath.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(uploaded)) logoPath = uploaded;
+        }
         if (File.Exists(logoPath))
             logoCell.Add(new Image(ImageDataFactory.Create(logoPath)).ScaleToFit(150, 70));
         else
@@ -350,6 +385,15 @@ public class InvoiceService
             ShipCell(ship, bold, normal, "Discharge Port", job.DischargePort?.PortName ?? "-");
             ShipCell(ship, bold, normal, "Gross Wt (kg)", job.GrossWeightKg?.ToString("N2") ?? "-");
             ShipCell(ship, bold, normal, "Volume (CBM)", job.VolumeCbm?.ToString("N3") ?? "-");
+            ShipCell(ship, bold, normal, "Est. Cargo Value", job.EstimatedValue.HasValue ? $"{job.EstimatedValue.Value:N2} {cur}" : "-");
+            ShipCell(ship, bold, normal, "Currency", job.Currency?.CurrencyCode ?? cur);
+            if (!string.IsNullOrWhiteSpace(job.Remarks))
+            {
+                ship.AddCell(new Cell().SetBorder(Border.NO_BORDER).SetPadding(3)
+                    .Add(new Paragraph("Remarks").SetFont(bold).SetFontSize(7.5f).SetFontColor(new DeviceRgb(90, 101, 115))));
+                ship.AddCell(new Cell(1, 3).SetBorder(Border.NO_BORDER).SetPadding(3)
+                    .Add(new Paragraph(job.Remarks).SetFont(normal).SetFontSize(8.5f)));
+            }
             doc.Add(ship);
         }
 
@@ -360,18 +404,34 @@ public class InvoiceService
             t.AddHeaderCell(new Cell().Add(new Paragraph(h).SetFont(bold).SetFontSize(8.5f).SetFontColor(ColorConstants.WHITE))
                 .SetBackgroundColor(navy).SetPadding(5));
 
+        // Presentation only: charges are grouped under their originating operation (Customs Clearance,
+        // Freight, Transportation, …) using the OperationName snapshot copied onto each line at bill
+        // generation. Lines with no operation fall under a single "General Charges" band. Grouping keeps
+        // first-appearance order and per-line DisplayOrder — it does not change any amount, GST or total.
         int n = 0;
-        foreach (var c in bill.Charges.OrderBy(x => x.DisplayOrder))
+        var groups = bill.Charges
+            .OrderBy(x => x.DisplayOrder)
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.OperationName) ? "" : x.OperationName!);
+
+        foreach (var g in groups)
         {
-            var desc = string.IsNullOrWhiteSpace(c.Description) ? (c.ChargeCode?.ChargeName ?? "-") : c.Description;
-            t.AddCell(BodyCell(normal, (++n).ToString(), TextAlignment.CENTER));
-            t.AddCell(BodyCell(normal, desc, TextAlignment.LEFT));
-            t.AddCell(BodyCell(normal, c.Sac?.SacCode ?? "", TextAlignment.LEFT));
-            t.AddCell(BodyCell(normal, c.Quantity.ToString("N2"), TextAlignment.RIGHT));
-            t.AddCell(BodyCell(normal, c.Rate.ToString("N2"), TextAlignment.RIGHT));
-            t.AddCell(BodyCell(normal, c.GstRate.ToString("N2"), TextAlignment.RIGHT));
-            t.AddCell(BodyCell(normal, c.GstAmount.ToString("N2"), TextAlignment.RIGHT));
-            t.AddCell(BodyCell(normal, c.NetAmount.ToString("N2"), TextAlignment.RIGHT));
+            var groupLabel = string.IsNullOrWhiteSpace(g.Key) ? "General Charges" : g.Key;
+            t.AddCell(new Cell(1, 8)
+                .Add(new Paragraph(groupLabel).SetFont(bold).SetFontSize(8.5f).SetFontColor(navy))
+                .SetBackgroundColor(light).SetPadding(4).SetBorder(line));
+
+            foreach (var c in g)
+            {
+                var desc = string.IsNullOrWhiteSpace(c.Description) ? (c.ChargeCode?.ChargeName ?? "-") : c.Description;
+                t.AddCell(BodyCell(normal, (++n).ToString(), TextAlignment.CENTER));
+                t.AddCell(BodyCell(normal, desc, TextAlignment.LEFT));
+                t.AddCell(BodyCell(normal, c.Sac?.SacCode ?? "", TextAlignment.LEFT));
+                t.AddCell(BodyCell(normal, c.Quantity.ToString("N2"), TextAlignment.RIGHT));
+                t.AddCell(BodyCell(normal, c.Rate.ToString("N2"), TextAlignment.RIGHT));
+                t.AddCell(BodyCell(normal, c.GstRate.ToString("N2"), TextAlignment.RIGHT));
+                t.AddCell(BodyCell(normal, c.GstAmount.ToString("N2"), TextAlignment.RIGHT));
+                t.AddCell(BodyCell(normal, c.NetAmount.ToString("N2"), TextAlignment.RIGHT));
+            }
         }
         doc.Add(t);
 
@@ -403,10 +463,10 @@ public class InvoiceService
         // ── Authorised signature ───────────────────────────────────────────────
         var sign = new Table(UnitValue.CreatePercentArray(new float[] { 1.4f, 1f })).UseAllAvailableWidth().SetMarginTop(20);
         sign.AddCell(new Cell().SetBorder(Border.NO_BORDER)
-            .Add(new Paragraph("This is a computer-generated invoice.").SetFont(normal).SetFontSize(7.5f).SetFontColor(ColorConstants.GRAY)));
+            .Add(new Paragraph(CoFooter).SetFont(normal).SetFontSize(7.5f).SetFontColor(ColorConstants.GRAY)));
         sign.AddCell(new Cell().SetBorder(Border.NO_BORDER).SetTextAlignment(TextAlignment.CENTER).SetPaddingTop(26)
             .Add(new Paragraph("_______________________").SetFont(normal).SetFontSize(9))
-            .Add(new Paragraph("Authorised Signatory").SetFont(bold).SetFontSize(8.5f))
+            .Add(new Paragraph(CoSignatory).SetFont(bold).SetFontSize(8.5f))
             .Add(new Paragraph("for " + CoName).SetFont(normal).SetFontSize(7.5f)));
         doc.Add(sign);
 

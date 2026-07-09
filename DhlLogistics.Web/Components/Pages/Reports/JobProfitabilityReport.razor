@@ -55,6 +55,9 @@
                     <div class="item"><b>Revenue</b><span>@rows.Sum(r => r.Revenue).ToString("N2")</span></div>
                     <div class="item"><b>Total Cost</b><span>@rows.Sum(r => r.TotalCost).ToString("N2")</span></div>
                     <div class="item"><b>Profit</b><span>@rows.Sum(r => r.Profit).ToString("N2")</span></div>
+                    <div class="item"><b>Cargo Wt (kg)</b><span>@rows.Sum(r => r.GrossWeightKg ?? 0).ToString("N3")</span></div>
+                    <div class="item"><b>Cargo Vol (CBM)</b><span>@rows.Sum(r => r.VolumeCbm ?? 0).ToString("N3")</span></div>
+                    <div class="item"><b>Cargo Value</b><span>@rows.Sum(r => r.EstimatedValue ?? 0).ToString("N2")</span></div>
                 </div>
             }
 
@@ -77,6 +80,9 @@
                         <GridColumn Field="@nameof(JobProfitabilityRow.TotalCost)"          HeaderText="Total Cost" Width="110" Format="N2" TextAlign="TextAlign.Right" />
                         <GridColumn Field="@nameof(JobProfitabilityRow.Profit)"             HeaderText="Profit"     Width="110" Format="N2" TextAlign="TextAlign.Right" />
                         <GridColumn Field="@nameof(JobProfitabilityRow.ProfitPct)"          HeaderText="Profit %"   Width="90"  Format="N2" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.GrossWeightKg)"      HeaderText="Gross Wt (kg)" Width="110" Format="N3" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.VolumeCbm)"          HeaderText="Volume (CBM)"  Width="110" Format="N3" TextAlign="TextAlign.Right" />
+                        <GridColumn Field="@nameof(JobProfitabilityRow.EstimatedValue)"     HeaderText="Cargo Value"   Width="110" Format="N2" TextAlign="TextAlign.Right" />
                     </GridColumns>
                 </SfGrid>
             </div>

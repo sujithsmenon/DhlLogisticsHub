@@ -19,6 +19,9 @@
     .charges-table th.num, .charges-table td.num { text-align:right; }
     .charges-table td { padding:6px 8px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
     .charges-table tfoot td { position:sticky; bottom:0; z-index:2; font-weight:700; background:var(--surface2); }
+    /* Operation grouping band inside the charges grid. */
+    .charges-table tr.op-group-row td { background:#eef6f5; color:#14706b; font-weight:700;
+                                        font-size:12px; letter-spacing:.02em; padding:6px 10px; border-bottom:1px solid #cfe6e3; }
     /* Editors: taller (≈40px), larger font, never clip the value; wide enough for the full number. */
     .charges-table .e-input-group, .charges-table .e-control-wrapper { height:40px !important; min-width:0; width:100%; box-sizing:border-box; }
     .charges-table .e-input-group input, .charges-table input.e-numerictextbox,
@@ -132,6 +135,10 @@
                             <div class="jl"><span>Load Port</span><b>@(_job.LoadPort?.PortName ?? "-")</b></div>
                             <div class="jl"><span>Discharge Port</span><b>@(_job.DischargePort?.PortName ?? "-")</b></div>
                             <div class="jl"><span>Currency</span><b>@(_job.Currency?.CurrencyCode ?? "-")</b></div>
+                            <div class="jl"><span>Gross Wt (kg)</span><b>@(_job.GrossWeightKg?.ToString("N3") ?? "—")</b></div>
+                            <div class="jl"><span>Volume (CBM)</span><b>@(_job.VolumeCbm?.ToString("N3") ?? "—")</b></div>
+                            <div class="jl"><span>Est. Cargo Value</span><b>@(_job.EstimatedValue?.ToString("N2") ?? "—")</b></div>
+                            <div class="jl"><span>Remarks</span><b>@(string.IsNullOrWhiteSpace(_job.Remarks) ? "—" : _job.Remarks)</b></div>
                         </div>
                     </div>
                 }
@@ -170,11 +177,16 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @for (int i = 0; i < item.Charges.Count; i++)
+                                    @foreach (var g in GroupedCharges())
                                     {
-                                        var idx = i;
-                                        var c = item.Charges[idx];
-                                        <tr>
+                                        <tr class="op-group-row">
+                                            <td colspan="12">@(g.Key == GeneralGroup ? g.Key : "Operation: " + g.Key)</td>
+                                        </tr>
+                                        @foreach (var entry in g)
+                                        {
+                                            var idx = entry.Index;
+                                            var c = entry.Charge;
+                                            <tr>
                                             <td>@(idx + 1)</td>
                                             <td>
                                                 <SfComboBox TItem="ChargeCategory" TValue="ChargeCategory" DataSource="@_categories"
@@ -213,7 +225,8 @@
                                             <td class="num">@c.GstAmount.ToString("N2")</td>
                                             <td class="num">@c.NetAmount.ToString("N2")</td>
                                             <td><SfButton OnClick="@(() => RemoveCharge(idx))" CssClass="e-small delete-btn" IconCss="e-icons e-delete" /></td>
-                                        </tr>
+                                            </tr>
+                                        }
                                     }
                                 </tbody>
                                 <tfoot>
@@ -399,6 +412,14 @@
 
     private static readonly ChargeCategory[] _categories =
         (ChargeCategory[])Enum.GetValues(typeof(ChargeCategory));
+
+    // Charges are grouped by their originating operation for display; lines with no operation fall
+    // under the general bucket. Original list indices are preserved so inline edit/remove keep working.
+    private const string GeneralGroup = "General / Unassigned";
+    private IEnumerable<IGrouping<string, (BillCharge Charge, int Index)>> GroupedCharges() =>
+        item.Charges
+            .Select((c, i) => (Charge: c, Index: i))
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.Charge.OperationName) ? GeneralGroup : x.Charge.OperationName!);
 
     // ── Invoice panel state ───────────────────────────────────────────────────
     private List<InvoiceDocument> _documents = new();

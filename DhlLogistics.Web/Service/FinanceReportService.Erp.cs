@@ -400,6 +400,9 @@ public partial class FinanceReportService
                 TotalCost          = totalCost,
                 Profit             = profit,
                 ProfitPct          = revenue != 0 ? decimal.Round(profit * 100m / revenue, 2) : 0,
+                GrossWeightKg      = j.GrossWeightKg,
+                VolumeCbm          = j.VolumeCbm,
+                EstimatedValue     = j.EstimatedValue,
             });
         }
         return rows;
@@ -440,6 +443,16 @@ public partial class FinanceReportService
         k.Receivables     = await GroupBalanceAsync(AccountSeed.Codes.AccountsReceivable, branchId);
         k.Payables        = -await GroupBalanceAsync(AccountSeed.Codes.AccountsPayable, branchId);   // credit-normal
         k.CashBankBalance = await CashBankBalanceAsync(branchId);
+
+        // Cargo Totals for the period (Approved/Closed Clearance/Forwarding jobs by job date).
+        var cargo = await jq
+            .Where(j => (j.Status == JobOrderStatus.Approved || j.Status == JobOrderStatus.Closed)
+                     && j.JobOrderDate >= from.Date && j.JobOrderDate <= to.Date)
+            .Select(j => new { j.GrossWeightKg, j.VolumeCbm, j.EstimatedValue })
+            .ToListAsync();
+        k.TotalCargoWeightKg  = cargo.Sum(x => x.GrossWeightKg ?? 0);
+        k.TotalCargoVolumeCbm = cargo.Sum(x => x.VolumeCbm ?? 0);
+        k.TotalCargoValue     = cargo.Sum(x => x.EstimatedValue ?? 0);
         return k;
     }
 

@@ -132,6 +132,11 @@ public class JobProfitabilityRow
     public decimal  TotalCost          { get; set; }
     public decimal  Profit             { get; set; }
     public decimal  ProfitPct          { get; set; }
+
+    // ── Cargo Totals (from the JobOrder; display only) ────────────────────────
+    public decimal? GrossWeightKg      { get; set; }
+    public decimal? VolumeCbm          { get; set; }
+    public decimal? EstimatedValue     { get; set; }
 }
 
 // ── Customer / Vendor Statement ───────────────────────────────────────────────
@@ -231,4 +236,9 @@ public class DashboardKpis
     public decimal Receivables     { get; set; }
     public decimal Payables        { get; set; }
     public decimal CashBankBalance { get; set; }
+
+    // ── Cargo Totals KPIs (aggregated from JobOrders in the period) ────────────
+    public decimal TotalCargoWeightKg { get; set; }
+    public decimal TotalCargoVolumeCbm { get; set; }
+    public decimal TotalCargoValue    { get; set; }
 }

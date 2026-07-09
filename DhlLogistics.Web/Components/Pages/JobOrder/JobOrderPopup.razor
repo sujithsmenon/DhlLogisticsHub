@@ -8,6 +8,7 @@
 @inject CurrencyService CurrencyService
 @inject ChargeCodeService ChargeCodeService
 @inject SacService SacService
+@inject JobOperationService OperationService
 @inject IToastService ToastService
 
 <style>
@@ -40,7 +41,7 @@
     /* Sale-charges grid — job-scoped class names (jc-*) so these global rules can never
        collide with BillPopup's identically-named .charges-table / .charges-scroll styles. */
     .jc-scroll { width:100%; overflow:auto; max-height:40vh; border:1px solid var(--border); border-radius:6px; }
-    .jc-table { width:100%; min-width:1680px; font-size:13px; border-collapse:collapse; }
+    .jc-table { width:100%; min-width:1880px; font-size:13px; border-collapse:collapse; }
     .jc-table thead th { position:sticky; top:0; z-index:3; background:#198781; color:#fff;
                               padding:9px 11px; text-align:left; font-weight:700; white-space:nowrap; }
     .jc-table th.num, .jc-table td.num { text-align:right; }
@@ -51,6 +52,15 @@
     .jc-table .e-input-group .e-input { height:36px !important; font-size:13.5px !important; }
     .jc-table .num input { text-align:right; }
     .jc-table .num .e-input-group { min-width:120px; }
+    /* Job Operations tracking list (jop-*) — self-contained, does not touch charges/billing styling. */
+    .jop-scroll { width:100%; overflow:auto; max-height:38vh; border:1px solid var(--border); border-radius:6px; }
+    .jop-table { width:100%; min-width:960px; font-size:13px; border-collapse:collapse; }
+    .jop-table thead th { position:sticky; top:0; z-index:2; background:#198781; color:#fff;
+                          padding:8px 10px; text-align:left; font-weight:700; white-space:nowrap; }
+    .jop-table td { padding:7px 10px; border-bottom:1px solid #e6e6e6; vertical-align:middle; }
+    .jop-table tbody tr:hover { background:var(--surface2); }
+    .jop-form { padding:12px; border:1px dashed var(--border); border-radius:6px; margin-bottom:10px; background:var(--surface2); }
+    .jop-status { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
 </style>
 
 <div class="modal-dialog modal-xl modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small custom-modal">
@@ -216,67 +226,74 @@
                         </div>
                     </div>
 
-                    <!-- ── Card 2: Operations sub-grid ───────────────────────────────────── -->
+                    <!-- ── Card 2: Job Operations (main operations area) ──────────────────── -->
                     <div class="col-md-4">
                         <div class="card">
                             <div class="card-header d-flex align-items-center" style="padding:4px 10px;">
                                 <span><b>Operations</b></span>
                                 <div class="ms-auto">
-                                    <SfButton OnClick="@AddOperation" CssClass="e-small" IconCss="e-icons e-add" IsPrimary="true">Add</SfButton>
+                                    <SfButton OnClick="@(() => OpenOperationDialog(0))" CssClass="e-small" IconCss="e-icons e-add" IsPrimary="true">Add</SfButton>
                                 </div>
                             </div>
                             <div class="card-body custom-scroll" style="height:280px;padding:6px;">
-                                @if (item.Operations.Count == 0)
+                                @if (Id == 0)
                                 {
-                                    <p class="muted" style="font-size:11px;text-align:center;padding-top:70px;">
-                                        No operations yet. Click <b>Add</b> to record a<br/>business operation for this job.
+                                    <p class="muted" style="font-size:11px;text-align:center;padding-top:60px;">
+                                        Save the Job Order first, then<br/>add its operations here.
+                                    </p>
+                                }
+                                else if (_operations.Count == 0)
+                                {
+                                    <p class="muted" style="font-size:11px;text-align:center;padding-top:60px;">
+                                        No operations yet. Click <b>Add</b> to<br/>record an operation for this job.
                                     </p>
                                 }
                                 else
                                 {
-                                    <div class="ops-scroll">
-                                    <table class="ops-table">
+                                    <div class="jop-scroll">
+                                    <table class="jop-table">
                                         <thead>
                                             <tr>
-                                                <th style="width:32px;">#</th>
-                                                <th style="min-width:170px;">Operation</th>
-                                                <th style="min-width:180px;">Operated By (Vendor)</th>
-                                                <th style="min-width:150px;">Staff</th>
-                                                <th style="width:140px;">Exp. Head</th>
-                                                <th style="width:120px;" class="num">Cost</th>
-                                                <th style="width:44px;"></th>
+                                                <th style="width:36px;">#</th>
+                                                <th style="min-width:160px;">Operation Type</th>
+                                                <th style="min-width:110px;">Department</th>
+                                                <th style="min-width:120px;">Vendor</th>
+                                                <th style="min-width:140px;">Assigned Staff</th>
+                                                <th style="width:110px;">Status</th>
+                                                <th style="width:90px;">Priority</th>
+                                                <th style="width:115px;">Planned Date</th>
+                                                <th style="width:115px;">Actual Date</th>
+                                                <th style="min-width:160px;">Remarks</th>
+                                                <th style="width:120px;">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @for (int i = 0; i < item.Operations.Count; i++)
+                                            @foreach (var op in _operations)
                                             {
-                                                var idx = i;
-                                                var op = item.Operations[idx];
                                                 <tr>
-                                                    <td>@(idx + 1)</td>
-                                                    <td><SfTextBox @bind-Value="@op.OperationName" CssClass="e-small" Placeholder="e.g. Customs Clearance" /></td>
-                                                    <td>
-                                                        <SfComboBox @bind-Value="@op.OperatedByClientId" TItem="DhlClient" TValue="int?"
-                                                                    DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
-                                                                    Placeholder="In-house">
-                                                            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
-                                                        </SfComboBox>
+                                                    <td>@op.SequenceNo</td>
+                                                    <td>@op.OperationType</td>
+                                                    <td>@(string.IsNullOrWhiteSpace(op.Department) ? "—" : op.Department)</td>
+                                                    <td>@(string.IsNullOrWhiteSpace(op.VendorName) ? "—" : op.VendorName)</td>
+                                                    <td>@(string.IsNullOrWhiteSpace(op.AssignedStaffName) ? "—" : op.AssignedStaffName)</td>
+                                                    <td><span class="jop-status" style="@StatusStyle(op.Status)">@op.StatusName</span></td>
+                                                    <td>@op.PriorityName</td>
+                                                    <td>@(op.PlannedDate?.ToLocalTime().ToString("dd-MMM-yyyy") ?? "—")</td>
+                                                    <td>@(op.ActualDate?.ToLocalTime().ToString("dd-MMM-yyyy") ?? "—")</td>
+                                                    <td>@(string.IsNullOrWhiteSpace(op.Remarks) ? "—" : op.Remarks)</td>
+                                                    <td style="white-space:nowrap;">
+                                                        @if (_confirmDeleteId == op.Id)
+                                                        {
+                                                            <span style="font-size:11px;margin-right:4px;">Delete?</span>
+                                                            <SfButton OnClick="@(() => DeleteOperation(op.Id))" CssClass="e-small delete-btn" IconCss="e-icons e-check" Title="Confirm delete" />
+                                                            <SfButton OnClick="@(() => _confirmDeleteId = null)" CssClass="e-small" IconCss="e-icons e-close" Title="Cancel" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <SfButton OnClick="@(() => OpenOperationDialog(op.Id))" CssClass="e-small" IconCss="e-icons e-edit" Title="Edit" />
+                                                            <SfButton OnClick="@(() => _confirmDeleteId = op.Id)" CssClass="e-small delete-btn" IconCss="e-icons e-delete" Title="Delete" />
+                                                        }
                                                     </td>
-                                                    <td>
-                                                        <SfComboBox @bind-Value="@op.HandledByStaffId" TItem="Staff" TValue="int?"
-                                                                    DataSource="@_staff" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
-                                                                    Placeholder="Staff">
-                                                            <ComboBoxFieldSettings Text="FullName" Value="Id" />
-                                                        </SfComboBox>
-                                                    </td>
-                                                    <td>
-                                                        <SfComboBox @bind-Value="@op.ExpenseCategory" TItem="ChargeCategory" TValue="ChargeCategory"
-                                                                    DataSource="@_expenseCategories" CssClass="e-small" />
-                                                    </td>
-                                                    <td class="num">
-                                                        <SfNumericTextBox TValue="decimal?" @bind-Value="@op.Cost" CssClass="e-small" Format="N2" ShowSpinButton="false" />
-                                                    </td>
-                                                    <td><SfButton OnClick="@(() => RemoveOperation(idx))" CssClass="e-small delete-btn" IconCss="e-icons e-delete" /></td>
                                                 </tr>
                                             }
                                         </tbody>
@@ -332,6 +349,7 @@
                                     <tr>
                                         <th style="width:40px;">#</th>
                                         <th style="width:160px;">Category</th>
+                                        <th style="width:200px;">Operation</th>
                                         <th style="width:260px;">Charge Code</th>
                                         <th style="width:180px;">SAC</th>
                                         <th style="min-width:320px;">Description</th>
@@ -355,6 +373,13 @@
                                                 <SfComboBox TItem="ChargeCategory" TValue="ChargeCategory" DataSource="@_chargeCategories"
                                                             Value="@c.Category" CssClass="e-small"
                                                             ValueChanged="@((ChargeCategory v) => { c.Category = v; Recalc(); })" />
+                                            </td>
+                                            <td>
+                                                <SfComboBox TItem="JobOperationDto" TValue="long?" DataSource="@_operations"
+                                                            @bind-Value="@c.JobOperationId" CssClass="e-small" ShowClearButton="true"
+                                                            AllowFiltering="true" Placeholder="General">
+                                                    <ComboBoxFieldSettings Text="OperationType" Value="Id" />
+                                                </SfComboBox>
                                             </td>
                                             <td>
                                                 <SfComboBox TItem="ChargeCode" TValue="int?" DataSource="@_chargeCodes"
@@ -391,7 +416,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="7" style="text-align:right;">Totals:</td>
+                                        <td colspan="8" style="text-align:right;">Totals:</td>
                                         <td class="num">@item.SubTotal.ToString("N2")</td>
                                         <td></td>
                                         <td class="num">@item.GstTotal.ToString("N2")</td>
@@ -404,6 +429,75 @@
                         }
                     </div>
                 </div>
+
+                <!-- ── Operation Costs (Vendor) — what we PAY per operation; posts expense/payable on approval ── -->
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <span><b>Operation Costs (Vendor)</b> <small class="muted">— vendor cost we pay per operation; posts an expense/payable voucher on approval</small></span>
+                        <div class="ms-auto">
+                            <SfButton OnClick="@AddOperation" CssClass="e-small" IconCss="e-icons e-add" IsPrimary="true">Add Cost</SfButton>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:6px;">
+                        @if (item.Operations.Count == 0)
+                        {
+                            <p class="muted" style="text-align:center;padding:14px 0;">No vendor costs yet. Click <b>Add Cost</b> to record a vendor cost line for this job.</p>
+                        }
+                        else
+                        {
+                            <div class="ops-scroll">
+                            <table class="ops-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:32px;">#</th>
+                                        <th style="min-width:170px;">Operation</th>
+                                        <th style="min-width:180px;">Operated By (Vendor)</th>
+                                        <th style="min-width:150px;">Staff</th>
+                                        <th style="width:140px;">Exp. Head</th>
+                                        <th style="width:120px;" class="num">Cost</th>
+                                        <th style="width:44px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < item.Operations.Count; i++)
+                                    {
+                                        var idx = i;
+                                        var op = item.Operations[idx];
+                                        <tr>
+                                            <td>@(idx + 1)</td>
+                                            <td><SfTextBox @bind-Value="@op.OperationName" CssClass="e-small" Placeholder="e.g. Customs Clearance" /></td>
+                                            <td>
+                                                <SfComboBox @bind-Value="@op.OperatedByClientId" TItem="DhlClient" TValue="int?"
+                                                            DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                                            Placeholder="In-house">
+                                                    <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                                                </SfComboBox>
+                                            </td>
+                                            <td>
+                                                <SfComboBox @bind-Value="@op.HandledByStaffId" TItem="Staff" TValue="int?"
+                                                            DataSource="@_staff" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                                            Placeholder="Staff">
+                                                    <ComboBoxFieldSettings Text="FullName" Value="Id" />
+                                                </SfComboBox>
+                                            </td>
+                                            <td>
+                                                <SfComboBox @bind-Value="@op.ExpenseCategory" TItem="ChargeCategory" TValue="ChargeCategory"
+                                                            DataSource="@_expenseCategories" CssClass="e-small" />
+                                            </td>
+                                            <td class="num">
+                                                <SfNumericTextBox TValue="decimal?" @bind-Value="@op.Cost" CssClass="e-small" Format="N2" ShowSpinButton="false" />
+                                            </td>
+                                            <td><SfButton OnClick="@(() => RemoveOperation(idx))" CssClass="e-small delete-btn" IconCss="e-icons e-delete" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <BsModalDialog @ref="_opModal" />
 
                 @if (item.Status == JobOrderStatus.Rejected && !string.IsNullOrEmpty(item.RejectionReason))
                 {
@@ -479,6 +573,11 @@
     private static readonly ChargeCategory[] _chargeCategories =
         (ChargeCategory[])Enum.GetValues(typeof(ChargeCategory));
 
+    // ── Job Operations (JobOperation tracking entity) ─────────────────────────
+    private List<JobOperationDto> _operations = new();
+    private BsModalDialog? _opModal;
+    private long? _confirmDeleteId;
+
     private static readonly List<EnumItem<JobShipmentMode>> _shipmentModes = new()
     {
         new(JobShipmentMode.Sea,  "Sea"),
@@ -515,6 +614,7 @@
         {
             var e = await Service.GetByIdAsync(Id);
             if (e is not null) { item = e; JobOrderService.RecalcTotals(item); }
+            await LoadOperationsAsync();
         }
         else
         {
@@ -560,6 +660,51 @@
         if (idx < 0 || idx >= item.Operations.Count) return;
         item.Operations.RemoveAt(idx);
     }
+
+    // ── Job Operations (JobOperation) — self-contained CRUD, persisted directly via
+    //    JobOperationService and independent of the job Save button / workflow ─────────
+    private async Task LoadOperationsAsync()
+    {
+        _operations = await OperationService.GetByJobOrderAsync(Id);
+    }
+
+    // Add (id == 0) / Edit — opens the JobOperationPopup dialog. Persistence happens inside the
+    // dialog (JobOperationService) and is independent of the job Save button / workflow / billing.
+    private async Task OpenOperationDialog(long id)
+    {
+        if (Id == 0) { Toast("Save the Job Order first to add operations."); return; }
+        _confirmDeleteId = null;
+
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("Id", id);
+        o.ControlParameters.Add("JobOrderId", Id);
+        var r = await _opModal!.Context.ShowAsync<JobOperationPopup>(o);
+        if (r.ResultType == ModalResultType.OK) await LoadOperationsAsync();
+    }
+
+    private async Task DeleteOperation(long id)
+    {
+        try
+        {
+            await OperationService.DeleteAsync(id);
+            _confirmDeleteId = null;
+            await LoadOperationsAsync();
+            ToastService.Show(new() { Title = "Deleted", Content = "Operation removed.", CssClass = "e-toast-success" });
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private static string StatusStyle(JobOperationStatus s) => s switch
+    {
+        JobOperationStatus.Completed  => "background:#d4f4dd;color:#0f7b3d;",
+        JobOperationStatus.InProgress => "background:#d6ebff;color:#0a5bb5;",
+        JobOperationStatus.Assigned   => "background:#fff2cc;color:#9a7100;",
+        JobOperationStatus.Cancelled  => "background:#f6d6d6;color:#b52121;",
+        _ /* Draft */                 => "background:#e9e9e9;color:#555;",
+    };
 
     // ── Sale charges (flow into the linked bill on approval) ──────────────────
     private void AddCharge()

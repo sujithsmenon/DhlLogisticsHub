@@ -94,6 +94,9 @@
                                             <th>Status</th>
                                             <th>Location / Route</th>
                                             <th>Vessel / Voyage</th>
+                                            <th>Gross Wt (kg)</th>
+                                            <th>Volume (CBM)</th>
+                                            <th>Cargo Value</th>
                                             <th>Received</th>
                                             <th>Last Event</th>
                                         </tr>
@@ -109,6 +112,9 @@
                                                 <td><span class="status-text">@i.CurrentStatus</span></td>
                                                 <td>@(i.Location ?? "—")</td>
                                                 <td>@FormatVessel(i)</td>
+                                                <td>@(i.GrossWeightKg?.ToString("N2") ?? "—")</td>
+                                                <td>@(i.VolumeCbm?.ToString("N3") ?? "—")</td>
+                                                <td>@(i.EstimatedValue?.ToString("N2") ?? "—")</td>
                                                 <td>@i.ReceivedAt.ToString("dd MMM HH:mm")</td>
                                                 <td>@(i.LastEventAt?.ToString("dd MMM HH:mm") ?? "—")</td>
                                             </tr>

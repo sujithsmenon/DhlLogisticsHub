@@ -1,0 +1,173 @@
+@inject JobOperationService OperationService
+@inject StaffService StaffService
+@inject LogisticsService Logistics
+@inject IToastService ToastService
+
+<style>
+    .op-modal .modal-dialog { max-width: min(95vw, 720px) !important; width: min(95vw, 720px); }
+    @@media (max-width: 768px) { .op-modal .modal-dialog { max-width: 96vw !important; width: 96vw; } }
+    .op-req { color:#b52121; font-weight:700; }
+</style>
+
+<div class="modal-dialog modal-dialog-centerd modal-dialog-scrollable modal-top-margin e-small op-modal">
+    <div class="modal-contentnew">
+        <div class="modal-header">
+            <h5 class="modal-title">@(Id == 0 ? "Add Operation" : "Edit Operation")</h5>
+            <button type="button" class="btn-close e-small" @onclick="Cancel" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <EditForm Model="@item">
+                <div class="row">
+                    <div class="mb-3 col-md-6">
+                        <label class="form-Custom-label">Operation Type: <span class="op-req">*</span></label>
+                        <SfComboBox TItem="string" TValue="string" @bind-Value="@item.OperationType"
+                                    DataSource="@_operationTypes" AllowFiltering="true" AllowCustom="true"
+                                    CssClass="e-small" Placeholder="e.g. Customs Clearance" />
+                    </div>
+                    <div class="mb-3 col-md-6">
+                        <label class="form-Custom-label">Department: <span class="op-req">*</span></label>
+                        <SfTextBox @bind-Value="@item.Department" CssClass="e-small" Placeholder="Department" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="mb-3 col-md-6">
+                        <label class="form-Custom-label">Vendor:</label>
+                        <SfComboBox @bind-Value="@item.VendorId" TItem="DhlClient" TValue="int?"
+                                    DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                    Placeholder="Select Vendor..">
+                            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-6">
+                        <label class="form-Custom-label">Assigned Staff:</label>
+                        <SfComboBox @bind-Value="@item.AssignedStaffId" TItem="Staff" TValue="int?"
+                                    DataSource="@_staff" AllowFiltering="true" CssClass="e-small" ShowClearButton="true"
+                                    Placeholder="Select Staff..">
+                            <ComboBoxFieldSettings Text="FullName" Value="Id" />
+                        </SfComboBox>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="mb-3 col-md-6">
+                        <label class="form-Custom-label">Planned Date:</label>
+                        <SfDatePicker TValue="DateTime?" @bind-Value="@item.PlannedDate" Format="dd-MMM-yyyy" CssClass="e-small" />
+                    </div>
+                    <div class="mb-3 col-md-3">
+                        <label class="form-Custom-label">Status: <span class="op-req">*</span></label>
+                        <SfDropDownList @bind-Value="@item.Status" TItem="JobOperationStatus" TValue="JobOperationStatus"
+                                        DataSource="@_opStatuses" CssClass="e-small" />
+                    </div>
+                    <div class="mb-3 col-md-3">
+                        <label class="form-Custom-label">Priority:</label>
+                        <SfDropDownList @bind-Value="@item.Priority" TItem="JobOperationPriority" TValue="JobOperationPriority"
+                                        DataSource="@_opPriorities" CssClass="e-small" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="mb-3 col-md-12">
+                        <label class="form-Custom-label">Remarks:</label>
+                        <SfTextBox CssClass="e-small" @bind-Value="@item.Remarks"
+                                   Multiline="true" HtmlAttributes="@(new Dictionary<string, object> { { "rows", "2" } })" />
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+
+        <div class="modal-footer">
+            <SfButton IsPrimary="true" OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save-as">Save</SfButton>
+            <SfButton OnClick="@Cancel" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+
+    /// <summary>0 = add a new operation; otherwise the JobOperation Id being edited.</summary>
+    [Parameter] public long Id { get; set; }
+
+    /// <summary>Parent job the operation belongs to (required for Add).</summary>
+    [Parameter] public long JobOrderId { get; set; }
+
+    private JobOperation item = new();
+
+    private List<Staff>     _staff   = new();
+    private List<DhlClient> _clients = new();
+
+    private static readonly JobOperationStatus[] _opStatuses =
+        (JobOperationStatus[])Enum.GetValues(typeof(JobOperationStatus));
+    private static readonly JobOperationPriority[] _opPriorities =
+        (JobOperationPriority[])Enum.GetValues(typeof(JobOperationPriority));
+
+    private static readonly string[] _operationTypes =
+    {
+        "Customs Clearance", "Freight Booking", "Transportation", "Warehousing",
+        "Documentation", "Delivery", "Insurance", "Inspection", "Packing",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _staff   = await StaffService.GetAllAsync();
+        _clients = await Logistics.GetAllClientsAsync();
+
+        if (Id != 0)
+        {
+            var d = await OperationService.GetByIdAsync(Id);
+            if (d is not null)
+            {
+                item = new JobOperation
+                {
+                    Id              = d.Id,
+                    JobOrderId      = d.JobOrderId,
+                    SequenceNo      = d.SequenceNo,
+                    OperationType   = d.OperationType,
+                    Department      = d.Department,
+                    Status          = d.Status,
+                    Priority        = d.Priority,
+                    PlannedDate     = d.PlannedDate,
+                    ActualDate      = d.ActualDate,
+                    AssignedStaffId = d.AssignedStaffId,
+                    VendorId        = d.VendorId,
+                    Remarks         = d.Remarks,
+                };
+            }
+        }
+        else
+        {
+            item = new JobOperation
+            {
+                JobOrderId = JobOrderId,
+                Status     = JobOperationStatus.Draft,
+                Priority   = JobOperationPriority.Normal,
+            };
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(item.OperationType)) { Toast("Operation Type is required."); return; }
+        if (string.IsNullOrWhiteSpace(item.Department))    { Toast("Department is required."); return; }
+        if (!Enum.IsDefined(typeof(JobOperationStatus), item.Status)) { Toast("Status is required."); return; }
+
+        try
+        {
+            if (item.Id == 0) await OperationService.CreateAsync(item);
+            else              await OperationService.UpdateAsync(item);
+
+            ToastService.Show(new() { Title = "Success!", Content = "Operation saved.", CssClass = "e-toast-success" });
+            this.Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+    }
+
+    private void Toast(string msg) =>
+        ToastService.Show(new() { Title = "Validation", Content = msg, CssClass = "e-toast-danger" });
+
+    private void Cancel() => this.Modal?.Close(ModalResult.Cancel());
+}

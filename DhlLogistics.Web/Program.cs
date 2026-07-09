@@ -198,6 +198,15 @@ builder.Services.AddScoped<DhlLogistics.Web.Workflow.Handlers.ExportWorkflowHand
 // ── M4 Job Order service ─────────────────────────────────────────────────────
 builder.Services.AddScoped<JobOrderService>();
 
+// ── Job Operations foundation (new standalone tracking entity) ────────────────
+builder.Services.AddScoped<DhlLogistics.Web.Repository.IJobOperationRepository,
+                           DhlLogistics.Web.Repository.JobOperationRepository>();
+builder.Services.AddScoped<JobOperationService>();
+
+builder.Services.AddScoped<DhlLogistics.Web.Repository.ICompanyDetailsRepository,
+                           DhlLogistics.Web.Repository.CompanyDetailsRepository>();
+builder.Services.AddScoped<CompanyDetailsService>();
+
 // ── M4 Billing + Accounts services ───────────────────────────────────────────
 builder.Services.AddScoped<BillService>();
 // Invoice layer over Bill: issue (generate customer-invoice PDF) + upload vendor/credit/debit docs.
@@ -363,6 +372,10 @@ using (var scope = app.Services.CreateScope())
         await DhlLogistics.Web.Database.MenuSeed.FixupAsync(menuFactory);
         // Additively insert the ERP finance-report + payments menu leaves on already-seeded installs.
         await DhlLogistics.Web.Database.MenuSeed.EnsureFinanceMenusAsync(menuFactory);
+        // Additively insert the Operations Dashboard leaf on already-seeded installs.
+        await DhlLogistics.Web.Database.MenuSeed.EnsureOperationsMenusAsync(menuFactory);
+        // Additively insert the Masters → Company Details leaf on already-seeded installs.
+        await DhlLogistics.Web.Database.MenuSeed.EnsureCompanyDetailsMenuAsync(menuFactory);
     }
     catch (Exception ex)
     {

@@ -1,0 +1,294 @@
+@page "/operations/dashboard"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using JobOrderPages = DhlLogistics.Web.Components.Pages.JobOrder
+@inject JobOperationService OperationService
+
+@*
+    Operations → Operations Dashboard — a cross-job view of every JobOperation
+    (KPIs + filterable grid). Read-only over the JobOperation entity; clicking a row
+    opens the parent Job in the standard JobOrder popup. Independent of the master
+    Jobs dashboard (/jobs), which is untouched.
+*@
+
+<style>
+    .ops-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:14px; }
+    .ops-kpi { border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--surface,#fff);
+               cursor:pointer; transition:box-shadow .15s, transform .15s; }
+    .ops-kpi:hover { box-shadow:0 3px 10px rgba(0,0,0,.08); transform:translateY(-1px); }
+    .ops-kpi.active { outline:2px solid #198781; }
+    .ops-kpi .k-num { font-size:26px; font-weight:800; line-height:1.1; }
+    .ops-kpi .k-lbl { font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted,#64748b); margin-top:2px; }
+    .ops-kpi.k-pending   .k-num { color:#0a5bb5; }
+    .ops-kpi.k-done      .k-num { color:#0f7b3d; }
+    .ops-kpi.k-delayed   .k-num { color:#b52121; }
+    .ops-kpi.k-staff     .k-num { color:#7a4dbd; }
+    .ops-kpi.k-dept      .k-num { color:#9a7100; }
+    .ops-filters { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; margin-bottom:12px; }
+    .ops-filters .fl { display:flex; flex-direction:column; gap:2px; min-width:150px; }
+    .ops-filters .fl label { font-size:11px; font-weight:700; color:var(--muted,#64748b); }
+    .ops-status { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; }
+</style>
+
+<div class="page-hdr">
+    <div>
+        <h1>Operations Dashboard</h1>
+        <div class="sub">@_all.Count operation(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
+    </div>
+</div>
+
+<SfSpinner @bind-Visible="@_loading" Label="Loading operations..." />
+
+<!-- KPI cards (click to filter) -->
+<div class="ops-kpis">
+    <div class="ops-kpi k-pending @(_activeKpi == "PENDING" ? "active" : "")" @onclick='() => ToggleKpi("PENDING")'>
+        <div class="k-num">@_pending</div><div class="k-lbl">Pending Operations</div>
+    </div>
+    <div class="ops-kpi k-done @(_activeKpi == "DONE_TODAY" ? "active" : "")" @onclick='() => ToggleKpi("DONE_TODAY")'>
+        <div class="k-num">@_completedToday</div><div class="k-lbl">Completed Today</div>
+    </div>
+    <div class="ops-kpi k-delayed @(_activeKpi == "DELAYED" ? "active" : "")" @onclick='() => ToggleKpi("DELAYED")'>
+        <div class="k-num">@_delayed</div><div class="k-lbl">Delayed Operations</div>
+    </div>
+    <div class="ops-kpi k-staff" @onclick='() => ToggleKpi("")'>
+        <div class="k-num">@_staffCount</div><div class="k-lbl">Assigned Staff</div>
+    </div>
+    <div class="ops-kpi k-dept" @onclick='() => ToggleKpi("")'>
+        <div class="k-num">@_deptCount</div><div class="k-lbl">Departments</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="ops-filters">
+    <div class="fl">
+        <label>Status</label>
+        <SfDropDownList TItem="StatusOpt" TValue="string" DataSource="@_statusOpts" Width="150px" CssClass="e-small" @bind-Value="_fStatus">
+            <DropDownListFieldSettings Text="Label" Value="Value" />
+            <DropDownListEvents TItem="StatusOpt" TValue="string" ValueChange="@(_ => ApplyFilter())" />
+        </SfDropDownList>
+    </div>
+    <div class="fl">
+        <label>Department</label>
+        <SfComboBox TItem="string" TValue="string" DataSource="@_departments" Width="160px" CssClass="e-small"
+                    ShowClearButton="true" AllowFiltering="true" @bind-Value="_fDepartment" Placeholder="All">
+            <ComboBoxEvents TItem="string" TValue="string" ValueChange="@(_ => ApplyFilter())" />
+        </SfComboBox>
+    </div>
+    <div class="fl">
+        <label>Staff</label>
+        <SfComboBox TItem="string" TValue="string" DataSource="@_staffNames" Width="170px" CssClass="e-small"
+                    ShowClearButton="true" AllowFiltering="true" @bind-Value="_fStaff" Placeholder="All">
+            <ComboBoxEvents TItem="string" TValue="string" ValueChange="@(_ => ApplyFilter())" />
+        </SfComboBox>
+    </div>
+    <div class="fl">
+        <label>Operation Type</label>
+        <SfComboBox TItem="string" TValue="string" DataSource="@_operationTypes" Width="180px" CssClass="e-small"
+                    ShowClearButton="true" AllowFiltering="true" @bind-Value="_fOperationType" Placeholder="All">
+            <ComboBoxEvents TItem="string" TValue="string" ValueChange="@(_ => ApplyFilter())" />
+        </SfComboBox>
+    </div>
+    <div class="fl">
+        <label>Planned From</label>
+        <SfDatePicker TValue="DateTime?" @bind-Value="_fFrom" Format="dd-MMM-yyyy" Width="150px" CssClass="e-small"
+                      ShowClearButton="true">
+            <DatePickerEvents TValue="DateTime?" ValueChange="@(_ => ApplyFilter())" />
+        </SfDatePicker>
+    </div>
+    <div class="fl">
+        <label>Planned To</label>
+        <SfDatePicker TValue="DateTime?" @bind-Value="_fTo" Format="dd-MMM-yyyy" Width="150px" CssClass="e-small"
+                      ShowClearButton="true">
+            <DatePickerEvents TValue="DateTime?" ValueChange="@(_ => ApplyFilter())" />
+        </SfDatePicker>
+    </div>
+    <div class="fl" style="min-width:auto;">
+        <label>&nbsp;</label>
+        <SfButton OnClick="@ClearFilters" CssClass="e-small" IconCss="e-icons e-clear-form">Clear</SfButton>
+    </div>
+    <div class="fl" style="min-width:auto;">
+        <label>&nbsp;</label>
+        <SfButton OnClick="@Reload" CssClass="e-small" IconCss="e-icons e-refresh" IsPrimary="true">Refresh</SfButton>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <SfGrid TValue="JobOperationDto" DataSource="@_filtered" @ref="_grid" AllowPaging="true" AllowSorting="true"
+                AllowResizing="true" AllowReordering="true" CssClass="e-small"
+                Toolbar="@(new List<string>{ "Search" })" Height="calc(100vh - 340px)" RowHeight="28" Width="100%">
+            <GridPageSettings PageSize="20" PageSizes="@(new[] { "All", "10", "20", "50" })" />
+            <GridEvents CommandClicked="OnOpen" TValue="JobOperationDto" />
+            <GridColumns>
+                <GridColumn HeaderText="Open" Width="80" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                    <GridCommandColumns>
+                        <GridCommandColumn Type="CommandButtonType.None"
+                                           ButtonOption="@(new() { Content = "Open", IconCss = "e-icons e-eye", CssClass = "wf-btn-open" })" />
+                    </GridCommandColumns>
+                </GridColumn>
+                <GridColumn Field="@nameof(JobOperationDto.JobOrderNo)"    HeaderText="Job No"         Width="130" />
+                <GridColumn Field="@nameof(JobOperationDto.SequenceNo)"    HeaderText="#"              Width="60" TextAlign="TextAlign.Right" />
+                <GridColumn Field="@nameof(JobOperationDto.OperationType)" HeaderText="Operation Type" Width="180" />
+                <GridColumn Field="@nameof(JobOperationDto.Department)"    HeaderText="Department"     Width="140" />
+                <GridColumn Field="@nameof(JobOperationDto.AssignedStaffName)" HeaderText="Assigned Staff" Width="160" />
+                <GridColumn HeaderText="Status" Width="120">
+                    <Template>
+                        @{ var op = (context as JobOperationDto)!; }
+                        <span class="ops-status" style="@StatusStyle(op.Status)">@op.StatusName</span>
+                    </Template>
+                </GridColumn>
+                <GridColumn Field="@nameof(JobOperationDto.PriorityName)"  HeaderText="Priority"      Width="100" />
+                <GridColumn Field="@nameof(JobOperationDto.PlannedDate)"   HeaderText="Planned Date"  Width="120" Format="dd-MMM-yyyy" Type="ColumnType.Date" />
+                <GridColumn Field="@nameof(JobOperationDto.ActualDate)"    HeaderText="Actual Date"   Width="120" Format="dd-MMM-yyyy" Type="ColumnType.Date" />
+                <GridColumn Field="@nameof(JobOperationDto.VendorName)"    HeaderText="Vendor"        Width="150" />
+            </GridColumns>
+        </SfGrid>
+    </div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+
+@code {
+    public record StatusOpt(string Value, string Label);
+
+    private SfGrid<JobOperationDto>? _grid;
+    private BsModalDialog? _modal;
+    private bool _loading = true;
+
+    private List<JobOperationDto> _all      = new();
+    private List<JobOperationDto> _filtered = new();
+
+    public EventCallback LoadOnSaveReference { get; set; }
+
+    // KPI counters
+    private int _pending, _completedToday, _delayed, _staffCount, _deptCount;
+
+    // Filter state
+    private string  _fStatus        = "ALL";
+    private string? _fDepartment;
+    private string? _fStaff;
+    private string? _fOperationType;
+    private DateTime? _fFrom;
+    private DateTime? _fTo;
+    private string  _activeKpi = "";   // KPI-driven quick filter (PENDING / DONE_TODAY / DELAYED)
+
+    // Filter option lists (built from the loaded data)
+    private List<string> _departments   = new();
+    private List<string> _staffNames    = new();
+    private List<string> _operationTypes = new();
+
+    private static readonly List<StatusOpt> _statusOpts = new()
+    {
+        new("ALL",        "All"),
+        new("Draft",      "Draft"),
+        new("Assigned",   "Assigned"),
+        new("InProgress", "In Progress"),
+        new("Completed",  "Completed"),
+        new("Cancelled",  "Cancelled"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadOnSaveReference = EventCallback.Factory.Create(this, Reload);
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _all = await OperationService.GetAllAsync();
+
+            _departments    = _all.Where(o => !string.IsNullOrWhiteSpace(o.Department)).Select(o => o.Department!).Distinct().OrderBy(x => x).ToList();
+            _staffNames     = _all.Where(o => !string.IsNullOrWhiteSpace(o.AssignedStaffName)).Select(o => o.AssignedStaffName!).Distinct().OrderBy(x => x).ToList();
+            _operationTypes = _all.Where(o => !string.IsNullOrWhiteSpace(o.OperationType)).Select(o => o.OperationType).Distinct().OrderBy(x => x).ToList();
+
+            ComputeKpis();
+            ApplyFilter();
+        }
+        finally { _loading = false; StateHasChanged(); }
+    }
+
+    private void ComputeKpis()
+    {
+        var today = DateTime.Now.Date;
+        _pending        = _all.Count(o => o.Status != JobOperationStatus.Completed && o.Status != JobOperationStatus.Cancelled);
+        _completedToday = _all.Count(o => o.Status == JobOperationStatus.Completed && o.ActualDate.HasValue && o.ActualDate.Value.ToLocalTime().Date == today);
+        _delayed        = _all.Count(o => o.Status != JobOperationStatus.Completed && o.Status != JobOperationStatus.Cancelled
+                                          && o.PlannedDate.HasValue && o.PlannedDate.Value.ToLocalTime().Date < today);
+        _staffCount     = _all.Where(o => !string.IsNullOrWhiteSpace(o.AssignedStaffName)).Select(o => o.AssignedStaffName).Distinct().Count();
+        _deptCount      = _all.Where(o => !string.IsNullOrWhiteSpace(o.Department)).Select(o => o.Department).Distinct().Count();
+    }
+
+    private void ToggleKpi(string kpi)
+    {
+        _activeKpi = _activeKpi == kpi ? "" : kpi;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        IEnumerable<JobOperationDto> q = _all;
+        var today = DateTime.Now.Date;
+
+        // KPI quick-filter
+        q = _activeKpi switch
+        {
+            "PENDING"    => q.Where(o => o.Status != JobOperationStatus.Completed && o.Status != JobOperationStatus.Cancelled),
+            "DONE_TODAY" => q.Where(o => o.Status == JobOperationStatus.Completed && o.ActualDate.HasValue && o.ActualDate.Value.ToLocalTime().Date == today),
+            "DELAYED"    => q.Where(o => o.Status != JobOperationStatus.Completed && o.Status != JobOperationStatus.Cancelled
+                                         && o.PlannedDate.HasValue && o.PlannedDate.Value.ToLocalTime().Date < today),
+            _            => q,
+        };
+
+        if (_fStatus != "ALL" && Enum.TryParse<JobOperationStatus>(_fStatus, out var st))
+            q = q.Where(o => o.Status == st);
+        if (!string.IsNullOrWhiteSpace(_fDepartment))
+            q = q.Where(o => o.Department == _fDepartment);
+        if (!string.IsNullOrWhiteSpace(_fStaff))
+            q = q.Where(o => o.AssignedStaffName == _fStaff);
+        if (!string.IsNullOrWhiteSpace(_fOperationType))
+            q = q.Where(o => o.OperationType == _fOperationType);
+        if (_fFrom.HasValue)
+            q = q.Where(o => o.PlannedDate.HasValue && o.PlannedDate.Value.ToLocalTime().Date >= _fFrom.Value.Date);
+        if (_fTo.HasValue)
+            q = q.Where(o => o.PlannedDate.HasValue && o.PlannedDate.Value.ToLocalTime().Date <= _fTo.Value.Date);
+
+        _filtered = q.ToList();
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        _fStatus = "ALL"; _fDepartment = null; _fStaff = null; _fOperationType = null;
+        _fFrom = null; _fTo = null; _activeKpi = "";
+        ApplyFilter();
+    }
+
+    private async Task Reload()
+    {
+        await LoadData();
+        if (_grid is not null) await _grid.Refresh();
+    }
+
+    // Click an operation → open its parent Job in the standard JobOrder popup.
+    private async Task OnOpen(CommandClickEventArgs<JobOperationDto> args)
+    {
+        var op = args.RowData;
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("Id", op.JobOrderId);
+        o.ControlParameters.Add("Title", $"Job - {op.JobOrderNo}");
+        o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+        var r = await _modal!.Context.ShowAsync<JobOrderPages.JobOrderPopup>(o);
+        if (r.ResultType == ModalResultType.OK) await Reload();
+    }
+
+    private static string StatusStyle(JobOperationStatus s) => s switch
+    {
+        JobOperationStatus.Completed  => "background:#d4f4dd;color:#0f7b3d;",
+        JobOperationStatus.InProgress => "background:#d6ebff;color:#0a5bb5;",
+        JobOperationStatus.Assigned   => "background:#fff2cc;color:#9a7100;",
+        JobOperationStatus.Cancelled  => "background:#f6d6d6;color:#b52121;",
+        _ /* Draft */                 => "background:#e9e9e9;color:#555;",
+    };
+}

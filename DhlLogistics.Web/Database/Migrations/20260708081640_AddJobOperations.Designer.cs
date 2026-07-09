@@ -3,6 +3,7 @@ using System;
 using DhlLogistics.Web.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DhlLogistics.Web.Database.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260708081640_AddJobOperations")]
+    partial class AddJobOperations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -447,15 +450,9 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)");
 
-                    b.Property<long?>("JobOperationId")
-                        .HasColumnType("bigint");
-
                     b.Property<decimal>("NetAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("OperationName")
-                        .HasColumnType("text");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(12, 3)
@@ -473,8 +470,6 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.HasIndex("BillId");
 
                     b.HasIndex("ChargeCodeId");
-
-                    b.HasIndex("JobOperationId");
 
                     b.HasIndex("SacId");
 
@@ -628,137 +623,6 @@ namespace DhlLogistics.Web.Database.Migrations
                         .IsUnique();
 
                     b.ToTable("CompanyBranches");
-                });
-
-            modelBuilder.Entity("DhlLogistics.Shared.Models.CompanyDetails", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AccountName")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("AccountNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("AddressLine1")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("AddressLine2")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("AuthorisedSignatory")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("BankName")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("Branch")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("CIN")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("City")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("CompanyName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Country")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("CreatedOn")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("GSTIN")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("IEC")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("IFSC")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("InvoiceFooter")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LogoPath")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("Mobile")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime?>("ModifiedOn")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PAN")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Phone")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Pincode")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("State")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("SwiftCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Tagline")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("TermsAndConditions")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Website")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("CompanyDetails", (string)null);
                 });
 
             modelBuilder.Entity("DhlLogistics.Shared.Models.Container", b =>
@@ -1281,9 +1145,6 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)");
 
-                    b.Property<long?>("JobOperationId")
-                        .HasColumnType("bigint");
-
                     b.Property<long>("JobOrderId")
                         .HasColumnType("bigint");
 
@@ -1305,8 +1166,6 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ChargeCodeId");
-
-                    b.HasIndex("JobOperationId");
 
                     b.HasIndex("JobOrderId");
 
@@ -1355,9 +1214,6 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.Property<DateTime?>("PlannedDate")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Remarks")
                         .HasColumnType("text");
@@ -3070,11 +2926,6 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasForeignKey("ChargeCodeId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("DhlLogistics.Shared.Models.JobOperation", "JobOperation")
-                        .WithMany()
-                        .HasForeignKey("JobOperationId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("DhlLogistics.Shared.Models.JobOrder", "JobOrder")
                         .WithMany("Charges")
                         .HasForeignKey("JobOrderId")
@@ -3087,8 +2938,6 @@ namespace DhlLogistics.Web.Database.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ChargeCode");
-
-                    b.Navigation("JobOperation");
 
                     b.Navigation("JobOrder");
 
