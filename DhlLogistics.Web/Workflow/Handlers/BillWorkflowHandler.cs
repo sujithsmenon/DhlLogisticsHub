@@ -67,17 +67,41 @@ public sealed class BillWorkflowHandler : IWorkflowHandler
                 BillService.RecalcTotals(bill);
                 _db.Entry(bill).State = EntityState.Modified;
 
-                // Replace charges (delete + re-add) — same strategy as the former BillService.UpdateAsync.
-                var existing = await _db.BillCharges.Where(c => c.BillId == bill.Id).ToListAsync();
-                _db.BillCharges.RemoveRange(existing);
-                int o = 1;
-                foreach (var c in bill.Charges)
+                // Charge sync by primary key — update existing lines in place, insert only genuinely
+                // new (Id == 0) lines, and delete only the lines the user removed. NEVER delete-then-
+                // reinsert existing rows: the former code reset every line's Id to 0 and re-Added it,
+                // but because Blazor Server's scoped DbContext was already tracking the charges loaded in
+                // OnInitializedAsync, resetting the key repurposed the tracked (Deleted) entity into an
+                // Insert — so the original rows were never deleted and brand-new rows landed alongside
+                // them, duplicating every charge on each save (esp. bills auto-created from a job, which
+                // already carry an Id + charges when opened).
+                var incoming = bill.Charges.ToList();
+                var keepIds  = incoming.Where(c => c.Id != 0).Select(c => c.Id).ToHashSet();
+
+                // Ids currently persisted for this bill (scalar projection → no tracking, so we never
+                // pull a conflicting second instance of an already-tracked charge).
+                var dbIds = await _db.BillCharges
+                    .Where(c => c.BillId == bill.Id)
+                    .Select(c => c.Id)
+                    .ToListAsync();
+                foreach (var removedId in dbIds.Where(id => !keepIds.Contains(id)))
                 {
-                    c.Id = 0;
+                    var tracked = _db.ChangeTracker.Entries<BillCharge>()
+                        .FirstOrDefault(e => e.Entity.Id == removedId);
+                    if (tracked is not null) tracked.State = EntityState.Deleted;
+                    else _db.BillCharges.Remove(new BillCharge { Id = removedId });
+                }
+
+                int o = 1;
+                foreach (var c in incoming)
+                {
                     c.BillId = bill.Id;
                     if (c.DisplayOrder == 0) c.DisplayOrder = o;
                     o++;
-                    _db.BillCharges.Add(c);
+                    if (c.Id == 0)
+                        _db.BillCharges.Add(c);                     // brand-new line
+                    else
+                        _db.Entry(c).State = EntityState.Modified;  // existing line — update in place
                 }
                 await _db.SaveChangesAsync();
                 break;

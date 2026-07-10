@@ -146,18 +146,37 @@ public sealed class JobOrderWorkflowHandler : IWorkflowHandler
                     else _db.Entry(match).CurrentValues.SetValues(o);
                 }
 
-                // REPLACE sale charges (delete existing + re-add). Unlike operations, charges carry no
-                // accounting key, so churning Ids is safe and keeps the mapping to bill charges simple.
-                var existingCharges = await _db.JobCharges.Where(c => c.JobOrderId == job.Id).ToListAsync();
-                _db.JobCharges.RemoveRange(existingCharges);
-                int uc = 1;
-                foreach (var c in job.Charges)
+                // MERGE sale charges by primary key — update existing lines in place, insert only new
+                // (Id == 0) lines, delete only removed lines. We must NOT delete-then-reinsert with Id=0:
+                // the job graph (incl. Charges) is loaded tracking in GetByIdAsync and edited in place, so
+                // the circuit's scoped DbContext already tracks these charges. Resetting a tracked line's
+                // Id to 0 + re-Add repurposes the Deleted entity into an Insert, so the original row is
+                // never deleted and a new row is inserted alongside it → duplicate charges on every save.
+                // (Charges carry no accounting key, so churning Ids was otherwise safe — but the tracking
+                // identity is what bites; mirror the fix in BillWorkflowHandler.)
+                var incomingCharges = job.Charges.ToList();
+                var keepChargeIds   = incomingCharges.Where(c => c.Id != 0).Select(c => c.Id).ToHashSet();
+                var dbChargeIds = await _db.JobCharges
+                    .Where(c => c.JobOrderId == job.Id)
+                    .Select(c => c.Id)
+                    .ToListAsync();
+                foreach (var removedId in dbChargeIds.Where(id => !keepChargeIds.Contains(id)))
                 {
-                    c.Id = 0;
+                    var tracked = _db.ChangeTracker.Entries<JobCharge>()
+                        .FirstOrDefault(e => e.Entity.Id == removedId);
+                    if (tracked is not null) tracked.State = EntityState.Deleted;
+                    else _db.JobCharges.Remove(new JobCharge { Id = removedId });
+                }
+                int uc = 1;
+                foreach (var c in incomingCharges)
+                {
                     c.JobOrderId = job.Id;
                     if (c.DisplayOrder == 0) c.DisplayOrder = uc;
                     uc++;
-                    _db.JobCharges.Add(c);
+                    if (c.Id == 0)
+                        _db.JobCharges.Add(c);                     // brand-new line
+                    else
+                        _db.Entry(c).State = EntityState.Modified;  // existing line — update in place
                 }
                 JobOrderService.RecalcTotals(job);   // refresh rolled-up SubTotal / GstTotal / TotalAmount
                 await LogAndCheckCurrencyAsync(job); // pre-save: log + verify Currency FK
