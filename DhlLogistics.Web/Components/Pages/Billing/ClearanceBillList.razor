@@ -59,6 +59,10 @@
                     <div class="mb-3 col-md-2"><label class="form-Custom-label">Bill No:</label>
                         <SfTextBox @bind-Value="filterBillNo" CssClass="e-small" Placeholder="Search Bill No.." /></div>
                 }
+                <div class="mb-3 col-md-2">
+                    <label class="form-Custom-label">Customer Invoice:</label>
+                    <SfTextBox @bind-Value="filterCustInv" CssClass="e-small" Placeholder="Customer Inv No.." />
+                </div>
                 <div class="mb-3 col-md-1">
                     <label class="form-Custom-label">Status:</label>
                     <SfDropDownList @bind-Value="filterStatus" TItem="StatusFilter" TValue="string" DataSource="@statuses" CssClass="e-small">
@@ -92,6 +96,7 @@
                         <GridColumn Field="@nameof(Bill.BillDate)"     HeaderText="Bill Date"     Width="100" Format="dd-MMM-yyyy" />
                         <GridColumn Field="BillingClient.CompanyName"  HeaderText="Billing Client" Width="240" />
                         <GridColumn Field="JobOrder.JobOrderNo"        HeaderText="Job Order"     Width="120" />
+                        <GridColumn Field="@nameof(Bill.CustomerInvoiceNumber)" HeaderText="Customer Inv No" Width="130" />
                         <GridColumn Field="Currency.CurrencyCode"      HeaderText="Curr"          Width="60" />
                         <GridColumn Field="@nameof(Bill.SubTotal)"     HeaderText="Sub Total"     Width="110" Format="N2" TextAlign="TextAlign.Right" />
                         <GridColumn Field="@nameof(Bill.GstAmount)"    HeaderText="GST"           Width="100" Format="N2" TextAlign="TextAlign.Right" />
@@ -140,6 +145,7 @@
     private int?      filterFinYear;
     private int?      filterClientId;
     private string?   filterBillNo;
+    private string?   filterCustInv;
     private string    filterStatus = "ACTIVE";
 
     private static readonly List<StatusFilter> statuses = new()
@@ -189,6 +195,8 @@
         if (filterBranchId.HasValue)  q = q.Where(b => b.BranchId == filterBranchId);
         if (filterFinYear.HasValue)   q = q.Where(b => b.FinYear == filterFinYear);
         if (filterClientId.HasValue)  q = q.Where(b => b.BillingClientId == filterClientId);
+        if (!string.IsNullOrWhiteSpace(filterCustInv))
+            q = q.Where(b => b.CustomerInvoiceNumber != null && b.CustomerInvoiceNumber.Contains(filterCustInv, StringComparison.OrdinalIgnoreCase));
 
         if (byDateRange)
         {
@@ -207,7 +215,7 @@
     private void Clear()
     {
         byDateRange = false; fromDate = null; toDate = null;
-        filterBranchId = null; filterClientId = null; filterBillNo = null;
+        filterBranchId = null; filterClientId = null; filterBillNo = null; filterCustInv = null;
         filterStatus = "ACTIVE";
         filterFinYear = BillService.ComputeFinYear(DateTime.UtcNow);
         ApplyFilters();

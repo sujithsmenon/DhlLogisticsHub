@@ -6,6 +6,7 @@
 @inject ChargeCodeService ChargeCodeService
 @inject SacService SacService
 @inject InvoiceService InvoiceService
+@inject TransportationBillService TransportService
 @inject IToastService ToastService
 
 <style>
@@ -82,13 +83,17 @@
                         <label class="form-Custom-label">Bill Date:</label>
                         <SfDatePicker TValue="DateTime" @bind-Value="@item.BillDate" Format="dd-MMM-yyyy" StrictMode="true" CssClass="e-small" />
                     </div>
-                    <div class="mb-3 col-md-3">
+                    <div class="mb-3 col-md-2">
                         <label class="form-Custom-label">Billing Client:</label>
                         <SfComboBox @bind-Value="@item.BillingClientId" TItem="DhlClient" TValue="int"
                                     DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="false"
                                     Placeholder="Select Organization..">
                             <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
                         </SfComboBox>
+                    </div>
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Customer Invoice:</label>
+                        <SfTextBox @bind-Value="@item.CustomerInvoiceNumber" CssClass="e-small" Placeholder="Customer's invoice ref" />
                     </div>
                     <div class="mb-3 col-md-2">
                         <label class="form-Custom-label">Job Order:</label>
@@ -139,6 +144,60 @@
                             <div class="jl"><span>Volume (CBM)</span><b>@(_job.VolumeCbm?.ToString("N3") ?? "—")</b></div>
                             <div class="jl"><span>Est. Cargo Value</span><b>@(_job.EstimatedValue?.ToString("N2") ?? "—")</b></div>
                             <div class="jl"><span>Remarks</span><b>@(string.IsNullOrWhiteSpace(_job.Remarks) ? "—" : _job.Remarks)</b></div>
+                        </div>
+                    </div>
+                }
+
+                @* ── Transport Details — the source snapshot (AWB/BL, container, vehicle, driver, route, cargo).
+                     Shown for Transportation bills and any bill carrying source detail. Editable; saved on the
+                     Bill so the record is self-contained regardless of shipment type. ── *@
+                @if (item.Mode == BillMode.Transportation || item.SourceType is not null)
+                {
+                    <div class="card" style="margin-bottom:8px;">
+                        <div class="card-header d-flex align-items-center">
+                            <span><b>Transport Details</b>
+                                @if (!string.IsNullOrWhiteSpace(item.SourceReference))
+                                {
+                                    <small class="muted"> — @item.ShipmentTypeName · @item.SourceReference</small>
+                                }
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">AWB / BL No:</label>
+                                    <SfTextBox @bind-Value="@item.AwbOrBlNumber" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Container No:</label>
+                                    <SfTextBox @bind-Value="@item.ContainerNumber" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Transporter:</label>
+                                    <SfComboBox @bind-Value="@item.TransporterId" TItem="Transporter" TValue="int?"
+                                                DataSource="@_transporters" AllowFiltering="true" CssClass="e-small" ShowClearButton="true">
+                                        <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+                                    </SfComboBox></div>
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Commodity:</label>
+                                    <SfTextBox @bind-Value="@item.CommodityName" CssClass="e-small" /></div>
+                            </div>
+                            <div class="row">
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Vehicle No:</label>
+                                    <SfTextBox @bind-Value="@item.VehicleNumber" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Driver:</label>
+                                    <SfTextBox @bind-Value="@item.DriverName" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Origin:</label>
+                                    <SfTextBox @bind-Value="@item.Origin" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Destination:</label>
+                                    <SfTextBox @bind-Value="@item.Destination" CssClass="e-small" /></div>
+                            </div>
+                            <div class="row">
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Pickup Location:</label>
+                                    <SfTextBox @bind-Value="@item.PickupLocation" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-3"><label class="form-Custom-label">Delivery Location:</label>
+                                    <SfTextBox @bind-Value="@item.DeliveryLocation" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-2"><label class="form-Custom-label">Quantity:</label>
+                                    <SfNumericTextBox TValue="decimal?" @bind-Value="@item.Quantity" Format="N3" ShowSpinButton="false" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-2"><label class="form-Custom-label">Weight (kg):</label>
+                                    <SfNumericTextBox TValue="decimal?" @bind-Value="@item.WeightKg" Format="N3" ShowSpinButton="false" CssClass="e-small" /></div>
+                                <div class="mb-2 col-md-2"><label class="form-Custom-label">Volume (CBM):</label>
+                                    <SfNumericTextBox TValue="decimal?" @bind-Value="@item.VolumeCbm" Format="N3" ShowSpinButton="false" CssClass="e-small" /></div>
+                            </div>
                         </div>
                     </div>
                 }
@@ -396,6 +455,11 @@
     [Parameter] public long Id { get; set; }
     [Parameter] public string? Title { get; set; }
     [Parameter] public BillMode Mode { get; set; } = BillMode.Clearance;
+    /// <summary>When launched from an AWB shipment / Export job to raise a Transportation bill, the source
+    /// type + id are mapped into a prepared Draft bill (transport snapshot pre-filled). JobOrder sources keep
+    /// using <see cref="JobOrderId"/>.</summary>
+    [Parameter] public BillSourceType? SourceType { get; set; }
+    [Parameter] public long SourceId { get; set; }
     /// <summary>When launched from a Job row, pre-links the new bill to that job.</summary>
     [Parameter] public long JobOrderId { get; set; }
 
@@ -409,6 +473,7 @@
     private List<ChargeCode>    _chargeCodes  = new();
     private List<Sac>           _sacs         = new();
     private List<JobOrder>      _jobs         = new();
+    private List<Transporter>   _transporters = new();
 
     private static readonly ChargeCategory[] _categories =
         (ChargeCategory[])Enum.GetValues(typeof(ChargeCategory));
@@ -453,6 +518,7 @@
         // Approved + Closed jobs are the natural source for billing. Submit/Verify
         // happens earlier; jobs in those states aren't yet ready to bill against.
         _jobs        = await JobOrderService.GetByStatusAsync(JobOrderStatus.Approved, JobOrderStatus.Closed);
+        _transporters = await TransportService.GetTransportersAsync();
 
         if (Id != 0)
         {
@@ -462,6 +528,18 @@
                 _job = await JobOrderService.GetByIdAsync(item.JobOrderId.Value);
             await LoadDocumentsAsync();
         }
+        else if (SourceType == BillSourceType.AwbShipment)
+        {
+            // Launched from an AWB shipment — map its data into a prepared Transportation bill.
+            item = await TransportService.PrepareFromAwbAsync(SourceId);
+            Recalc();
+        }
+        else if (SourceType == BillSourceType.ExportJob)
+        {
+            // Launched from an Export job — map its data into a prepared Transportation bill.
+            item = await TransportService.PrepareFromExportAsync(SourceId);
+            Recalc();
+        }
         else if (JobOrderId != 0)
         {
             // Launched from a Job row — prepare a bill pre-linked to (and auto-filled from) the job.
@@ -469,6 +547,7 @@
             item = _job is not null
                 ? BillService.PrepareForJob(_job, Mode)
                 : new Bill { Mode = Mode, BillDate = DateTime.UtcNow.Date, ExchangeRate = 1m };
+            Recalc();
         }
         else
         {
@@ -491,6 +570,7 @@
             {
                 item.BranchId        = _job.BranchId;
                 item.BillingClientId = _job.BillingClientId;
+                item.CustomerInvoiceNumber = _job.CustomerInvoiceNumber;   // carry the customer's invoice ref
                 if (_job.CurrencyId.HasValue) item.CurrencyId = _job.CurrencyId;
             }
         }

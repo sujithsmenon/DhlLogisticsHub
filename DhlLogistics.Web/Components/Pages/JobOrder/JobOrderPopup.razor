@@ -104,7 +104,11 @@
                         <label class="form-Custom-label">JobOrder Date:</label>
                         <SfDatePicker TValue="DateTime" @bind-Value="@item.JobOrderDate" Format="dd-MMM-yyyy" StrictMode="true" CssClass="e-small" />
                     </div>
-                    <div class="mb-3 col-md-3">
+                    <div class="mb-3 col-md-2">
+                        <label class="form-Custom-label">Customer Invoice No: <span style="color:#d9534f;">*</span></label>
+                        <SfTextBox @bind-Value="@item.CustomerInvoiceNumber" CssClass="e-small" Placeholder="e.g. INV-45872" />
+                    </div>
+                    <div class="mb-3 col-md-2">
                         <label class="form-Custom-label">Billing Client:</label>
                         <SfComboBox @bind-Value="@item.BillingClientId" TItem="DhlClient" TValue="int"
                                     DataSource="@_clients" AllowFiltering="true" CssClass="e-small" ShowClearButton="false"
@@ -624,9 +628,12 @@
 
     private async Task Save()
     {
+        if (string.IsNullOrWhiteSpace(item.CustomerInvoiceNumber)) { Toast("Customer Invoice No is required."); return; }
         if (item.BillingClientId == 0) { Toast("Billing Client is required."); return; }
         if (item.ShipperId == 0)       { Toast("Shipper is required."); return; }
         if (item.ConsigneeId == 0)     { Toast("Consignee is required."); return; }
+
+        item.CustomerInvoiceNumber = item.CustomerInvoiceNumber.Trim();
 
         try
         {

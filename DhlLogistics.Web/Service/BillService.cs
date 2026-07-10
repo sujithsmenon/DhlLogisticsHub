@@ -92,9 +92,46 @@ public class BillService
         BranchId        = job.BranchId,
         BillingClientId = job.BillingClientId,
         CurrencyId      = job.CurrencyId,
+        // Customer invoice reference travels with the bill (the legal BillNo/InvoiceNumber is still
+        // generated independently). Jobs grouped into one invoice all carry the same value.
+        CustomerInvoiceNumber = job.CustomerInvoiceNumber,
         BillDate        = DateTime.UtcNow.Date,
         ExchangeRate    = 1m,
+        // Generic billing source + transport snapshot — so a job-raised Transportation bill carries the
+        // same detail set as an AWB / Export one, all through the single Bill workflow.
+        SourceType       = BillSourceType.JobOrder,
+        SourceId         = job.Id,
+        SourceReference  = job.JobOrderNo,
+        ShipmentTypeName = $"{job.Mode} / {job.ShipmentMode} {job.ShipmentType}",
+        ContainerNumber  = job.ContainerSize?.SizeName,
+        Origin           = job.LoadPort?.PortName,
+        Destination      = job.DischargePort?.PortName,
+        CommodityName    = job.Commodity?.CommodityName,
+        Quantity         = job.LclUnits,
+        WeightKg         = job.GrossWeightKg,
+        VolumeCbm        = job.VolumeCbm,
     };
+
+    /// <summary>
+    /// Grouping guard: several job orders may be billed together into a single customer invoice ONLY when
+    /// they all carry the same (non-empty) <see cref="JobOrder.CustomerInvoiceNumber"/>. Returns that shared
+    /// reference. Throws when the set is empty, any value is blank, or the values differ — the caller surfaces
+    /// the message. Numbering of the resulting bill is unaffected (rule: never touch invoice numbering).
+    /// </summary>
+    public static string EnsureGroupableByCustomerInvoice(IReadOnlyCollection<JobOrder> jobs)
+    {
+        if (jobs is null || jobs.Count == 0)
+            throw new InvalidOperationException("Select at least one job to group.");
+        var refs = jobs.Select(j => (j.CustomerInvoiceNumber ?? string.Empty).Trim()).ToList();
+        if (refs.Any(string.IsNullOrEmpty))
+            throw new InvalidOperationException("Every job must have a Customer Invoice Number before it can be grouped for billing.");
+        var distinct = refs.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (distinct.Count > 1)
+            throw new InvalidOperationException(
+                "Only jobs with the same Customer Invoice Number can be grouped into one invoice. " +
+                "Found: " + string.Join(", ", distinct) + ".");
+        return refs[0];
+    }
 
     /// <summary>Maps a JobOrder's mode to the bill mode it should raise.</summary>
     public static BillMode BillModeFor(JobMode mode) =>
@@ -204,9 +241,10 @@ public class BillService
         }
 
         // Refresh only the copied FK header fields; keep charges / status / number / totals.
-        existing.BranchId        = job.BranchId;
-        existing.BillingClientId = job.BillingClientId;
-        existing.CurrencyId      = job.CurrencyId;
+        existing.BranchId              = job.BranchId;
+        existing.BillingClientId       = job.BillingClientId;
+        existing.CurrencyId            = job.CurrencyId;
+        existing.CustomerInvoiceNumber = job.CustomerInvoiceNumber;   // stay in sync with the source job
         existing.ModifiedBy      = user;
         existing.ModifiedOn      = DateTime.UtcNow;
         await _db.SaveChangesAsync();

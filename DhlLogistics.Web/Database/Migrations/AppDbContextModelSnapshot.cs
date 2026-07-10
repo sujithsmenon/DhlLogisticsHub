@@ -256,6 +256,8 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("HawbNo");
+
                     b.HasIndex("TransporterId");
 
                     b.ToTable("AwbShipments");
@@ -274,6 +276,9 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.Property<DateTime?>("ApprovedOn")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AwbOrBlNumber")
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("BillDate")
                         .HasColumnType("timestamp with time zone");
@@ -294,6 +299,12 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<DateTime?>("ClosedOn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CommodityName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContainerNumber")
+                        .HasColumnType("text");
+
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
@@ -302,6 +313,19 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.Property<int?>("CurrencyId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CustomerInvoiceNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DeliveryLocation")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Destination")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DriverName")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("timestamp with time zone");
@@ -350,8 +374,18 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<DateTime?>("ModifiedOn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Origin")
+                        .HasColumnType("text");
+
                     b.Property<string>("PaymentTerms")
                         .HasColumnType("text");
+
+                    b.Property<string>("PickupLocation")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
 
                     b.Property<string>("Reference")
                         .HasColumnType("text");
@@ -367,6 +401,18 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.Property<string>("Remarks")
                         .HasColumnType("text");
+
+                    b.Property<string>("ShipmentTypeName")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("SourceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SourceReference")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("SourceType")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -385,11 +431,25 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<int?>("TransporterId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VehicleNumber")
+                        .HasColumnType("text");
+
                     b.Property<string>("VerifiedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("VerifiedOn")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("VolumeCbm")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal?>("WeightKg")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
 
                     b.HasKey("Id");
 
@@ -402,11 +462,19 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.HasIndex("CurrencyId");
 
+                    b.HasIndex("CustomerInvoiceNumber");
+
+                    b.HasIndex("InvoiceNumber");
+
                     b.HasIndex("JobOrderId");
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("TransporterId");
+
                     b.HasIndex("Mode", "FinYear");
+
+                    b.HasIndex("SourceType", "SourceId");
 
                     b.ToTable("Bills");
                 });
@@ -782,6 +850,8 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ContainerNumber");
+
                     b.ToTable("Containers");
                 });
 
@@ -1123,6 +1193,8 @@ namespace DhlLogistics.Web.Database.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("JobReference");
+
                     b.HasIndex("TransporterId");
 
                     b.ToTable("ExportJobs");
@@ -1437,6 +1509,11 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<int?>("CurrencyId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CustomerInvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<int?>("DischargePortId")
                         .HasColumnType("integer");
 
@@ -1554,6 +1631,8 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.HasIndex("ContainerSizeId");
 
                     b.HasIndex("CurrencyId");
+
+                    b.HasIndex("CustomerInvoiceNumber");
 
                     b.HasIndex("DischargePortId");
 
@@ -1879,6 +1958,46 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.ToTable("Sacs");
                 });
 
+            modelBuilder.Entity("DhlLogistics.Shared.Models.SearchAuditLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ElapsedMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModuleHint")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OpenedModule")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OpenedPrimary")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ResultCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Term")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserName")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("At");
+
+                    b.ToTable("SearchAuditLogs");
+                });
+
             modelBuilder.Entity("DhlLogistics.Shared.Models.SezLocation", b =>
                 {
                     b.Property<int>("Id")
@@ -2200,6 +2319,8 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PlateNumber");
 
                     b.ToTable("Vehicles");
                 });
@@ -2961,6 +3082,11 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasForeignKey("JobOrderId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("DhlLogistics.Shared.Models.Transporter", "Transporter")
+                        .WithMany()
+                        .HasForeignKey("TransporterId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("BillingClient");
 
                     b.Navigation("Branch");
@@ -2968,6 +3094,8 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Navigation("Currency");
 
                     b.Navigation("JobOrder");
+
+                    b.Navigation("Transporter");
                 });
 
             modelBuilder.Entity("DhlLogistics.Shared.Models.BillCharge", b =>

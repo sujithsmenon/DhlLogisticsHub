@@ -33,6 +33,12 @@ public class JobOrder
 
     public DateTime JobOrderDate { get; set; } = DateTime.UtcNow.Date;
 
+    /// <summary>Customer's own invoice reference (mandatory). Not the legal tax-invoice number —
+    /// that stays the auto-generated Billing Invoice Number. Multiple job orders may share the same
+    /// value, which is how several jobs are grouped under one customer invoice at billing time. Copied
+    /// onto the linked <see cref="Bill"/> and printed on the invoice PDF as a reference line.</summary>
+    public string CustomerInvoiceNumber { get; set; } = string.Empty;
+
     /// <summary>Indian FY starting year, e.g. 2026 = FY 2026-27.</summary>
     public int FinYear { get; set; }
 

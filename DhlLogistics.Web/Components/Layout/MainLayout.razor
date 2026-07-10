@@ -5,6 +5,8 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ThemeService Theme
 @inject LogisticsService Logistics
+@inject GlobalSearchService GlobalSearch
+@using DhlLogistics.Web.Service.Search
 @implements IAsyncDisposable
 
 @if (_ready)
@@ -47,46 +49,99 @@
                     <div class="topbar-search">
                         <span class="search-icon" aria-hidden="true">🔍</span>
                         <input class="search-input" type="text"
-                               placeholder="Search shipments, jobs, customers…"
+                               placeholder="Search anything — jobs, invoices, AWB, containers, clients…"
                                aria-label="Search"
                                value="@_searchTerm"
                                @oninput="OnSearchInput"
-                               @onfocus="OnSearchFocus" />
+                               @onfocus="OnSearchFocus"
+                               @onkeydown="OnSearchKeyDown" />
                         @if (_searching)
                         {
                             <span class="search-spin" aria-hidden="true"></span>
                         }
                     </div>
 
-                    @if (_searchOpen && _searchTerm.Trim().Length >= 2)
+                    @if (_searchOpen)
                     {
                         <div class="search-results glass">
-                            @if (_searching && !_searchResults.Any())
+                            @if (_searchTerm.Trim().Length < 2)
+                            {
+                                @* Recent + pinned searches (shown when the box is empty/short). *@
+                                @if (_pinned.Count == 0 && _recent.Count == 0)
+                                {
+                                    <div class="search-empty">Type to search across every module.</div>
+                                }
+                                @if (_pinned.Count > 0)
+                                {
+                                    <div class="search-group-hdr">📌 Pinned</div>
+                                    @foreach (var s in _pinned)
+                                    {
+                                        <div class="search-item" @onclick="() => RunRecent(s)">
+                                            <span class="search-type">📌</span>
+                                            <div class="search-item-main"><div class="search-item-title">@s</div></div>
+                                            <span class="search-status" @onclick:stopPropagation="true" @onclick="() => Unpin(s)">✕</span>
+                                        </div>
+                                    }
+                                }
+                                @if (_recent.Count > 0)
+                                {
+                                    <div class="search-group-hdr">🕘 Recent</div>
+                                    @foreach (var s in _recent)
+                                    {
+                                        <div class="search-item" @onclick="() => RunRecent(s)">
+                                            <span class="search-type">🕘</span>
+                                            <div class="search-item-main"><div class="search-item-title">@s</div></div>
+                                            <span class="search-status" @onclick:stopPropagation="true" @onclick="() => Pin(s)">📌</span>
+                                        </div>
+                                    }
+                                }
+                            }
+                            else if (_searching && (_searchResponse?.Total ?? 0) == 0)
                             {
                                 <div class="search-empty">Searching…</div>
                             }
-                            else if (!_searchResults.Any())
+                            else if ((_searchResponse?.Total ?? 0) == 0)
                             {
                                 <div class="search-empty">No matches for “@_searchTerm”</div>
                             }
                             else
                             {
-                                @foreach (var r in _searchResults)
+                                var flatIndex = -1;
+                                @foreach (var g in _searchResponse!.Groups)
                                 {
-                                    <div class="search-item" @onclick="() => OpenResult(r)">
-                                        <span class="search-type">@r.EntityType</span>
-                                        <div class="search-item-main">
-                                            <div class="search-item-title">@r.Title</div>
-                                            @if (!string.IsNullOrWhiteSpace(r.Subtitle))
+                                    <div class="search-group-hdr">@g.Icon @g.Module <span class="search-count">(@g.Hits.Count)</span></div>
+                                    @foreach (var h in g.Hits)
+                                    {
+                                        flatIndex++;
+                                        var i = flatIndex;
+                                        <div class="search-item @(i == _activeIndex ? "active" : "")" @onclick="() => OpenResult(h)">
+                                            <span class="search-type">@h.Icon</span>
+                                            <div class="search-item-main">
+                                                <div class="search-item-title">@h.Primary</div>
+                                                @if (!string.IsNullOrWhiteSpace(h.Secondary) || h.Date is not null || !string.IsNullOrWhiteSpace(h.Branch))
+                                                {
+                                                    <div class="search-item-sub">
+                                                        @h.Secondary@(string.IsNullOrWhiteSpace(h.Branch) ? "" : $" · {h.Branch}")@(h.Date is null ? "" : $" · {h.Date:dd MMM yyyy}")
+                                                    </div>
+                                                }
+                                                @if (h.Actions.Count > 0)
+                                                {
+                                                    <div class="search-actions">
+                                                        @foreach (var a in h.Actions)
+                                                        {
+                                                            <span class="search-action" title="@a.Label"
+                                                                  @onclick:stopPropagation="true"
+                                                                  @onclick="() => DoAction(h, a)">@a.Icon @a.Label</span>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(h.Status))
                                             {
-                                                <div class="search-item-sub">@r.Subtitle</div>
+                                                <span class="search-status">@h.Status</span>
                                             }
                                         </div>
-                                        @if (!string.IsNullOrWhiteSpace(r.Status))
-                                        {
-                                            <span class="search-status">@r.Status</span>
-                                        }
-                                    </div>
+                                    }
                                 }
                             }
                         </div>
@@ -298,6 +353,20 @@
     flex-shrink: 0; font-size: 10px; font-weight: 600; color: var(--muted);
     background: var(--surface2); border-radius: 5px; padding: 2px 7px;
 }
+/* Grouped results: module header + count, active (keyboard) row, quick actions. */
+.search-results { width: 440px; }
+.search-group-hdr {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--muted); padding: 8px 10px 4px; position: sticky; top: 0;
+}
+.search-count { opacity: .7; font-weight: 600; }
+.search-item.active { background: var(--surface2); box-shadow: inset 0 0 0 1.5px rgba(8,104,178,.35); }
+.search-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.search-action {
+    font-size: 10.5px; font-weight: 600; color: var(--blue);
+    background: rgba(8,104,178,.10); border-radius: 5px; padding: 2px 7px; cursor: pointer;
+}
+.search-action:hover { background: rgba(8,104,178,.20); }
 
 /* ── Notification bell ──────────────────────────────────────────────────────── */
 .notif-wrap  { position: relative; }
@@ -546,32 +615,46 @@
     private void ToggleUserMenu() { _userMenuOpen = !_userMenuOpen; _panelOpen = false; }
     private void CloseAllPanels() { _panelOpen = false; _userMenuOpen = false; _searchOpen = false; }
 
-    // ── Global search — debounced (300ms), async, top-10 results ────────────────
+    // ── Universal Smart Search — debounced, grouped, keyboard-driven, permission-scoped ──────────
     private string _searchTerm = "";
     private bool   _searchOpen;
     private bool   _searching;
-    private List<GlobalSearchResult> _searchResults = [];
+    private SearchResponse? _searchResponse;
+    private int    _activeIndex = -1;
     private CancellationTokenSource? _searchCts;
 
-    private void OnSearchFocus()
+    // Recent / pinned searches (client-side, localStorage — last 10).
+    private List<string> _recent = new();
+    private List<string> _pinned = new();
+    private bool _recentLoaded;
+    private const string RecentKey = "dhl.search.recent";
+    private const string PinnedKey = "dhl.search.pinned";
+
+    private IReadOnlyList<SearchHit> FlatHits() =>
+        _searchResponse is null ? Array.Empty<SearchHit>()
+        : _searchResponse.Groups.SelectMany(g => g.Hits).ToList();
+
+    private async Task OnSearchFocus()
     {
-        if (_searchTerm.Trim().Length >= 2) _searchOpen = true;
+        _panelOpen = false; _userMenuOpen = false;
+        _searchOpen = true;
+        if (!_recentLoaded) { await LoadRecentAsync(); _recentLoaded = true; }
     }
 
     private async Task OnSearchInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
     {
         _searchTerm = e.Value?.ToString() ?? "";
         _panelOpen = false; _userMenuOpen = false;
+        _activeIndex = -1;
 
-        // Cancel any in-flight debounce/search.
         _searchCts?.Cancel();
 
         var term = _searchTerm.Trim();
         if (term.Length < 2)
         {
-            _searchOpen = false;
-            _searching  = false;
-            _searchResults = [];
+            _searching = false;
+            _searchResponse = null;
+            _searchOpen = true;                 // keep open to show recent/pinned
             return;
         }
 
@@ -582,27 +665,115 @@
         _searchCts = cts;
         try
         {
-            await Task.Delay(300, cts.Token);   // debounce
-            var results = await Logistics.GlobalSearchAsync(term, 10);
+            await Task.Delay(250, cts.Token);   // debounce
+            var resp = await GlobalSearch.SearchAsync(term, cts.Token);
             if (cts.Token.IsCancellationRequested) return;
-            _searchResults = results;
-            _searching     = false;
+            _searchResponse = resp;
+            _searching      = false;
             await InvokeAsync(StateHasChanged);
         }
         catch (TaskCanceledException) { /* superseded by a newer keystroke */ }
+        catch (OperationCanceledException) { }
         catch
         {
             _searching = false;
-            _searchResults = [];
+            _searchResponse = null;
         }
     }
 
-    private void OpenResult(GlobalSearchResult r)
+    private void OnSearchKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        var hits = FlatHits();
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (hits.Count > 0) _activeIndex = Math.Min(_activeIndex + 1, hits.Count - 1);
+                break;
+            case "ArrowUp":
+                if (hits.Count > 0) _activeIndex = Math.Max(_activeIndex - 1, 0);
+                break;
+            case "Enter":
+                if (_activeIndex >= 0 && _activeIndex < hits.Count) _ = OpenResult(hits[_activeIndex]);
+                else if (hits.Count > 0) _ = OpenResult(hits[0]);
+                break;
+            case "Escape":
+                _searchOpen = false;
+                break;
+        }
+    }
+
+    private async Task OpenResult(SearchHit h)
+    {
+        await PushRecentAsync(_searchTerm.Trim());
+        _ = GlobalSearch.LogOpenAsync(_searchTerm.Trim(), h.Module, h.Primary);
+        CloseSearch();
+        Nav.NavigateTo(h.Url);
+    }
+
+    private async Task DoAction(SearchHit h, QuickAction a)
+    {
+        await PushRecentAsync(_searchTerm.Trim());
+        _ = GlobalSearch.LogOpenAsync(_searchTerm.Trim(), h.Module, $"{h.Primary} · {a.Label}");
+        CloseSearch();
+        Nav.NavigateTo(a.Url);
+    }
+
+    private void CloseSearch()
     {
         _searchOpen = false;
         _searchTerm = "";
-        _searchResults = [];
-        Nav.NavigateTo(r.Url);
+        _searchResponse = null;
+        _activeIndex = -1;
+    }
+
+    private async Task RunRecent(string s)
+    {
+        _searchTerm = s;
+        await OnSearchInput(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = s });
+    }
+
+    // ── Recent / pinned persistence (localStorage) ──────────────────────────────
+    private async Task LoadRecentAsync()
+    {
+        _recent = await ReadListAsync(RecentKey);
+        _pinned = await ReadListAsync(PinnedKey);
+    }
+
+    private async Task<List<string>> ReadListAsync(string key)
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", key);
+            if (string.IsNullOrWhiteSpace(json)) return new();
+            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new();
+        }
+        catch { return new(); }
+    }
+
+    private async Task SaveListAsync(string key, List<string> list)
+    {
+        try { await JS.InvokeVoidAsync("localStorage.setItem", key, System.Text.Json.JsonSerializer.Serialize(list)); }
+        catch { /* private mode / SSR — non-fatal */ }
+    }
+
+    private async Task PushRecentAsync(string term)
+    {
+        if (term.Length < 2) return;
+        _recent.RemoveAll(x => string.Equals(x, term, StringComparison.OrdinalIgnoreCase));
+        _recent.Insert(0, term);
+        if (_recent.Count > 10) _recent = _recent.Take(10).ToList();
+        await SaveListAsync(RecentKey, _recent);
+    }
+
+    private async Task Pin(string s)
+    {
+        if (!_pinned.Contains(s)) { _pinned.Insert(0, s); await SaveListAsync(PinnedKey, _pinned); }
+    }
+
+    private async Task Unpin(string s)
+    {
+        _pinned.Remove(s);
+        await SaveListAsync(PinnedKey, _pinned);
     }
 
     private async Task SetTheme(bool dark)

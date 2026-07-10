@@ -81,6 +81,8 @@ public sealed class JobOrderWorkflowHandler : IWorkflowHandler
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(job.CustomerInvoiceNumber))
+            ctx.Abort("Customer Invoice No is required.");
         if (job.BillingClientId == 0) ctx.Abort("Billing Client is required.");
         if (job.ShipperId == 0)       ctx.Abort("Shipper is required.");
         if (job.ConsigneeId == 0)     ctx.Abort("Consignee is required.");

@@ -362,6 +362,9 @@ public class InvoiceService
 
         var metaTbl = new Table(UnitValue.CreatePercentArray(new float[] { 1, 1.2f })).SetBorder(line);
         MetaRow(metaTbl, bold, normal, "Invoice No", bill.InvoiceNumber ?? "-");
+        // Customer's own invoice reference — printed beneath the legal Invoice No, only when present.
+        if (!string.IsNullOrWhiteSpace(bill.CustomerInvoiceNumber))
+            MetaRow(metaTbl, bold, normal, "Customer Invoice", bill.CustomerInvoiceNumber!);
         MetaRow(metaTbl, bold, normal, "Invoice Date", bill.InvoiceDate?.ToString("dd-MMM-yyyy") ?? "-");
         MetaRow(metaTbl, bold, normal, "Due Date", bill.DueDate?.ToString("dd-MMM-yyyy") ?? "-");
         MetaRow(metaTbl, bold, normal, "Bill No", bill.BillNo);

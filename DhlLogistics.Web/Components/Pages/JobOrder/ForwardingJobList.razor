@@ -130,11 +130,13 @@
                                         <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat" })" />
                                     </GridCommandColumns>
                                 </GridColumn>
-                                <GridColumn HeaderText="Bill" Width="55" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                                <GridColumn HeaderText="Bill" Width="80" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
                                     <Template>
                                         @{ var jr = (context as JobOrder); }
                                         <SfButton CssClass="e-flat e-small" IconCss="e-icons e-billing-details"
-                                                  Title="Create bill from this job" OnClick="@(() => CreateBill(jr))" />
+                                                  Title="Create Forwarding bill from this job" OnClick="@(() => CreateBill(jr))" />
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-changes-track"
+                                                  Title="Create Transportation bill from this job" OnClick="@(() => CreateTransportBill(jr))" />
                                     </Template>
                                 </GridColumn>
                                 <GridColumn Field="@nameof(JobOrder.Id)" HeaderText="ID" IsPrimaryKey="true" TextAlign="TextAlign.Right" Width="120" Visible="false" />
@@ -143,6 +145,7 @@
                                 <GridColumn Field="@nameof(JobOrder.ShipmentType)" HeaderText="Type"           Width="80"  />
                                 <GridColumn Field="@nameof(JobOrder.JobOrderNo)" HeaderText="JobOrder No"      Width="120" />
                                 <GridColumn Field="@nameof(JobOrder.JobOrderDate)" HeaderText="JobOrder Date"  Width="100" Format="dd-MMM-yyyy" />
+                                <GridColumn Field="@nameof(JobOrder.CustomerInvoiceNumber)" HeaderText="Customer Inv No" Width="130" />
                                 <GridColumn Field="BillingClient.CompanyName"    HeaderText="Client"           Width="220" />
                                 <GridColumn Field="Commodity.CommodityName"      HeaderText="Commodity"        Width="120" />
                                 <GridColumn Field="LoadPort.PortName"            HeaderText="Load Port"        Width="120" />
@@ -207,6 +210,7 @@
     private static readonly List<SearchParam> searchParams = new()
     {
         new("JOBNO",       "JobOrder No"),
+        new("CUSTINV",     "Customer Invoice No"),
         new("CLIENT",      "Billing Client"),
         new("SHIPPER",     "Shipper"),
         new("CONSIGNEE",   "Consignee"),
@@ -287,6 +291,7 @@
             q = searchByField switch
             {
                 "JOBNO"     => q.Where(j => j.JobOrderNo.Contains(v, StringComparison.OrdinalIgnoreCase)),
+                "CUSTINV"   => q.Where(j => j.CustomerInvoiceNumber != null && j.CustomerInvoiceNumber.Contains(v, StringComparison.OrdinalIgnoreCase)),
                 "CLIENT"    => q.Where(j => j.BillingClient != null && j.BillingClient.CompanyName.Contains(v, StringComparison.OrdinalIgnoreCase)),
                 "SHIPPER"   => q.Where(j => j.Shipper != null       && j.Shipper.CompanyName.Contains(v, StringComparison.OrdinalIgnoreCase)),
                 "CONSIGNEE" => q.Where(j => j.Consignee != null     && j.Consignee.CompanyName.Contains(v, StringComparison.OrdinalIgnoreCase)),
@@ -342,6 +347,25 @@
         o.ControlParameters.Add("JobOrderId", job.Id);
         o.ControlParameters.Add("Title", "New Forwarding Bill — " + job.JobOrderNo);
         o.ControlParameters.Add("Mode", BillMode.Forwarding);
+        o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+        var r = await _modal!.Context.ShowAsync<BillPopup>(o);
+        if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+    }
+
+    // Raise a Transportation bill from this job — same BillPopup, Transportation mode (auto-filled from the job).
+    private async Task CreateTransportBill(JobOrder? job)
+    {
+        if (job is null) return;
+        if (job.Status != JobOrderStatus.Approved && job.Status != JobOrderStatus.Closed)
+        {
+            ToastService.Show(new() { Title = "Not billable", Content = "Only Approved or Closed jobs can be billed.", CssClass = "e-toast-warning" });
+            return;
+        }
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("Id", 0L);
+        o.ControlParameters.Add("JobOrderId", job.Id);
+        o.ControlParameters.Add("Title", "New Transportation Bill — " + job.JobOrderNo);
+        o.ControlParameters.Add("Mode", BillMode.Transportation);
         o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
         var r = await _modal!.Context.ShowAsync<BillPopup>(o);
         if (r.ResultType == ModalResultType.OK) await LoadOnSave();

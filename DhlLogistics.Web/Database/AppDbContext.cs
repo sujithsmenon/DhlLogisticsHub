@@ -100,6 +100,9 @@ public class AppDbContext : IdentityDbContext<AppUser>
     // ── Workflow Engine (cross-cutting activity + audit log) ───────────────────
     public DbSet<WorkflowAuditLog> WorkflowAuditLogs => Set<WorkflowAuditLog>();
 
+    // ── Universal search audit trail ───────────────────────────────────────────
+    public DbSet<SearchAuditLog> SearchAuditLogs => Set<SearchAuditLog>();
+
     protected override void OnModelCreating(ModelBuilder mb)
     {
         base.OnModelCreating(mb);
@@ -240,6 +243,9 @@ public class AppDbContext : IdentityDbContext<AppUser>
         mb.Entity<JobOrder>().HasIndex(j => j.JobOrderNo).IsUnique();
         mb.Entity<JobOrder>().HasIndex(j => new { j.Mode, j.FinYear });
         mb.Entity<JobOrder>().HasIndex(j => j.Status);
+        // Customer invoice reference: mandatory, non-unique (many jobs share one), indexed for search.
+        mb.Entity<JobOrder>().Property(j => j.CustomerInvoiceNumber).HasMaxLength(100).IsRequired();
+        mb.Entity<JobOrder>().HasIndex(j => j.CustomerInvoiceNumber);
 
         mb.Entity<JobOrderEvent>()
             .HasOne(e => e.JobOrder).WithMany(j => j.Events).HasForeignKey(e => e.JobOrderId)
@@ -315,6 +321,19 @@ public class AppDbContext : IdentityDbContext<AppUser>
         mb.Entity<Bill>().HasIndex(b => b.BillNo).IsUnique();
         mb.Entity<Bill>().HasIndex(b => new { b.Mode, b.FinYear });
         mb.Entity<Bill>().HasIndex(b => b.Status);
+        // Customer invoice reference copied from the source job — indexed for search on the bill lists.
+        mb.Entity<Bill>().Property(b => b.CustomerInvoiceNumber).HasMaxLength(100);
+        mb.Entity<Bill>().HasIndex(b => b.CustomerInvoiceNumber);
+
+        // Generic billing source (JobOrder / AWB / Export) + transport snapshot. All nullable; indexed so a
+        // source's bills can be looked up. Transporter is an optional FK (SetNull keeps the bill on delete).
+        mb.Entity<Bill>().Property(b => b.Quantity).HasPrecision(18, 3);
+        mb.Entity<Bill>().Property(b => b.WeightKg).HasPrecision(18, 3);
+        mb.Entity<Bill>().Property(b => b.VolumeCbm).HasPrecision(18, 3);
+        mb.Entity<Bill>().HasIndex(b => new { b.SourceType, b.SourceId });
+        mb.Entity<Bill>()
+            .HasOne(b => b.Transporter).WithMany().HasForeignKey(b => b.TransporterId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         mb.Entity<BillCharge>().Property(c => c.Quantity).HasPrecision(12, 3);
         mb.Entity<BillCharge>().Property(c => c.Rate).HasPrecision(18, 4);
@@ -349,6 +368,15 @@ public class AppDbContext : IdentityDbContext<AppUser>
         // ── Workflow Engine audit/activity log (no hard FK — survives entity deletion) ──
         mb.Entity<WorkflowAuditLog>().HasIndex(l => new { l.Kind, l.At });
         mb.Entity<WorkflowAuditLog>().HasIndex(l => new { l.EntityType, l.EntityId });
+
+        // ── Universal search audit + indexes on the most-searched code/number columns ──────────
+        mb.Entity<SearchAuditLog>().HasIndex(l => l.At);
+        // (JobOrderNo / BillNo / VoucherNo already carry unique indexes; add the remaining hot lookups.)
+        mb.Entity<Bill>().HasIndex(b => b.InvoiceNumber);
+        mb.Entity<AwbShipment>().HasIndex(a => a.HawbNo);
+        mb.Entity<ExportJob>().HasIndex(e => e.JobReference);
+        mb.Entity<Container>().HasIndex(c => c.ContainerNumber);
+        mb.Entity<Vehicle>().HasIndex(v => v.PlateNumber);
 
         // ── M4 Accounts ───────────────────────────────────────────────────────
         mb.Entity<AccountHead>().Property(a => a.OpeningBalance).HasPrecision(18, 2);

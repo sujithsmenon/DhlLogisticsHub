@@ -4,6 +4,8 @@ using DhlLogistics.Web.Components;
 using DhlLogistics.Web.Database;
 using DhlLogistics.Web.Hub;
 using DhlLogistics.Web.Service;
+using DhlLogistics.Web.Service.Search;
+using DhlLogistics.Web.Service.Search.Providers;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -209,6 +211,30 @@ builder.Services.AddScoped<CompanyDetailsService>();
 
 // ── M4 Billing + Accounts services ───────────────────────────────────────────
 builder.Services.AddScoped<BillService>();
+// Maps any shipment type (AWB / Export / JobOrder) into a prepared Transportation bill that then flows
+// through the same BillService workflow + accounting. No separate billing module.
+builder.Services.AddScoped<TransportationBillService>();
+
+// ── Universal Smart Search — orchestrator + one provider per searchable module ───────────────
+// A NEW searchable module only needs another `AddScoped<ISearchProvider, XxxSearchProvider>()` line here;
+// nothing else (search bar, orchestrator, permissions, audit) changes.
+builder.Services.AddScoped<GlobalSearchService>();
+builder.Services.AddScoped<ISearchProvider, JobOrderSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, AwbSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, ExportJobSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, BillSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, TransportationBillSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, VoucherSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, ClientSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, TransporterSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, VehicleSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, DriverSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, StaffSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, CommoditySearchProvider>();
+builder.Services.AddScoped<ISearchProvider, PortSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, BranchSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, ContainerSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, AccountHeadSearchProvider>();
 // Invoice layer over Bill: issue (generate customer-invoice PDF) + upload vendor/credit/debit docs.
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<VoucherService>();

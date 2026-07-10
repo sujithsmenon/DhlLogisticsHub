@@ -7,6 +7,19 @@ public enum BillMode
     Transportation = 3,
 }
 
+/// <summary>
+/// Which operational record a bill was raised from. Lets a single <see cref="Bill"/> (and the one
+/// billing/approval/accounting workflow) serve every shipment type — JobOrders, AWB shipments and Export
+/// jobs — without a separate billing module per type. Nullable/defaulted so existing bills (job-linked or
+/// standalone) keep working unchanged.
+/// </summary>
+public enum BillSourceType
+{
+    JobOrder    = 0,   // Clearance / Forwarding job (also the implicit default for legacy job-linked bills)
+    AwbShipment = 1,
+    ExportJob   = 2,
+}
+
 public enum BillStatus
 {
     Draft     = 0,
@@ -38,6 +51,12 @@ public class Bill
 
     public DateTime BillDate { get; set; } = DateTime.UtcNow.Date;
 
+    /// <summary>Customer's own invoice reference, copied from the source <see cref="JobOrder"/>. Purely
+    /// operational — the legal tax-invoice number remains <see cref="BillNo"/> / <see cref="InvoiceNumber"/>.
+    /// Jobs grouped into one billing invoice all share this value; printed on the invoice PDF beneath the
+    /// primary Invoice No.</summary>
+    public string? CustomerInvoiceNumber { get; set; }
+
     /// <summary>Indian FY starting year, e.g. 2026 = FY 2026-27.</summary>
     public int FinYear { get; set; }
 
@@ -48,6 +67,35 @@ public class Bill
     // ── Source JobOrder (optional — bills can be standalone) ────────────────
     public long? JobOrderId { get; set; }
     public JobOrder? JobOrder { get; set; }
+
+    // ── Generic billing source (any shipment type) ──────────────────────────
+    // For a job-linked bill: SourceType=JobOrder and SourceId=JobOrderId (kept in sync). For an AWB shipment
+    // or Export job there is no JobOrder navigation, so the transport details below are snapshotted onto the
+    // bill instead of read through a navigation. All nullable → existing bills are unaffected.
+    public BillSourceType? SourceType { get; set; }
+    public long?           SourceId   { get; set; }
+
+    /// <summary>Human reference of the source record (Job No / HAWB No / Export job reference).</summary>
+    public string? SourceReference { get; set; }
+    /// <summary>Free-text shipment type descriptor for display (e.g. "AWB / Air", "Export Job", "Clearance / Sea").</summary>
+    public string? ShipmentTypeName { get; set; }
+
+    // ── Transport snapshot (populated from the source; "wherever available") ─
+    public string? AwbOrBlNumber   { get; set; }
+    public string? ContainerNumber { get; set; }
+    public string? VehicleNumber   { get; set; }
+    public string? DriverName       { get; set; }
+    public string? Origin           { get; set; }
+    public string? Destination      { get; set; }
+    public string? PickupLocation   { get; set; }
+    public string? DeliveryLocation { get; set; }
+    public string? CommodityName    { get; set; }
+    public decimal? Quantity        { get; set; }
+    public decimal? WeightKg        { get; set; }
+    public decimal? VolumeCbm       { get; set; }
+
+    public int?         TransporterId { get; set; }
+    public Transporter? Transporter   { get; set; }
 
     // ── Billing party (always a DhlClient) ───────────────────────────────────
     public int BillingClientId { get; set; }
