@@ -1,0 +1,306 @@
+@inject CustomerInvoiceService Service
+@inject InvoiceService PdfSvc
+@inject BillingGroupService GroupSvc
+@inject PermissionService Permissions
+@inject AuthenticationStateProvider AuthProvider
+@inject IToastService ToastService
+@inject IJSRuntime JS
+
+@*
+    Customer Invoice — detail view.
+
+    Linked Documents is the SHARED component (LinkedDocumentsPanel), not a copy: bills, jobs, AWBs, export
+    jobs, PDFs and navigation all come from it. The Service Breakdown reuses InvoiceService.CategoryLabel —
+    the same mapping the PDF uses — so page and document can never disagree.
+*@
+
+<style>
+    .cip-grid   { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px 16px;
+                  padding:10px 12px; border:1px solid var(--border); border-radius:8px;
+                  background:var(--surface2); margin-bottom:12px; }
+    .cip-grid .k{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
+    .cip-grid .v{ font-size:13px; font-weight:700; }
+    .cip-sec    { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+                  color:var(--muted); margin:12px 0 6px; }
+    .cip-tbl    { width:100%; border-collapse:collapse; font-size:12px; }
+    .cip-tbl th { text-align:left; font-size:10px; text-transform:uppercase; color:var(--muted);
+                  border-bottom:1px solid var(--border); padding:5px 6px; }
+    .cip-tbl td { padding:5px 6px; border-bottom:1px solid var(--border); }
+    .cip-tbl td.r, .cip-tbl th.r { text-align:right; }
+    .cip-tl     { border-left:2px solid var(--border); margin-left:6px; padding-left:12px; }
+    .cip-tl .e  { position:relative; padding:5px 0; font-size:12px; }
+    .cip-tl .e::before { content:''; position:absolute; left:-17px; top:10px; width:8px; height:8px;
+                         border-radius:50%; background:#0868B2; }
+    .cip-tl .w  { font-weight:700; }
+    .cip-tl .m  { font-size:11px; color:var(--muted); }
+</style>
+
+<div class="modal-header">
+    <h5 class="modal-title">
+        Customer Invoice @(_inv?.InvoiceNo ?? "")
+        @if (_inv is not null) { <StatusBadge Status="@_inv.Status" /> }
+    </h5>
+    <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
+</div>
+
+<div class="modal-body">
+    @if (_loading)
+    {
+        <SfSpinner Visible="true" Label="Loading invoice..." />
+    }
+    else if (_inv is null)
+    {
+        <div class="alert alert-warning">Invoice not found.</div>
+    }
+    else
+    {
+        <!-- Customer info + billing group summary -->
+        <div class="cip-grid">
+            <div><div class="k">Customer Invoice No</div><div class="v">@_inv.CustomerInvoiceNumber</div></div>
+            <div><div class="k">System Invoice No</div><div class="v">@_inv.InvoiceNo</div></div>
+            <div><div class="k">Customer</div><div class="v">@(_inv.BillingClient?.CompanyName ?? "—")</div></div>
+            <div><div class="k">Branch</div><div class="v">@(_inv.Branch?.BranchName ?? "—")</div></div>
+            <div><div class="k">Currency</div><div class="v">@(_inv.Currency?.CurrencyCode ?? "INR")</div></div>
+            <div><div class="k">Invoice Date</div><div class="v">@_inv.InvoiceDate.ToString("dd-MMM-yyyy")</div></div>
+            <div><div class="k">Billing Period</div><div class="v">@_period</div></div>
+            <div><div class="k">Status</div><div class="v"><StatusBadge Status="@_inv.Status" /></div></div>
+        </div>
+
+        <!-- Invoice summary -->
+        <div class="cip-sec">Invoice Summary</div>
+        <div class="cip-grid">
+            <div><div class="k">Bills</div><div class="v">@_inv.Bills.Count</div></div>
+            <div><div class="k">Jobs</div><div class="v">@_jobCount</div></div>
+            <div><div class="k">Subtotal</div><div class="v">@_inv.SubTotal.ToString("N2")</div></div>
+            <div><div class="k">GST</div><div class="v">@_inv.GstAmount.ToString("N2")</div></div>
+            <div><div class="k">Grand Total</div><div class="v">@_inv.TotalAmount.ToString("N2")</div></div>
+        </div>
+
+        <!-- Service breakdown (same mapping as the PDF) -->
+        @if (_breakdown.Count > 0)
+        {
+            <div class="cip-sec">Service Breakdown</div>
+            <table class="cip-tbl">
+                <thead><tr><th>Category</th><th class="r">Charge Total</th></tr></thead>
+                <tbody>
+                    @foreach (var b in _breakdown)
+                    {
+                        <tr><td>@b.Category</td><td class="r">@b.Total.ToString("N2")</td></tr>
+                    }
+                    <tr>
+                        <td><b>Total</b></td>
+                        <td class="r"><b>@_breakdown.Sum(x => x.Total).ToString("N2")</b></td>
+                    </tr>
+                </tbody>
+            </table>
+        }
+
+        <!-- Included bills -->
+        <div class="cip-sec">Included Bills (@_inv.Bills.Count)</div>
+        <table class="cip-tbl">
+            <thead><tr><th>Bill No</th><th>Type</th><th>Date</th><th class="r">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var b in _inv.Bills.OrderBy(b => b.Mode).ThenBy(b => b.Id))
+                {
+                    <tr>
+                        <td><b>@b.BillNo</b></td>
+                        <td>@b.Mode</td>
+                        <td>@b.BillDate.ToString("dd-MMM-yyyy")</td>
+                        <td class="r">@b.TotalAmount.ToString("N2")</td>
+                        <td><StatusBadge Status="@b.Status" /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @* Linked jobs / AWBs / export jobs / PDFs + navigation — the SHARED component, not a copy. *@
+        <div class="cip-sec">Linked Documents</div>
+        <LinkedDocumentsPanel CustomerInvoiceNumber="@_inv.CustomerInvoiceNumber"
+                              OnNavigate="@(_ => { Modal?.Close(ModalResult.Cancel()); return Task.CompletedTask; })" />
+
+        <!-- Timeline -->
+        <div class="cip-sec">Invoice History</div>
+        @if (_timeline.Count == 0)
+        {
+            <div class="text-muted" style="font-size:12px;">No history recorded.</div>
+        }
+        else
+        {
+            <div class="cip-tl">
+                @foreach (var e in _timeline)
+                {
+                    <div class="e">
+                        <div class="w">@e.Event</div>
+                        @if (!string.IsNullOrWhiteSpace(e.Detail))
+                        {
+                            <div class="m">@e.Detail</div>
+                        }
+                        <div class="m">@e.Actor · @e.At.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Audit -->
+        <div class="cip-sec">Audit</div>
+        <div class="cip-grid">
+            <div><div class="k">Created By</div><div class="v">@(_inv.CreatedBy ?? "—")</div></div>
+            <div><div class="k">Created On</div><div class="v">@_inv.CreatedOn.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</div></div>
+            <div><div class="k">Cancelled By</div><div class="v">@(_inv.CancelledBy ?? "—")</div></div>
+            <div><div class="k">Cancelled On</div><div class="v">@(_inv.CancelledOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm") ?? "—")</div></div>
+        </div>
+    }
+</div>
+
+<div class="modal-footer" style="flex-wrap:wrap;gap:6px;">
+    <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Close</SfButton>
+
+    @if (_inv is not null)
+    {
+        <SfButton OnClick="@(() => OpenPdf(inline:true))"  CssClass="e-small" IconCss="e-icons e-open-link" Disabled="@(_activeDocId is null)">Open PDF</SfButton>
+        <SfButton OnClick="@(() => OpenPdf(inline:false))" CssClass="e-small" IconCss="e-icons e-download"  Disabled="@(_activeDocId is null)">Download</SfButton>
+        <SfButton OnClick="@Print"    CssClass="e-small" IconCss="e-icons e-print" Disabled="@(_activeDocId is null)">Print</SfButton>
+        <SfButton OnClick="@Preview"  CssClass="e-small" IconCss="e-icons e-eye">Preview PDF</SfButton>
+        <SfButton OnClick="@Regenerate" CssClass="e-small" IconCss="e-icons e-refresh" Disabled="@_busy">Regenerate PDF</SfButton>
+
+        @* Email — future-ready: deliberately disabled rather than faking a send. *@
+        <SfButton CssClass="e-small" IconCss="e-icons e-send-1" Disabled="true" title="Coming soon">Email</SfButton>
+
+        @if (_inv.Status == CustomerInvoiceStatus.Issued && _canCancel)
+        {
+            <SfButton OnClick="@Cancel" CssClass="e-small delete-btn" IconCss="e-icons e-close" Disabled="@_busy">Cancel Invoice</SfButton>
+        }
+        @if (_inv.Status == CustomerInvoiceStatus.Cancelled && _canReopen)
+        {
+            <SfButton OnClick="@Reopen" IsPrimary="true" CssClass="e-small" IconCss="e-icons e-reload" Disabled="@_busy">Reopen Invoice</SfButton>
+        }
+    }
+</div>
+
+@code {
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+    [Parameter] public long InvoiceId { get; set; }
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+
+    private CustomerInvoice? _inv;
+    private List<ServiceBreakdownRow>    _breakdown = new();
+    private List<InvoiceTimelineEntry>   _timeline  = new();
+    private long? _activeDocId;
+    private string _period = "—";
+    private int  _jobCount;
+    private bool _loading = true, _busy;
+    private bool _canCancel, _canReopen;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _inv = await Service.GetAsync(InvoiceId);
+            if (_inv is null) return;
+
+            _breakdown = await Service.GetServiceBreakdownAsync(InvoiceId);
+            _timeline  = await Service.GetTimelineAsync(InvoiceId);
+
+            var bills = _inv.Bills;
+            _jobCount = bills.Where(b => b.JobOrderId is not null).Select(b => b.JobOrderId).Distinct().Count();
+            if (bills.Count > 0)
+            {
+                var min = bills.Min(b => b.BillDate);
+                var max = bills.Max(b => b.BillDate);
+                _period = min == max ? min.ToString("dd-MMM-yyyy") : $"{min:dd-MMM-yyyy} → {max:dd-MMM-yyyy}";
+            }
+
+            // Active consolidated PDF (superseded versions stay, flagged, in Linked Documents).
+            var docs = await GroupSvc.GetLinkedDocumentsAsync(_inv.CustomerInvoiceNumber);
+            _activeDocId = docs.Pdfs.FirstOrDefault(d => d.Kind == "Customer Invoice PDF" && d.IsActive)?.DocId;
+
+            // Cancel / Reopen are permission-controlled, like every other billing action.
+            var state = await AuthProvider.GetAuthenticationStateAsync();
+            _canCancel = await Permissions.CheckPermissionAsync(state.User, "bills/customer-invoices", Permission.Delete);
+            _canReopen = await Permissions.CheckPermissionAsync(state.User, "bills/customer-invoices", Permission.Edit);
+        }
+        finally { _loading = false; }
+    }
+
+    // ── PDF actions ──────────────────────────────────────────────────────────
+    private async Task OpenPdf(bool inline)
+    {
+        if (_activeDocId is null) return;
+        var url = inline ? $"/invoices/doc/{_activeDocId}" : $"/invoices/doc/{_activeDocId}?dl=true";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private async Task Print()
+    {
+        if (_activeDocId is null) return;
+        await JS.InvokeVoidAsync("open", $"/invoices/doc/{_activeDocId}", "_blank");   // browser PDF viewer prints
+    }
+
+    /// <summary>Rebuilds the PDF from the invoice's bills without persisting — same builder as Generate.</summary>
+    private async Task Preview()
+    {
+        if (_inv is null) return;
+        _busy = true;
+        try
+        {
+            var bytes = await PdfSvc.BuildConsolidatedPreviewAsync(_inv.Bills.Select(b => b.Id).ToList());
+            await JS.InvokeVoidAsync("dhlOpenPdf", Convert.ToBase64String(bytes), $"Preview-{_inv.InvoiceNo}.pdf");
+        }
+        catch (Exception ex) { Toast("Preview failed", ex.Message, "e-toast-danger"); }
+        finally { _busy = false; }
+    }
+
+    /// <summary>Regenerates and STORES a new PDF version. The previous version is retired, not deleted.</summary>
+    private async Task Regenerate()
+    {
+        if (_inv is null) return;
+        _busy = true;
+        try
+        {
+            var doc = await PdfSvc.IssueConsolidatedAsync(_inv.Id);
+            Toast("PDF regenerated", $"{doc.OriginalFileName} (v{doc.Version}).", "e-toast-success");
+            await LoadAsync();
+        }
+        catch (Exception ex) { Toast("Regenerate failed", ex.Message, "e-toast-danger"); }
+        finally { _busy = false; }
+    }
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+    private async Task Cancel()
+    {
+        if (_inv is null) return;
+        _busy = true;
+        try
+        {
+            await Service.CancelAsync(_inv.Id, "Cancelled from the Customer Invoice screen.");
+            Toast("Invoice cancelled", "Its bills are released and their original invoices reactivated.", "e-toast-success");
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex) { Toast("Cannot cancel", ex.Message, "e-toast-danger"); }
+        finally { _busy = false; }
+    }
+
+    private async Task Reopen()
+    {
+        if (_inv is null) return;
+        _busy = true;
+        try
+        {
+            await Service.ReopenAsync(_inv.Id);
+            Toast("Invoice reopened", "Its bills are re-attached and re-superseded.", "e-toast-success");
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex) { Toast("Cannot reopen", ex.Message, "e-toast-danger"); }
+        finally { _busy = false; }
+    }
+
+    private void Toast(string title, string content, string css) =>
+        ToastService.Show(new() { Title = title, Content = content, CssClass = css });
+
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+}

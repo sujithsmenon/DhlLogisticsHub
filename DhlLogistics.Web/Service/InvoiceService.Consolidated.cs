@@ -110,6 +110,22 @@ public partial class InvoiceService
             IsActive          = true,
         };
         _db.InvoiceDocuments.Add(doc);
+
+        // Timeline entry — reuses the existing audit store (no separate event table).
+        _db.WorkflowAuditLogs.Add(new WorkflowAuditLog
+        {
+            Kind       = WorkflowLogKind.Activity,
+            Module     = "Billing",
+            EntityType = "CustomerInvoice",
+            EntityId   = invoice.Id,
+            EntityRef  = invoice.InvoiceNo,
+            Operation  = WorkflowOperationType.Update,
+            Summary    = nextVersion == 1 ? "PDF Generated" : "PDF Regenerated",
+            Details    = $"{friendlyName} (v{nextVersion}, {bytes.Length:N0} bytes) over {bills.Count} bill(s).",
+            Actor      = user,
+            At         = DateTime.UtcNow,
+        });
+
         await _db.SaveChangesAsync();
 
         _log.LogInformation("Consolidated invoice {InvoiceNo} PDF generated over {Count} bill(s) ({Bytes} bytes).",
@@ -140,7 +156,7 @@ public partial class InvoiceService
     /// here. A value outside the enum (a category from a future/unknown source) falls through to
     /// "Other Charges" rather than being dropped — no charge is ever lost from the breakdown.
     /// </summary>
-    private static string CategoryLabel(ChargeCategory category) =>
+    public static string CategoryLabel(ChargeCategory category) =>
         Enum.IsDefined(typeof(ChargeCategory), category)
             ? category switch
               {

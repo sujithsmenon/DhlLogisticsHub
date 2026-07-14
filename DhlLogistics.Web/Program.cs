@@ -411,6 +411,7 @@ using (var scope = app.Services.CreateScope())
         await DhlLogistics.Web.Database.MenuSeed.EnsureOperationsMenusAsync(menuFactory);
         // Additively insert the Masters → Company Details leaf on already-seeded installs.
         await DhlLogistics.Web.Database.MenuSeed.EnsureCompanyDetailsMenuAsync(menuFactory);
+        await DhlLogistics.Web.Database.MenuSeed.EnsureCustomerInvoiceMenuAsync(menuFactory);
     }
     catch (Exception ex)
     {

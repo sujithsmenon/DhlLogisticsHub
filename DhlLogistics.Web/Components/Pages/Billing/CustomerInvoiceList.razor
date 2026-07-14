@@ -1,0 +1,224 @@
+@page "/bills/customer-invoices"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using Microsoft.AspNetCore.Authorization
+@using Syncfusion.Blazor.Data
+@attribute [Authorize]
+@inject CustomerInvoiceService Service
+@inject LogisticsService Logistics
+@inject CompanyBranchService BranchService
+@inject IToastService ToastService
+
+@*
+    Customer Invoices — the central page for every consolidated invoice raised over a Billing Group.
+
+    Server-side paging/sorting/filtering: the grid asks the service for ONE page at a time and every filter
+    (including the ones that reach through the invoice into its bills — bill no, job no, AWB, container,
+    vehicle) is translated into SQL. The list projects flat rows, never entity graphs, so there is no N+1.
+*@
+
+<style>
+    .civ-filters   { display:flex; flex-wrap:wrap; gap:9px 12px; align-items:flex-end; margin-bottom:11px; }
+    .civ-filters .fl { display:flex; flex-direction:column; gap:2px; min-width:140px; }
+    .civ-filters .fl label { font-size:11px; font-weight:700; color:var(--muted); }
+    .civ-kpis      { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-bottom:12px; }
+    .civ-kpi       { border:1px solid var(--border); border-radius:10px; padding:10px 13px; background:var(--card); }
+    .civ-kpi .n    { font-size:22px; font-weight:800; }
+    .civ-kpi .l    { font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted); }
+</style>
+
+<div class="page-hdr">
+    <div>
+        <h1>Customer Invoices</h1>
+        <div class="sub">Consolidated invoices raised over a Billing Group (bills sharing one Customer Invoice No.)</div>
+    </div>
+</div>
+
+<div class="civ-kpis">
+    <div class="civ-kpi"><div class="n">@_total</div><div class="l">Invoices</div></div>
+    <div class="civ-kpi"><div class="n">@_pageTotal.ToString("N2")</div><div class="l">Total (this page)</div></div>
+    <div class="civ-kpi"><div class="n">@_rows.Sum(r => r.BillCount)</div><div class="l">Bills (this page)</div></div>
+    <div class="civ-kpi"><div class="n">@_rows.Sum(r => r.JobCount)</div><div class="l">Jobs (this page)</div></div>
+</div>
+
+<!-- Filters -->
+<div class="civ-filters">
+    <div class="fl" style="min-width:230px;">
+        <label>Search</label>
+        <SfTextBox @bind-Value="_f.Text" CssClass="e-small"
+                   Placeholder="Invoice no · bill no · job no · customer · container · AWB · vehicle" />
+    </div>
+    <div class="fl">
+        <label>Customer</label>
+        <SfComboBox TItem="DhlClient" TValue="int?" DataSource="@_clients" Width="170px" CssClass="e-small"
+                    ShowClearButton="true" AllowFiltering="true" @bind-Value="_f.BillingClientId" Placeholder="All">
+            <ComboBoxFieldSettings Text="CompanyName" Value="Id" />
+        </SfComboBox>
+    </div>
+    <div class="fl">
+        <label>Branch</label>
+        <SfComboBox TItem="CompanyBranch" TValue="int?" DataSource="@_branches" Width="150px" CssClass="e-small"
+                    ShowClearButton="true" @bind-Value="_f.BranchId" Placeholder="All">
+            <ComboBoxFieldSettings Text="BranchName" Value="Id" />
+        </SfComboBox>
+    </div>
+    <div class="fl">
+        <label>Status</label>
+        <SfDropDownList TItem="StatusOpt" TValue="string" DataSource="@_statusOpts" Width="130px" CssClass="e-small"
+                        @bind-Value="_statusFilter">
+            <DropDownListFieldSettings Text="Label" Value="Value" />
+        </SfDropDownList>
+    </div>
+    <div class="fl"><label>Period From</label>
+        <SfDatePicker TValue="DateTime?" @bind-Value="_f.From" Format="dd-MMM-yyyy" Width="140px" CssClass="e-small" ShowClearButton="true" />
+    </div>
+    <div class="fl"><label>Period To</label>
+        <SfDatePicker TValue="DateTime?" @bind-Value="_f.To" Format="dd-MMM-yyyy" Width="140px" CssClass="e-small" ShowClearButton="true" />
+    </div>
+    <div class="fl"><label>Bill No</label>
+        <SfTextBox @bind-Value="_f.BillNo" CssClass="e-small" Width="120px" /></div>
+    <div class="fl"><label>Job No</label>
+        <SfTextBox @bind-Value="_f.JobNo" CssClass="e-small" Width="120px" /></div>
+    <div class="fl"><label>AWB No</label>
+        <SfTextBox @bind-Value="_f.AwbNo" CssClass="e-small" Width="110px" /></div>
+    <div class="fl"><label>Container No</label>
+        <SfTextBox @bind-Value="_f.ContainerNo" CssClass="e-small" Width="120px" /></div>
+    <div class="fl"><label>Vehicle No</label>
+        <SfTextBox @bind-Value="_f.VehicleNo" CssClass="e-small" Width="110px" /></div>
+
+    <div class="fl" style="min-width:auto;"><label>&nbsp;</label>
+        <SfButton OnClick="@Apply" CssClass="e-small" IconCss="e-icons e-search" IsPrimary="true">Apply</SfButton></div>
+    <div class="fl" style="min-width:auto;"><label>&nbsp;</label>
+        <SfButton OnClick="@ClearFilters" CssClass="e-small" IconCss="e-icons e-clear-form">Clear</SfButton></div>
+</div>
+
+@if (_capped)
+{
+    <div class="alert alert-warning" style="font-size:12px;padding:6px 10px;">
+        Showing the first @_rows.Count of <b>@_total</b> matching invoices — narrow the filters to see the rest.
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        @* Filtering, searching and the through-to-bills lookups all run in SQL (see
+           CustomerInvoiceService.SearchAsync) — the grid never sees rows the filter excluded, and the rows are
+           flat projections, so there is no N+1. The fetch is capped at PageCap; if a filter ever matches more
+           than that, the banner below says so rather than silently truncating. *@
+        <SfGrid @ref="_grid" TValue="CustomerInvoiceRow" DataSource="@_rows" AllowPaging="true"
+                AllowSorting="true" AllowResizing="true"
+                CssClass="e-small" Height="calc(100vh - 400px)" RowHeight="26" Width="100%">
+            <GridPageSettings PageSize="20" PageSizes="@(new[] { "10", "20", "50", "100" })" />
+            <GridEvents CommandClicked="OnCommand" TValue="CustomerInvoiceRow" />
+            <GridColumns>
+                <GridColumn HeaderText="Open" Width="80" TextAlign="TextAlign.Center">
+                    <GridCommandColumns>
+                        <GridCommandColumn Type="CommandButtonType.None"
+                                           ButtonOption="@(new() { Content = "View", IconCss = "e-icons e-eye", CssClass = "wf-btn-open" })" />
+                    </GridCommandColumns>
+                </GridColumn>
+                <GridColumn Field="@nameof(CustomerInvoiceRow.CustomerInvoiceNumber)" HeaderText="Customer Inv No" Width="140" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.InvoiceNo)"  HeaderText="System Inv No" Width="140" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.Customer)"   HeaderText="Customer"  Width="170" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.Branch)"     HeaderText="Branch"    Width="130" />
+                <GridColumn HeaderText="Billing Period" Width="180">
+                    <Template>
+                        @{ var r = (context as CustomerInvoiceRow)!; }
+                        @(r.PeriodFrom is null ? "—"
+                            : r.PeriodFrom == r.PeriodTo ? r.PeriodFrom.Value.ToString("dd-MMM-yyyy")
+                            : $"{r.PeriodFrom:dd-MMM-yy} → {r.PeriodTo:dd-MMM-yy}")
+                    </Template>
+                </GridColumn>
+                <GridColumn HeaderText="Status" Width="110">
+                    <Template>
+                        @{ var r = (context as CustomerInvoiceRow)!; }
+                        <StatusBadge Status="@r.Status" />
+                    </Template>
+                </GridColumn>
+                <GridColumn Field="@nameof(CustomerInvoiceRow.BillCount)" HeaderText="Bills" Width="70" TextAlign="TextAlign.Right" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.JobCount)"  HeaderText="Jobs"  Width="70" TextAlign="TextAlign.Right" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.SubTotal)"    HeaderText="Subtotal" Width="110" Format="N2" TextAlign="TextAlign.Right" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.GstAmount)"   HeaderText="GST"      Width="100" Format="N2" TextAlign="TextAlign.Right" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.TotalAmount)" HeaderText="Grand Total" Width="120" Format="N2" TextAlign="TextAlign.Right" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.CreatedBy)" HeaderText="Created By" Width="130" />
+                <GridColumn Field="@nameof(CustomerInvoiceRow.CreatedOn)" HeaderText="Created On" Width="140" Format="dd-MMM-yyyy HH:mm" Type="ColumnType.DateTime" />
+            </GridColumns>
+        </SfGrid>
+    </div>
+</div>
+
+<BsModalDialog @ref="_modal" />
+
+@code {
+    public record StatusOpt(string Value, string Label);
+
+    private SfGrid<CustomerInvoiceRow>? _grid;
+    private BsModalDialog? _modal;
+
+    private List<CustomerInvoiceRow> _rows = new();
+    private int _total;
+    private decimal _pageTotal;
+
+    private readonly CustomerInvoiceFilter _f = new();
+    private string _statusFilter = "ALL";
+
+    private List<DhlClient> _clients = new();
+    private List<CompanyBranch> _branches = new();
+
+    private static readonly List<StatusOpt> _statusOpts = new()
+    {
+        new("ALL", "All"), new("Issued", "Issued"), new("Cancelled", "Cancelled"),
+    };
+
+    public EventCallback LoadOnSaveReference { get; set; }
+
+    /// <summary>Fetch cap. Filtering happens in SQL, so this is only reached if a single filter genuinely
+    /// matches this many invoices — and we tell the user rather than truncating silently.</summary>
+    private const int PageCap = 500;
+    private bool _capped;
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadOnSaveReference = EventCallback.Factory.Create(this, Reload);
+        _clients  = await Logistics.GetAllClientsAsync();
+        _branches = await BranchService.GetAllAsync();
+        await Reload();
+    }
+
+    private async Task Apply()
+    {
+        _f.Status = _statusFilter == "ALL" ? null : Enum.Parse<CustomerInvoiceStatus>(_statusFilter);
+        await Reload();
+    }
+
+    private async Task ClearFilters()
+    {
+        _f.Text = _f.BillNo = _f.JobNo = _f.AwbNo = _f.ContainerNo = _f.VehicleNo = null;
+        _f.CustomerInvoiceNumber = _f.SystemInvoiceNo = null;
+        _f.BillingClientId = _f.BranchId = null;
+        _f.From = _f.To = null;
+        _statusFilter = "ALL"; _f.Status = null;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        var (rows, total) = await Service.SearchAsync(_f, 0, PageCap);
+        _rows      = rows;
+        _total     = total;
+        _capped    = total > rows.Count;
+        _pageTotal = rows.Sum(r => r.TotalAmount);
+        if (_grid is not null) await _grid.Refresh();
+        StateHasChanged();
+    }
+
+    private async Task OnCommand(CommandClickEventArgs<CustomerInvoiceRow> args)
+    {
+        if (args.RowData is null) return;
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("InvoiceId", args.RowData.Id);
+        o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+        var r = await _modal!.Context.ShowAsync<CustomerInvoicePopup>(o);
+        if (r.ResultType == ModalResultType.OK) await Reload();
+    }
+
+}

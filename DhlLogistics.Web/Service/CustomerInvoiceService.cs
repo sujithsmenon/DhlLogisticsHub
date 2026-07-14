@@ -5,6 +5,51 @@ using DhlLogistics.Web.Database;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 
+/// <summary>Filter state of the Customer Invoice list. Every field is applied server-side.</summary>
+public sealed class CustomerInvoiceFilter
+{
+    public int?      BillingClientId { get; set; }
+    public int?      BranchId        { get; set; }
+    public CustomerInvoiceStatus? Status { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To   { get; set; }
+
+    public string? CustomerInvoiceNumber { get; set; }
+    public string? SystemInvoiceNo       { get; set; }
+    public string? BillNo      { get; set; }
+    public string? JobNo       { get; set; }
+    public string? AwbNo       { get; set; }
+    public string? ContainerNo { get; set; }
+    public string? VehicleNo   { get; set; }
+
+    /// <summary>Global free-text search across all of the above.</summary>
+    public string? Text { get; set; }
+}
+
+/// <summary>One row of the Customer Invoice list — a flat projection, never an entity graph.</summary>
+public sealed record CustomerInvoiceRow(
+    long      Id,
+    string    CustomerInvoiceNumber,
+    string    InvoiceNo,
+    string?   Customer,
+    string?   Branch,
+    DateTime? PeriodFrom,
+    DateTime? PeriodTo,
+    CustomerInvoiceStatus Status,
+    int       BillCount,
+    int       JobCount,
+    decimal   SubTotal,
+    decimal   GstAmount,
+    decimal   TotalAmount,
+    string?   CreatedBy,
+    DateTime  CreatedOn);
+
+/// <summary>One line of the read-only invoice timeline.</summary>
+public sealed record InvoiceTimelineEntry(string Event, string? Detail, string Actor, DateTime At);
+
+/// <summary>One row of the Service Breakdown (presentation summary — never an accounting figure).</summary>
+public sealed record ServiceBreakdownRow(string Category, decimal Total);
+
 /// <summary>
 /// Lifecycle of the consolidated <see cref="CustomerInvoice"/> raised over a Billing Group (the Bills sharing
 /// one CustomerInvoiceNumber).
@@ -36,6 +81,81 @@ public class CustomerInvoiceService
     {
         var s = await _auth.GetAuthenticationStateAsync();
         return s.User?.Identity?.Name ?? "system";
+    }
+
+    // ── List / filter (server-side paging: the grid never pulls the whole table) ──
+
+    /// <summary>
+    /// One page of customer invoices, filtered server-side. Every filter — including the ones that reach
+    /// THROUGH the invoice into its bills and their operational records (bill no, job no, AWB, container,
+    /// vehicle) — is translated into SQL, so the grid never materialises rows it will not show.
+    /// Counts and totals come from projections, not from loading the bill graphs (no N+1).
+    /// </summary>
+    public async Task<(List<CustomerInvoiceRow> Rows, int Total)> SearchAsync(
+        CustomerInvoiceFilter f, int skip, int take, CancellationToken ct = default)
+    {
+        IQueryable<CustomerInvoice> q = _db.CustomerInvoices.AsNoTracking();
+
+        if (f.BillingClientId is { } cid) q = q.Where(i => i.BillingClientId == cid);
+        if (f.BranchId is { } bid)        q = q.Where(i => i.BranchId == bid);
+        if (f.Status is { } st)           q = q.Where(i => i.Status == st);
+        if (f.From is { } from)           q = q.Where(i => i.InvoiceDate >= from.Date);
+        if (f.To is { } to)               q = q.Where(i => i.InvoiceDate <= to.Date);
+
+        if (!string.IsNullOrWhiteSpace(f.CustomerInvoiceNumber))
+            q = q.Where(i => EF.Functions.ILike(i.CustomerInvoiceNumber, $"%{f.CustomerInvoiceNumber}%"));
+        if (!string.IsNullOrWhiteSpace(f.SystemInvoiceNo))
+            q = q.Where(i => EF.Functions.ILike(i.InvoiceNo, $"%{f.SystemInvoiceNo}%"));
+
+        // Filters that reach through to the included bills and their sources.
+        if (!string.IsNullOrWhiteSpace(f.BillNo))
+            q = q.Where(i => i.Bills.Any(b => EF.Functions.ILike(b.BillNo, $"%{f.BillNo}%")));
+        if (!string.IsNullOrWhiteSpace(f.ContainerNo))
+            q = q.Where(i => i.Bills.Any(b => b.ContainerNumber != null && EF.Functions.ILike(b.ContainerNumber, $"%{f.ContainerNo}%")));
+        if (!string.IsNullOrWhiteSpace(f.VehicleNo))
+            q = q.Where(i => i.Bills.Any(b => b.VehicleNumber != null && EF.Functions.ILike(b.VehicleNumber, $"%{f.VehicleNo}%")));
+        if (!string.IsNullOrWhiteSpace(f.AwbNo))
+            q = q.Where(i => i.Bills.Any(b => b.AwbOrBlNumber != null && EF.Functions.ILike(b.AwbOrBlNumber, $"%{f.AwbNo}%")));
+        if (!string.IsNullOrWhiteSpace(f.JobNo))
+            q = q.Where(i => i.Bills.Any(b => b.JobOrder != null && EF.Functions.ILike(b.JobOrder.JobOrderNo, $"%{f.JobNo}%")));
+
+        // Free-text global search across everything above.
+        if (!string.IsNullOrWhiteSpace(f.Text))
+        {
+            var like = $"%{f.Text}%";
+            q = q.Where(i =>
+                   EF.Functions.ILike(i.CustomerInvoiceNumber, like)
+                || EF.Functions.ILike(i.InvoiceNo, like)
+                || EF.Functions.ILike(i.BillingClient!.CompanyName, like)
+                || i.Bills.Any(b => EF.Functions.ILike(b.BillNo, like)
+                                 || (b.ContainerNumber != null && EF.Functions.ILike(b.ContainerNumber, like))
+                                 || (b.VehicleNumber   != null && EF.Functions.ILike(b.VehicleNumber, like))
+                                 || (b.AwbOrBlNumber   != null && EF.Functions.ILike(b.AwbOrBlNumber, like))
+                                 || (b.JobOrder != null && EF.Functions.ILike(b.JobOrder.JobOrderNo, like))));
+        }
+
+        var total = await q.CountAsync(ct);
+
+        var rows = await q
+            .OrderByDescending(i => i.Id)
+            .Skip(skip).Take(take)
+            .Select(i => new CustomerInvoiceRow(
+                i.Id,
+                i.CustomerInvoiceNumber,
+                i.InvoiceNo,
+                i.BillingClient!.CompanyName,
+                i.Branch!.BranchName,
+                i.Bills.Min(b => (DateTime?)b.BillDate),
+                i.Bills.Max(b => (DateTime?)b.BillDate),
+                i.Status,
+                i.Bills.Count,
+                // distinct originating records behind the invoice — counted in SQL, no graph loaded
+                i.Bills.Select(b => b.JobOrderId).Distinct().Count(x => x != null),
+                i.SubTotal, i.GstAmount, i.TotalAmount,
+                i.CreatedBy, i.CreatedOn))
+            .ToListAsync(ct);
+
+        return (rows, total);
     }
 
     // ── Queries ──────────────────────────────────────────────────────────────
@@ -192,11 +312,19 @@ public class CustomerInvoiceService
                 .ToListAsync();
             foreach (var d in oldDocs) d.IsActive = false;
 
+            LogEvent(invoice, "Invoice Superseded",
+                $"Superseded the individual invoice(s) of {string.Join(", ", toSupersede.Select(b => b.BillNo))}.", user);
+
             _log.LogInformation(
                 "Customer invoice {InvoiceNo} SUPERSEDES {Count} individual invoice(s): {Bills}.",
                 invoice.InvoiceNo, toSupersede.Count,
                 string.Join(", ", toSupersede.Select(b => $"{b.BillNo}/{b.InvoiceNumber}")));
         }
+
+        LogEvent(invoice, "Customer Invoice Created",
+            $"{invoice.InvoiceNo} raised over {bills.Count} bill(s): {string.Join(", ", bills.Select(b => b.BillNo))}. "
+          + $"Total {invoice.TotalAmount:N2}.", user);
+        LogEvent(invoice, "Invoice Issued", $"Group {cinv}.", user);
 
         await _db.SaveChangesAsync();
         await tx.CommitAsync();
@@ -246,10 +374,122 @@ public class CustomerInvoiceService
         invoice.CancelledBy        = user;
         invoice.CancellationReason = reason;
 
+        LogEvent(invoice, "Invoice Cancelled",
+            $"{invoice.Bills.Count} bill(s) released; their original invoices reactivated."
+          + (string.IsNullOrWhiteSpace(reason) ? "" : $" Reason: {reason}"), user);
+
         await _db.SaveChangesAsync();
         await tx.CommitAsync();
 
         _log.LogInformation("Customer invoice {InvoiceNo} cancelled by {User}.", invoice.InvoiceNo, user);
+    }
+
+    // ── Timeline / breakdown / reopen ────────────────────────────────────────
+
+    /// <summary>
+    /// Read-only chronological timeline. Reuses the existing WorkflowAuditLog store (EntityType =
+    /// "CustomerInvoice") — no separate event table, so no migration.
+    /// </summary>
+    public async Task<List<InvoiceTimelineEntry>> GetTimelineAsync(long invoiceId, CancellationToken ct = default)
+    {
+        var logs = await _db.WorkflowAuditLogs.AsNoTracking()
+            .Where(l => l.EntityType == "CustomerInvoice" && l.EntityId == invoiceId)
+            .OrderBy(l => l.At)
+            .Select(l => new InvoiceTimelineEntry(l.Summary, l.Details, l.Actor, l.At))
+            .ToListAsync(ct);
+        return logs;
+    }
+
+    /// <summary>
+    /// Service Breakdown for an invoice — charge totals per category. Reuses
+    /// <see cref="InvoiceService.CategoryLabel"/>, the SAME mapping the PDF uses, so the page and the document
+    /// can never disagree, and a future ChargeCategory appears in both with no code change.
+    /// Presentation only: the totals sum to the invoice's own grand total; nothing is recomputed.
+    /// </summary>
+    public async Task<List<ServiceBreakdownRow>> GetServiceBreakdownAsync(long invoiceId, CancellationToken ct = default)
+    {
+        var charges = await _db.BillCharges.AsNoTracking()
+            .Where(c => c.Bill!.CustomerInvoiceId == invoiceId)
+            .Select(c => new { c.Category, c.NetAmount })
+            .ToListAsync(ct);
+
+        return charges
+            .GroupBy(c => InvoiceService.CategoryLabel(c.Category))
+            .Select(g => new ServiceBreakdownRow(g.Key, g.Sum(x => x.NetAmount)))
+            .OrderByDescending(r => r.Total)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Reopens a cancelled invoice: re-attaches its bills and re-supersedes their individual invoices, so the
+    /// consolidated one is once again the single ACTIVE invoice for those bills.
+    ///
+    /// <para>Refuses if any bill has since been consolidated onto a DIFFERENT invoice — reopening must never
+    /// put a bill on two live invoices. That is the same double-invoice invariant, enforced on the way back.</para>
+    /// </summary>
+    public async Task ReopenAsync(long invoiceId, string? actor = null)
+    {
+        var invoice = await _db.CustomerInvoices.FirstOrDefaultAsync(i => i.Id == invoiceId)
+            ?? throw new InvalidOperationException("Customer invoice not found.");
+
+        if (invoice.Status != CustomerInvoiceStatus.Cancelled)
+            throw new InvalidOperationException($"Only a cancelled invoice can be reopened (this one is {invoice.Status}).");
+
+        var user = actor ?? await CurrentUserAsync();
+
+        // The bills this invoice originally covered — identified by the group key + being free again.
+        var candidates = await _db.Bills
+            .Where(b => b.CustomerInvoiceNumber != null
+                     && b.CustomerInvoiceNumber.ToLower() == invoice.CustomerInvoiceNumber.ToLower()
+                     && (b.Status == BillStatus.Approved || b.Status == BillStatus.Closed))
+            .ToListAsync();
+
+        var taken = candidates.Where(b => b.CustomerInvoiceId != null && b.CustomerInvoiceId != invoiceId).ToList();
+        if (taken.Count > 0)
+            throw new InvalidOperationException(
+                "Cannot reopen: these bills are now on another customer invoice — "
+                + string.Join(", ", taken.Select(b => b.BillNo)) + ".");
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+
+        foreach (var b in candidates)
+        {
+            b.CustomerInvoiceId = invoiceId;
+            if (b.InvoiceStatus == InvoiceStatus.Issued)
+                b.InvoiceStatus = InvoiceStatus.Superseded;   // the consolidated invoice is active again
+            b.ModifiedOn = DateTime.UtcNow;
+            b.ModifiedBy = user;
+        }
+
+        invoice.Status             = CustomerInvoiceStatus.Issued;
+        invoice.CancelledOn        = null;
+        invoice.CancelledBy        = null;
+        invoice.CancellationReason = null;
+
+        LogEvent(invoice, "Invoice Reopened", $"{candidates.Count} bill(s) re-attached.", user);
+        await _db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        _log.LogInformation("Customer invoice {InvoiceNo} reopened by {User}.", invoice.InvoiceNo, user);
+    }
+
+    /// <summary>Appends a timeline entry. Kind = Activity so it reads as a user-facing event (the Audit rows
+    /// written by DuplicateBillingService stay distinct).</summary>
+    private void LogEvent(CustomerInvoice invoice, string summary, string? detail, string actor)
+    {
+        _db.WorkflowAuditLogs.Add(new WorkflowAuditLog
+        {
+            Kind       = WorkflowLogKind.Activity,
+            Module     = "Billing",
+            EntityType = "CustomerInvoice",
+            EntityId   = invoice.Id,
+            EntityRef  = invoice.InvoiceNo,
+            Operation  = WorkflowOperationType.Update,
+            Summary    = summary,
+            Details    = detail,
+            Actor      = actor,
+            At         = DateTime.UtcNow,
+        });
     }
 
     // ── Numbering ────────────────────────────────────────────────────────────

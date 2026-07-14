@@ -115,6 +115,7 @@ public static class MenuSeed
         Child(billing, "Clearance Bills",      "🛃", "bills/clearance");
         Child(billing, "Forwarding Bills",     "📦", "bills/forwarding");
         Child(billing, "Transportation Bills", "🚛", "bills/transportation");
+        Child(billing, "Customer Invoices",    "🧮", "bills/customer-invoices");
         Child(billing, "Verification",         "✔",  "bills/verify");
         Child(billing, "Approval",             "✅", "bills/approve");
 
@@ -292,6 +293,42 @@ public static class MenuSeed
             PageName           = page,
             ParentId           = ops.MenuId,
             ShowOrder          = minChildOrder - 1,
+            RequiresPermission = false,
+            Active             = true,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Idempotent additive seed for the Billing → Customer Invoices leaf. <see cref="SeedAsync"/> only runs on
+    /// an empty table, so an already-seeded install would never gain the new page. Inserted after
+    /// Transportation Bills, keyed by PageName. Safe on every startup.
+    /// </summary>
+    public static async Task EnsureCustomerInvoiceMenuAsync(IDbContextFactory<AppDbContext> factory)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        if (!await db.Menus.AnyAsync()) return;   // fresh DB — SeedAsync covers it
+
+        const string page = "bills/customer-invoices";
+        if (await db.Menus.AnyAsync(m => m.PageName == page)) return;   // already present
+
+        var billing = await db.Menus.FirstOrDefaultAsync(m => m.ParentId == null && m.MenuName == "Billing");
+        if (billing is null) return;
+
+        // Slot it just after Transportation Bills; fall back to the end of the group.
+        var afterOrder = await db.Menus
+            .Where(m => m.ParentId == billing.MenuId && m.PageName == "bills/transportation")
+            .Select(m => (int?)m.ShowOrder).FirstOrDefaultAsync()
+            ?? await db.Menus.Where(m => m.ParentId == billing.MenuId).MaxAsync(m => (int?)m.ShowOrder)
+            ?? billing.ShowOrder;
+
+        db.Menus.Add(new Menu
+        {
+            MenuName           = "Customer Invoices",
+            Icon               = "🧮",
+            PageName           = page,
+            ParentId           = billing.MenuId,
+            ShowOrder          = afterOrder + 1,
             RequiresPermission = false,
             Active             = true,
         });
