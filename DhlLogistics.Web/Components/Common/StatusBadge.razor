@@ -1,0 +1,63 @@
+@*
+    StatusBadge — the single status chip used by every grid/detail screen.
+
+    Callers pass the raw status (enum or string) and, optionally, the display text
+    when it differs from the enum name (e.g. InProgress → "In Progress"):
+
+        <StatusBadge Status="@op.Status" Text="@op.StatusName" />
+        <StatusBadge Status="@bill.Status" />
+
+    Any status the map does not recognise falls back to a neutral grey chip, so a
+    new enum member renders sanely (just uncoloured) instead of blowing up or
+    disappearing into the row background. Colours live in app.css (.st-badge /
+    .st-*) and are defined for both the light and dark themes.
+*@
+
+<span class="st-badge st-@Kind(Status)">@(Text ?? Fallback(Status))</span>
+
+@code {
+    /// The status value — an enum member or a string. Only used to pick the colour.
+    [Parameter, EditorRequired] public object? Status { get; set; }
+
+    /// Display text. Defaults to the status itself, de-PascalCased ("InProgress" → "In Progress").
+    [Parameter] public string? Text { get; set; }
+
+    /// Maps a status to a colour slug. Unknown → "unknown" (neutral grey).
+    public static string Kind(object? status)
+    {
+        var key = status?.ToString();
+        if (string.IsNullOrWhiteSpace(key)) return "unknown";
+
+        // Normalise so "In Progress", "in_progress" and "InProgress" all collide.
+        key = new string(key.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+        return key switch
+        {
+            "draft"                                  => "draft",
+            "pending" or "open" or "new"             => "pending",
+            "assigned"                               => "assigned",
+            "inprogress" or "processing" or "active" => "inprogress",
+            "completed" or "complete" or "closed"    => "completed",
+            "delayed" or "overdue" or "late"         => "delayed",
+            "cancelled" or "canceled" or "rejected"  => "cancelled",
+            "verified"                               => "verified",
+            "approved" or "posted"                   => "approved",
+            _                                        => "unknown",
+        };
+    }
+
+    /// "InProgress" → "In Progress"; leaves already-spaced text alone.
+    private static string Fallback(object? status)
+    {
+        var s = status?.ToString();
+        if (string.IsNullOrWhiteSpace(s)) return "—";
+
+        var sb = new System.Text.StringBuilder(s.Length + 4);
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(s[i]) && !char.IsUpper(s[i - 1])) sb.Append(' ');
+            sb.Append(s[i]);
+        }
+        return sb.ToString();
+    }
+}

@@ -287,6 +287,49 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 .pill-active    { background: #d1fae5; color: #065f46; }
 .pill-inactive  { background: #fee2e2; color: #991b1b; }
 
+/* ── Status badges (StatusBadge.razor) ────────────────────────────────────────
+   The one status chip used across every grid. Each variant sets three tokens and
+   the shape below consumes them, so the dark-theme block only has to re-point the
+   tokens. Unknown/unmapped statuses fall through to .st-unknown (neutral grey). */
+.st-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 88px;                 /* keeps the column visually aligned */
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1.55;
+    white-space: nowrap;
+    background: var(--st-bg); color: var(--st-fg);
+    border: 1px solid var(--st-bd);
+}
+
+/* Light theme */
+.st-unknown    { --st-bg: #E9EDF3; --st-fg: #475569; --st-bd: #D3DAE4; }
+.st-draft      { --st-bg: #E9EDF3; --st-fg: #475569; --st-bd: #D3DAE4; }
+.st-pending    { --st-bg: #FFF1E3; --st-fg: #B45309; --st-bd: #FBD7AE; }
+.st-assigned   { --st-bg: #E0EDFB; --st-fg: #1E40AF; --st-bd: #BBD5F5; }
+.st-inprogress { --st-bg: #DEF3F7; --st-fg: #0E7490; --st-bd: #B4E2EC; }
+.st-completed  { --st-bg: #DCF5E4; --st-fg: #15803D; --st-bd: #B2E5C4; }
+.st-delayed    { --st-bg: #FDE2E2; --st-fg: #B91C1C; --st-bd: #F7BFBF; }
+.st-cancelled  { --st-bg: #D8DDE5; --st-fg: #334155; --st-bd: #C0C8D4; }
+.st-verified   { --st-bg: #EDE6FD; --st-fg: #6D28D9; --st-bd: #D6C8F8; }
+.st-approved   { --st-bg: #D6F5EA; --st-fg: #047857; --st-bd: #A9E6D2; }
+
+/* Dark theme — translucent fill + light ink, so the chip reads against the dark
+   grid row instead of glowing like a light-theme pastel. */
+[data-dark="true"] .st-unknown    { --st-bg: rgba(148,163,184,.18); --st-fg: #CBD5E1; --st-bd: rgba(148,163,184,.35); }
+[data-dark="true"] .st-draft      { --st-bg: rgba(148,163,184,.18); --st-fg: #CBD5E1; --st-bd: rgba(148,163,184,.35); }
+[data-dark="true"] .st-pending    { --st-bg: rgba(234,88,12,.22);   --st-fg: #FDBA74; --st-bd: rgba(234,88,12,.45); }
+[data-dark="true"] .st-assigned   { --st-bg: rgba(59,130,246,.22);  --st-fg: #93C5FD; --st-bd: rgba(59,130,246,.45); }
+[data-dark="true"] .st-inprogress { --st-bg: rgba(6,182,212,.20);   --st-fg: #67E8F9; --st-bd: rgba(6,182,212,.42); }
+[data-dark="true"] .st-completed  { --st-bg: rgba(34,197,94,.20);   --st-fg: #86EFAC; --st-bd: rgba(34,197,94,.42); }
+[data-dark="true"] .st-delayed    { --st-bg: rgba(239,68,68,.22);   --st-fg: #FCA5A5; --st-bd: rgba(239,68,68,.45); }
+[data-dark="true"] .st-cancelled  { --st-bg: rgba(100,116,139,.28); --st-fg: #94A3B8; --st-bd: rgba(100,116,139,.5); }
+[data-dark="true"] .st-verified   { --st-bg: rgba(124,58,237,.24);  --st-fg: #C4B5FD; --st-bd: rgba(124,58,237,.48); }
+[data-dark="true"] .st-approved   { --st-bg: rgba(16,185,129,.20);  --st-fg: #6EE7B7; --st-bd: rgba(16,185,129,.42); }
+
+/* Syncfusion grid cells are tight; keep the chip centred in the row. */
+.e-grid td.e-rowcell .st-badge { vertical-align: middle; }
+
 /* ── Data rows ────────────────────────────────────────────────────────────── */
 .data-row {
     display: flex;

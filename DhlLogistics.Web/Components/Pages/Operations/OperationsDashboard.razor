@@ -26,7 +26,6 @@
     .ops-filters { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; margin-bottom:12px; }
     .ops-filters .fl { display:flex; flex-direction:column; gap:2px; min-width:150px; }
     .ops-filters .fl label { font-size:11px; font-weight:700; color:var(--muted,#64748b); }
-    .ops-status { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; }
 </style>
 
 <div class="page-hdr">
@@ -133,7 +132,7 @@
                 <GridColumn HeaderText="Status" Width="120">
                     <Template>
                         @{ var op = (context as JobOperationDto)!; }
-                        <span class="ops-status" style="@StatusStyle(op.Status)">@op.StatusName</span>
+                        <StatusBadge Status="@op.Status" Text="@op.StatusName" />
                     </Template>
                 </GridColumn>
                 <GridColumn Field="@nameof(JobOperationDto.PriorityName)"  HeaderText="Priority"      Width="100" />
@@ -282,13 +281,4 @@
         var r = await _modal!.Context.ShowAsync<JobOrderPages.JobOrderPopup>(o);
         if (r.ResultType == ModalResultType.OK) await Reload();
     }
-
-    private static string StatusStyle(JobOperationStatus s) => s switch
-    {
-        JobOperationStatus.Completed  => "background:#d4f4dd;color:#0f7b3d;",
-        JobOperationStatus.InProgress => "background:#d6ebff;color:#0a5bb5;",
-        JobOperationStatus.Assigned   => "background:#fff2cc;color:#9a7100;",
-        JobOperationStatus.Cancelled  => "background:#f6d6d6;color:#b52121;",
-        _ /* Draft */                 => "background:#e9e9e9;color:#555;",
-    };
 }
