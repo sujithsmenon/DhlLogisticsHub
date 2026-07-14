@@ -387,13 +387,24 @@ public partial class InvoiceService
 
         // ── (B) Linked References — for audit ──────────────────────────────────
         AddOutline(outlines, pdf, "Linked References");
-        var jobNos = bills.Where(b => b.JobOrder is not null).Select(b => b.JobOrder!.JobOrderNo).Distinct().ToList();
+        // Originating records — NOT just JobOrders. A bill raised from an AWB shipment or an Export job has no
+        // JobOrder navigation; its source is carried on SourceReference (HAWB no / export job reference).
+        // Reading only JobOrder printed "-" for every AWB- and Export-sourced invoice, gutting the audit trail
+        // for exactly those two modules.
+        var sourceNos = bills
+            .Select(b => b.JobOrder?.JobOrderNo
+                      ?? (string.IsNullOrWhiteSpace(b.SourceReference) ? null : b.SourceReference))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .ToList();
+
         var refs = new Table(UnitValue.CreatePercentArray(new float[] { 1, 3.4f })).UseAllAvailableWidth()
             .SetMarginTop(8).SetBorder(line).SetKeepTogether(true);
         refs.AddCell(SpanHead("LINKED REFERENCES", bold, teal));
         MetaRow(refs, bold, normal, "Customer Invoice No", inv.CustomerInvoiceNumber);
         MetaRow(refs, bold, normal, "Included Bills", string.Join(", ", bills.Select(b => b.BillNo)));
-        MetaRow(refs, bold, normal, "Originating Jobs", jobNos.Count > 0 ? string.Join(", ", jobNos) : "-");
+        MetaRow(refs, bold, normal, "Originating Records",
+            sourceNos.Count > 0 ? string.Join(", ", sourceNos!) : "-");
         doc.Add(refs);
 
         // ── (E) Bank details + terms — from Company Master, never hardcoded ────
