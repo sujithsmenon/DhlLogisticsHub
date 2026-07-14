@@ -503,7 +503,7 @@ public class CustomerInvoiceService
     /// </summary>
     public static async Task<string> NextInvoiceNoAsync(AppDbContext db, int finYear)
     {
-        var fyDisplay = $"{(finYear % 100):D2}-{((finYear + 1) % 100):D2}";
+        var fyDisplay = FinancialYear.Display(finYear);
 
         var lastNo = await db.CustomerInvoices
             .Where(i => i.FinYear == finYear)

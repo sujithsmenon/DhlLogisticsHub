@@ -238,7 +238,7 @@ public sealed class JobOrderWorkflowHandler : IWorkflowHandler
     private async Task<string> NextJobOrderNoAsync(JobMode mode, int finYear)
     {
         var prefix    = mode == JobMode.Clearance ? "CLR" : "FWD";
-        var fyDisplay = $"{(finYear % 100):D2}-{((finYear + 1) % 100):D2}";
+        var fyDisplay = FinancialYear.Display(finYear);
 
         var lastNo = await _db.Set<JobOrder>()
             .Where(j => j.Mode == mode && j.FinYear == finYear)

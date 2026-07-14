@@ -273,7 +273,8 @@ public class BillService
             .FirstOrDefaultAsync(b => b.Id == id);
 
     // ── Numbering ────────────────────────────────────────────────────────────
-    public static int ComputeFinYear(DateTime d) => d.Month >= 4 ? d.Year : d.Year - 1;
+    /// <summary>Kept as the established entry point for existing callers; the rule itself lives in one place.</summary>
+    public static int ComputeFinYear(DateTime d) => FinancialYear.Of(d);
 
     private static string Prefix(BillMode mode) => mode switch
     {
@@ -288,7 +289,7 @@ public class BillService
     public static async Task<string> NextBillNoAsync(AppDbContext db, BillMode mode, int finYear)
     {
         var prefix    = Prefix(mode);
-        var fyDisplay = $"{(finYear % 100):D2}-{((finYear + 1) % 100):D2}";
+        var fyDisplay = FinancialYear.Display(finYear);
 
         var lastNo = await db.Bills
             .Where(b => b.Mode == mode && b.FinYear == finYear)

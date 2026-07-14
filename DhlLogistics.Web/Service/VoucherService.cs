@@ -45,7 +45,7 @@ public class VoucherService
             .FirstOrDefaultAsync(v => v.Id == id);
 
     // ── Numbering ────────────────────────────────────────────────────────────
-    public static int ComputeFinYear(DateTime d) => d.Month >= 4 ? d.Year : d.Year - 1;
+    public static int ComputeFinYear(DateTime d) => FinancialYear.Of(d);
 
     private static string Prefix(VoucherType t) => t switch
     {
@@ -59,7 +59,7 @@ public class VoucherService
     private async Task<string> NextVoucherNoAsync(VoucherType type, int finYear)
     {
         var prefix    = Prefix(type);
-        var fyDisplay = $"{(finYear % 100):D2}-{((finYear + 1) % 100):D2}";
+        var fyDisplay = FinancialYear.Display(finYear);
 
         var lastNo = await _db.Vouchers
             .Where(v => v.Type == type && v.FinYear == finYear)

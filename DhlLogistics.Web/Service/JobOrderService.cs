@@ -112,7 +112,7 @@ public class JobOrderService
 
     // ── Numbering ────────────────────────────────────────────────────────────
 
-    public static int ComputeFinYear(DateTime d) => d.Month >= 4 ? d.Year : d.Year - 1;
+    public static int ComputeFinYear(DateTime d) => FinancialYear.Of(d);
 
     // ── Sale-charge totals ─────────────────────────────────────────────────────
     /// <summary>Recomputes each charge line (Amount / GST / Net) and the job's rolled-up
