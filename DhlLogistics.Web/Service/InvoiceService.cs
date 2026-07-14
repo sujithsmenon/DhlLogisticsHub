@@ -124,6 +124,18 @@ public partial class InvoiceService
 
         // Invoice metadata (reuses the bill's own FY/number — INV mirrors the bill number).
         bill.InvoiceNumber = ToInvoiceNumber(bill.BillNo);
+
+        // Belt and braces: an invoice number is a legal reference and must be unique. The derivation above
+        // guarantees it, but a future change to the numbering must not be able to reintroduce a duplicate
+        // silently — so refuse rather than issue a second invoice under an existing number.
+        var clash = await _db.Bills.AsNoTracking()
+            .Where(b => b.Id != bill.Id && b.InvoiceNumber == bill.InvoiceNumber)
+            .Select(b => b.BillNo)
+            .FirstOrDefaultAsync();
+        if (clash is not null)
+            throw new InvalidOperationException(
+                $"Invoice number {bill.InvoiceNumber} is already used by bill {clash}. " +
+                "Refusing to issue a duplicate invoice number.");
         bill.InvoiceDate   = DateTime.UtcNow.Date;
         bill.IssueDate     = DateTime.UtcNow.Date;
         bill.IsIssued      = true;
@@ -263,11 +275,23 @@ public partial class InvoiceService
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Per-bill invoice number, derived from the bill number.
+    ///
+    /// <para><b>The mode prefix must be kept.</b> This previously returned <c>"INV" + billNo[slash..]</c>,
+    /// which THREW AWAY the CB/FB/TB prefix — but bill numbering runs a SEPARATE sequence per mode, so
+    /// <c>CB/26-27/0005</c> and <c>FB/26-27/0005</c> both collapsed to <c>INV/26-27/0005</c>. Two different
+    /// customer invoices could therefore carry the same tax-invoice number, which is a legal defect. (The
+    /// database audit found exactly this pair already issued in production.)</para>
+    ///
+    /// <para>Keeping the prefix makes the number unique by construction: <c>INV/CB/26-27/0005</c> vs
+    /// <c>INV/FB/26-27/0005</c>. Invoice numbers ALREADY ISSUED are never rewritten — they are issued
+    /// documents and history stands.</para>
+    /// </summary>
     private static string ToInvoiceNumber(string billNo)
     {
         if (string.IsNullOrWhiteSpace(billNo)) return "INV";
-        var slash = billNo.IndexOf('/');
-        return slash > 0 ? "INV" + billNo[slash..] : "INV/" + billNo;
+        return "INV/" + billNo;      // e.g. CB/26-27/0005 → INV/CB/26-27/0005 (unique across modes)
     }
 
     private static DateTime? ComputeDueDate(DateTime issueDate, string? paymentTerms)
