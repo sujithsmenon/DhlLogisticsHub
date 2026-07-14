@@ -36,6 +36,7 @@ public static class PermissionSeed
         // M4 Billing
         "finance/billing",
         "bills/clearance", "bills/forwarding", "bills/transportation",
+        "bills/customer-invoices",
         "bills/verify", "bills/approve",
         // M4 Accounts
         "finance/accounts",
@@ -90,7 +91,53 @@ public static class PermissionSeed
         await SeedDefaultsIfEmptyAsync(db, roleIdByName, "Executive", nonAdminPages, ReadEdit);
         await SeedDefaultsIfEmptyAsync(db, roleIdByName, "Viewer", nonAdminPages, ReadOnly);
 
+        // 3. Additive top-up for pages added AFTER a database was first seeded.
+        //
+        //    The step above deliberately refuses to touch a role that already has claims, so an admin's
+        //    hand-edits are never silently undone. But that also means a NEW permission-controlled page is
+        //    granted to nobody — not even Admin — and becomes unreachable for everyone. Exactly that happened
+        //    with bills/customer-invoices: the page was made permission-controlled, no role held a claim for
+        //    it, and Admin was bounced to /no-permission. The regression sweep caught it.
+        //
+        //    So: grant a page's defaults to a role only when the role has claims but NONE for that page
+        //    (i.e. it is genuinely new to this database). A page an admin has deliberately revoked keeps at
+        //    least one claim row and is therefore left alone.
+        await TopUpNewPageAsync(db, roleIdByName, "bills/customer-invoices", new()
+        {
+            ["Admin"]     = All,
+            ["Manager"]   = new[] { Permission.View, Permission.Create, Permission.Edit, Permission.Delete,
+                                    Permission.Approve, Permission.Export, Permission.Print },
+            ["Executive"] = ReadEdit,
+            ["Viewer"]    = ReadOnly,
+        });
+
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>Grants <paramref name="perms"/> on <paramref name="page"/> to each role that already has
+    /// claims but holds none for this page — i.e. the page is new to this database.</summary>
+    private static async Task TopUpNewPageAsync(
+        AppDbContext db, IReadOnlyDictionary<string, string> roleIdByName,
+        string page, Dictionary<string, Permission[]> permsByRole)
+    {
+        foreach (var (roleName, perms) in permsByRole)
+        {
+            if (!roleIdByName.TryGetValue(roleName, out var roleId)) continue;
+
+            var hasAnyClaims = await db.RoleClaims
+                .AnyAsync(rc => rc.RoleId == roleId && rc.ClaimType == PermissionService.PermissionClaimType);
+            if (!hasAnyClaims) continue;   // fresh role — the first-time seed above already covered it
+
+            // Claim values are "Permissions.{page}.{Action}" — match on the page segment.
+            var prefix = $"Permissions.{PermissionService.Normalise(page)}.";
+            var hasThisPage = await db.RoleClaims.AnyAsync(rc =>
+                rc.RoleId == roleId
+                && rc.ClaimType == PermissionService.PermissionClaimType
+                && rc.ClaimValue!.StartsWith(prefix));
+            if (hasThisPage) continue;     // already granted, or deliberately revoked — leave it alone
+
+            await GrantClaimsAsync(db, roleId, new[] { page }, perms);
+        }
     }
 
     private static async Task SeedDefaultsIfEmptyAsync(
