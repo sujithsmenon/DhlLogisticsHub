@@ -118,7 +118,8 @@
             <GridPageSettings PageSize="20" PageSizes="@(new[] { "All", "10", "20", "50" })" />
             <GridEvents CommandClicked="OnOpen" QueryCellInfo="OnQueryCellInfo" TValue="JobOperationDto" />
             <GridColumns>
-                <GridColumn HeaderText="Open" Width="80" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
+                @* 110px, not 80: at 80 the icon+label button is clipped to "Ope…". *@
+                <GridColumn HeaderText="Open" Width="110" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
                     <GridCommandColumns>
                         <GridCommandColumn Type="CommandButtonType.None"
                                            ButtonOption="@(new() { Content = "Open", IconCss = "e-icons e-eye", CssClass = "wf-btn-open" })" />

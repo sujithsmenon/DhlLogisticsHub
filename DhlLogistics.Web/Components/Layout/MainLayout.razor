@@ -6,7 +6,10 @@
 @inject ThemeService Theme
 @inject LogisticsService Logistics
 @inject GlobalSearchService GlobalSearch
+@inject IDbContextFactory<AppDbContext> MenuFactory
+@inject ILogger<MainLayout> Logger
 @using DhlLogistics.Web.Service.Search
+@using Microsoft.EntityFrameworkCore
 @implements IAsyncDisposable
 
 @if (_ready)
@@ -885,20 +888,52 @@
         if (_hub is not null) await _hub.DisposeAsync();
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync() => await SetPageTitleAsync();
+
+    /// <summary>
+    /// Page title, resolved from the DB-driven Menus table — the same source of truth the sidebar uses.
+    ///
+    /// <para>This replaced a hardcoded switch over the last URL segment whose fallback was
+    /// "Operations Dashboard", so EVERY page outside that short list (all the billing screens, Customer
+    /// Invoices, masters, reports…) displayed the wrong title. Deriving it from the menu means a page added
+    /// later gets the right title with no change here.</para>
+    ///
+    /// <para>Falls back to a prettified URL segment for routes that have no menu entry (e.g. /profile),
+    /// and never to another page's name.</para>
+    /// </summary>
+    private async Task SetPageTitleAsync()
     {
-        _pageTitle = Nav.Uri.Split('/').LastOrDefault() switch
+        var path = PermissionService.Normalise(Nav.ToBaseRelativePath(Nav.Uri));
+        if (string.IsNullOrWhiteSpace(path)) { _pageTitle = "Dashboard"; return; }
+
+        try
         {
-            "shipments"  => "Shipments",
-            "customers"  => "Customers",
-            "hubs"       => "Hubs & Routes",
-            "tracking"   => "Live Tracking",
-            "jobs"       => "Jobs",
-            "vehicles"   => "Vehicle Fleet",
-            "users"      => "User Activity",
-            "cargo"      => "Cargo & Containers",
-            _            => "Operations Dashboard",
-        };
+            await using var db = await MenuFactory.CreateDbContextAsync();
+            var match = await db.Menus.AsNoTracking()
+                .Where(m => m.PageName != null && m.PageName != "")
+                .Select(m => new { m.MenuName, m.PageName })
+                .ToListAsync();
+
+            // Longest matching page-path wins, so /bills/customer-invoices beats /bills.
+            var best = match
+                .Where(m => path.Equals(PermissionService.Normalise(m.PageName!), StringComparison.OrdinalIgnoreCase))
+                .Select(m => m.MenuName)
+                .FirstOrDefault();
+
+            if (!string.IsNullOrWhiteSpace(best)) { _pageTitle = best!; return; }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Page-title lookup failed; falling back to the URL segment.");
+        }
+
+        // No menu entry — prettify the last segment ("customer-invoices" → "Customer Invoices").
+        var seg = path.Split('/').LastOrDefault() ?? "";
+        _pageTitle = string.IsNullOrWhiteSpace(seg)
+            ? "Dashboard"
+            : string.Join(' ', seg.Split('-', '_')
+                .Where(w => w.Length > 0)
+                .Select(w => char.ToUpperInvariant(w[0]) + w[1..]));
     }
 
     private static string TypeIcon(string type) => type switch

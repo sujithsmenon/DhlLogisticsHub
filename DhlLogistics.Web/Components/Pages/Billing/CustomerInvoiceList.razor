@@ -110,7 +110,8 @@
             <GridPageSettings PageSize="20" PageSizes="@(new[] { "10", "20", "50", "100" })" />
             <GridEvents CommandClicked="OnCommand" TValue="CustomerInvoiceRow" />
             <GridColumns>
-                <GridColumn HeaderText="Open" Width="80" TextAlign="TextAlign.Center">
+                @* 110px, not 80: at 80 the icon+label button is clipped to "Vie…". *@
+                <GridColumn HeaderText="Open" Width="110" TextAlign="TextAlign.Center">
                     <GridCommandColumns>
                         <GridCommandColumn Type="CommandButtonType.None"
                                            ButtonOption="@(new() { Content = "View", IconCss = "e-icons e-eye", CssClass = "wf-btn-open" })" />

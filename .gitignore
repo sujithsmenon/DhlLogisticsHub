@@ -383,3 +383,9 @@ DhlLogistics.Web/App_Data/
 
 # Local DB backups (never commit — contains production data)
 *.dump
+
+# Local visual-audit artifacts + browser tooling
+audit/
+node_modules/
+package.json
+package-lock.json

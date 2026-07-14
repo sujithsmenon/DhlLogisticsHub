@@ -379,12 +379,17 @@ public partial class InvoiceService
         doc.Add(sum);
 
         doc.Add(new Paragraph("Amount in Words: " + AmountInWords(bills.Sum(b => b.TotalAmount), cur))
-            .SetFont(bold).SetFontSize(9).SetMarginTop(6));
+            .SetFont(bold).SetFontSize(9).SetMarginTop(6).SetMarginBottom(2));
+
+        // Keep the closing blocks (references / bank / terms / signature) together. Without this they break
+        // apart across pages and strand a near-empty trailing page — the tail sections are short, so they
+        // either all fit under the totals or all move to the next page as one unit.
 
         // ── (B) Linked References — for audit ──────────────────────────────────
         AddOutline(outlines, pdf, "Linked References");
         var jobNos = bills.Where(b => b.JobOrder is not null).Select(b => b.JobOrder!.JobOrderNo).Distinct().ToList();
-        var refs = new Table(UnitValue.CreatePercentArray(new float[] { 1, 3.4f })).UseAllAvailableWidth().SetMarginTop(8).SetBorder(line);
+        var refs = new Table(UnitValue.CreatePercentArray(new float[] { 1, 3.4f })).UseAllAvailableWidth()
+            .SetMarginTop(8).SetBorder(line).SetKeepTogether(true);
         refs.AddCell(SpanHead("LINKED REFERENCES", bold, teal));
         MetaRow(refs, bold, normal, "Customer Invoice No", inv.CustomerInvoiceNumber);
         MetaRow(refs, bold, normal, "Included Bills", string.Join(", ", bills.Select(b => b.BillNo)));
@@ -393,7 +398,8 @@ public partial class InvoiceService
 
         // ── (E) Bank details + terms — from Company Master, never hardcoded ────
         var hasBank = !string.IsNullOrWhiteSpace(co.BankName) || !string.IsNullOrWhiteSpace(co.AccountNumber);
-        var notes = new Table(UnitValue.CreatePercentArray(new float[] { 1, 1 })).UseAllAvailableWidth().SetMarginTop(8);
+        var notes = new Table(UnitValue.CreatePercentArray(new float[] { 1, 1 })).UseAllAvailableWidth()
+            .SetMarginTop(8).SetKeepTogether(true);
 
         var bankCell = new Cell().SetBorder(line).SetPadding(6)
             .Add(new Paragraph("Bank Details").SetFont(bold).SetFontSize(8).SetFontColor(teal));
@@ -417,7 +423,8 @@ public partial class InvoiceService
         doc.Add(notes);
 
         // ── Signature + (9) footer ─────────────────────────────────────────────
-        var sign = new Table(UnitValue.CreatePercentArray(new float[] { 1.4f, 1f })).UseAllAvailableWidth().SetMarginTop(18);
+        var sign = new Table(UnitValue.CreatePercentArray(new float[] { 1.4f, 1f })).UseAllAvailableWidth()
+            .SetMarginTop(18).SetKeepTogether(true);
         sign.AddCell(new Cell().SetBorder(Border.NO_BORDER)
             .Add(new Paragraph(CoFooter).SetFont(normal).SetFontSize(7.5f).SetFontColor(ColorConstants.GRAY)));
         sign.AddCell(new Cell().SetBorder(Border.NO_BORDER).SetTextAlignment(TextAlignment.CENTER).SetPaddingTop(24)
