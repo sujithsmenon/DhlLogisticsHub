@@ -87,6 +87,8 @@
                             <GridCommandColumns>
                                 <GridCommandColumn Type="CommandButtonType.Edit"   ButtonOption="@(new() { IconCss = "e-icons e-edit",   CssClass = "e-flat" })" />
                                 <GridCommandColumn Type="CommandButtonType.None"   ButtonOption="@(new() { Content = "Submit", IconCss = "e-icons e-send-1", CssClass = "wf-btn-submit" })" />
+                                @* Opens the Billing Group this bill belongs to (bills sharing its Customer Invoice No.) *@
+                                <GridCommandColumn Type="CommandButtonType.None"   ButtonOption="@(new() { Content = "Invoice", IconCss = "e-icons e-file-document", CssClass = "wf-btn-open" })" />
                                 <GridCommandColumn Type="CommandButtonType.Delete" ButtonOption="@(new() { IconCss = "e-icons e-delete", CssClass = "e-flat delete-btn" })" />
                             </GridCommandColumns>
                         </GridColumn>
@@ -223,6 +225,30 @@
 
     private async Task LoadOnSave() { await LoadData(); if (Grid is not null) await Grid.Refresh(); }
 
+    /// <summary>Opens the Generate Customer Invoice popup for the Billing Group this bill belongs to (every
+    /// bill sharing its Customer Invoice No.). The clicked bill is pre-selected.</summary>
+    private async Task OpenInvoicePopup(Bill bill)
+    {
+        if (string.IsNullOrWhiteSpace(bill.CustomerInvoiceNumber))
+        {
+            ToastService.Show(new()
+            {
+                Title = "No Customer Invoice No.",
+                Content = $"Bill {bill.BillNo} has no Customer Invoice Number, so it belongs to no billing group. "
+                        + "Set one on the originating job first.",
+                CssClass = "e-toast-warning",
+            });
+            return;
+        }
+
+        var o = new BsModalOptions();
+        o.ControlParameters.Add("CustomerInvoiceNumber", bill.CustomerInvoiceNumber);
+        o.ControlParameters.Add("CurrentBillId", bill.Id);
+        o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
+        var r = await _modal!.Context.ShowAsync<GenerateCustomerInvoicePopup>(o);
+        if (r.ResultType == ModalResultType.OK) await LoadOnSave();
+    }
+
     public async void ToolbarClick(Syncfusion.Blazor.Navigations.ClickEventArgs args)
     {
         if (args.Item.Text == "Add New Bill")
@@ -251,6 +277,10 @@
                 await Service.SubmitAsync(args.RowData.Id);
                 ToastService.Show(new() { Title = "Submitted", Content = $"Bill {args.RowData.BillNo} submitted for verification.", CssClass = "e-toast-success" });
                 await LoadOnSave();
+            }
+            else if (args.CommandColumn?.ButtonOption?.Content == "Invoice")
+            {
+                if (args.RowData is not null) await OpenInvoicePopup(args.RowData);
             }
             else if (args.CommandColumn.Type == CommandButtonType.Edit)
             {

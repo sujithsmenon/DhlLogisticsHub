@@ -1,0 +1,319 @@
+@inject CustomerInvoiceService InvoiceSvc
+@inject BillingGroupService GroupSvc
+@inject IToastService ToastService
+
+@*
+    Generate Customer Invoice — selection popup over a Billing Group.
+
+    Lists ONLY Bills; selection happens only at Bill level. Jobs appear inside an expanded bill card as a
+    READ-ONLY preview (no checkbox), because invoices are raised from Bills, never from Jobs.
+
+    The candidate list comes from CustomerInvoiceService.GetSelectableBillsAsync, which is keyed on the
+    group's CustomerInvoiceNumber — so bills from a different reference are structurally unable to appear
+    here. Job previews are lazy-loaded on expand, so a large group stays fast.
+*@
+
+<style>
+    .gci-hdr      { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px 16px;
+                    padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface2); margin-bottom:12px; }
+    .gci-hdr .k   { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
+    .gci-hdr .v   { font-size:13px; font-weight:700; color:var(--text); }
+    .gci-sec      { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+                    color:var(--muted); margin:14px 0 6px; }
+    .gci-card     { border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--card); }
+    .gci-card.sel { border-color:#0868B2; box-shadow:0 0 0 1px #0868B2 inset; }
+    .gci-row      { display:flex; align-items:center; gap:10px; padding:8px 10px; cursor:pointer; }
+    .gci-row:hover{ background:var(--surface2); }
+    .gci-no       { font-weight:800; font-size:12.5px; min-width:130px; }
+    .gci-meta     { font-size:11.5px; color:var(--muted); }
+    .gci-amt      { margin-left:auto; text-align:right; white-space:nowrap; }
+    .gci-amt .t   { font-weight:800; font-size:13px; }
+    .gci-amt .s   { font-size:11px; color:var(--muted); }
+    .gci-caret    { font-size:11px; color:var(--muted); width:14px; }
+    .gci-detail   { border-top:1px dashed var(--border); padding:10px 12px; background:var(--surface2); }
+    .gci-jobgrid  { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:6px 14px; }
+    .gci-jobgrid .k { font-size:10px; font-weight:700; text-transform:uppercase; color:var(--muted); }
+    .gci-jobgrid .v { font-size:12px; font-weight:600; }
+    .gci-ro       { font-size:10.5px; font-weight:700; color:#9a7100; background:#fff2cc;
+                    padding:1px 7px; border-radius:9px; display:inline-block; margin-bottom:6px; }
+    .gci-sum      { border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:var(--card); }
+    .gci-sum .r   { display:flex; justify-content:space-between; font-size:12px; padding:2px 0; }
+    .gci-sum .r.total { border-top:1px solid var(--border); margin-top:5px; padding-top:6px; font-weight:800; font-size:14px; }
+    .gci-empty    { padding:18px; text-align:center; color:var(--muted); font-size:12.5px;
+                    border:1px dashed var(--border); border-radius:8px; }
+    .gci-st       { font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:9px; background:#e9edf3; color:#475569; }
+    @@media (max-width: 768px) {
+        .gci-row  { flex-wrap:wrap; }
+        .gci-amt  { margin-left:0; width:100%; text-align:left; }
+    }
+</style>
+
+<div class="modal-header">
+    <h5 class="modal-title">Generate Customer Invoice</h5>
+    <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
+</div>
+
+<div class="modal-body">
+    @if (_loading)
+    {
+        <SfSpinner Visible="true" Label="Loading billing group..." />
+    }
+    else
+    {
+        <!-- Group header -->
+        <div class="gci-hdr">
+            <div><div class="k">Customer Invoice No.</div><div class="v">@CustomerInvoiceNumber</div></div>
+            <div><div class="k">Client</div><div class="v">@(_client ?? "—")</div></div>
+            <div><div class="k">Branch</div><div class="v">@(_branch ?? "—")</div></div>
+            <div><div class="k">Currency</div><div class="v">@(_currency ?? "—")</div></div>
+            <div><div class="k">Selected Bills</div><div class="v">@SelectedCount of @_all.Count</div></div>
+            <div><div class="k">Selected Amount</div><div class="v">@SelectedTotal.ToString("N2")</div></div>
+        </div>
+
+        @if (_all.Count == 0)
+        {
+            <div class="gci-empty">
+                No invoiceable bills in this billing group.<br />
+                Bills must be <strong>Approved</strong> and not already on a customer invoice.
+            </div>
+        }
+        else
+        {
+            <div class="row">
+                <div class="col-md-8">
+                    <!-- Actions -->
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                        <SfButton OnClick="SelectAll"  CssClass="e-small" IconCss="e-icons e-check-box">Select All Bills</SfButton>
+                        <SfButton OnClick="ClearAll"   CssClass="e-small" IconCss="e-icons e-uncheck-box">Clear All Bills</SfButton>
+                        <SfButton OnClick="ExpandAll"  CssClass="e-small" IconCss="e-icons e-chevron-down">Expand All</SfButton>
+                        <SfButton OnClick="CollapseAll" CssClass="e-small" IconCss="e-icons e-chevron-up">Collapse All</SfButton>
+                    </div>
+
+                    @* Section 1 — Clearance & Forwarding *@
+                    <div class="gci-sec">Clearance &amp; Forwarding Bills (@_cf.Count)</div>
+                    @if (_cf.Count == 0)
+                    {
+                        <div class="gci-empty">None in this group.</div>
+                    }
+                    @foreach (var b in _cf) { @BillCard(b) }
+
+                    @* Section 2 — Transportation *@
+                    <div class="gci-sec">Transportation Bills (@_tb.Count)</div>
+                    @if (_tb.Count == 0)
+                    {
+                        <div class="gci-empty">None in this group.</div>
+                    }
+                    @foreach (var b in _tb) { @BillCard(b) }
+                </div>
+
+                <!-- Live summary -->
+                <div class="col-md-4">
+                    <div class="gci-sum">
+                        <div class="gci-sec" style="margin-top:0;">Summary</div>
+                        <div class="r"><span>Customer Invoice No.</span><strong>@CustomerInvoiceNumber</strong></div>
+                        <div class="r"><span>Selected Clearance Bills</span><strong>@SelectedCf</strong></div>
+                        <div class="r"><span>Selected Transportation Bills</span><strong>@SelectedTb</strong></div>
+                        <div class="r"><span>Selected Jobs</span><strong>@SelectedJobs</strong></div>
+                        <div class="r"><span>Subtotal</span><strong>@SelectedSubTotal.ToString("N2")</strong></div>
+                        <div class="r"><span>GST</span><strong>@SelectedGst.ToString("N2")</strong></div>
+                        <div class="r total"><span>Grand Total</span><span>@SelectedTotal.ToString("N2")</span></div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<div class="modal-footer">
+    <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+    <SfButton IsPrimary="true" OnClick="@Generate" CssClass="e-small" IconCss="e-icons e-save-as"
+              Disabled="@(SelectedCount == 0 || _busy)">
+        Generate Invoice (@SelectedCount)
+    </SfButton>
+</div>
+
+@code {
+    [CascadingParameter] private IModalDialogContext? Modal { get; set; }
+
+    /// <summary>The Billing Group key. Only bills carrying THIS reference can ever be listed.</summary>
+    [Parameter] public string CustomerInvoiceNumber { get; set; } = string.Empty;
+
+    /// <summary>The bill the user launched from — pre-selected, per spec.</summary>
+    [Parameter] public long CurrentBillId { get; set; }
+
+    [Parameter] public EventCallback LoadOnSaveReference { get; set; }
+
+    private bool _loading = true, _busy;
+    private List<Bill> _all = new(), _cf = new(), _tb = new();
+    private readonly HashSet<long> _selected = new();
+    private readonly HashSet<long> _expanded = new();
+    private readonly Dictionary<long, BillSourceDetail> _sources = new();   // lazy — filled on expand
+
+    private string? _client, _branch, _currency;
+
+    // ── Live summary (recomputed from the selection, never cached) ────────────
+    private IEnumerable<Bill> Sel        => _all.Where(b => _selected.Contains(b.Id));
+    private int      SelectedCount       => _selected.Count;
+    private int      SelectedCf          => _cf.Count(b => _selected.Contains(b.Id));
+    private int      SelectedTb          => _tb.Count(b => _selected.Contains(b.Id));
+    private decimal  SelectedSubTotal    => Sel.Sum(b => b.SubTotal);
+    private decimal  SelectedGst         => Sel.Sum(b => b.GstAmount);
+    private decimal  SelectedTotal       => Sel.Sum(b => b.TotalAmount);
+
+    /// <summary>Distinct originating records behind the selected bills — two bills off the same job count once.
+    /// Only counts sources already loaded (expanded); falls back to the bills' own source columns otherwise.</summary>
+    private int SelectedJobs => Sel
+        .Select(b => _sources.TryGetValue(b.Id, out var s) ? s.SourceKey : SourceKeyOf(b))
+        .Where(k => k is not null)
+        .Distinct()
+        .Count();
+
+    private static string? SourceKeyOf(Bill b) =>
+        b.JobOrderId is { } j ? $"JOB:{j}"
+        : b.SourceType == BillSourceType.AwbShipment && b.SourceId is { } a ? $"AWB:{a}"
+        : b.SourceType == BillSourceType.ExportJob   && b.SourceId is { } e ? $"EXP:{e}"
+        : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _all = await InvoiceSvc.GetSelectableBillsAsync(CustomerInvoiceNumber);
+            _cf  = _all.Where(b => b.Mode != BillMode.Transportation).ToList();
+            _tb  = _all.Where(b => b.Mode == BillMode.Transportation).ToList();
+
+            var first = _all.FirstOrDefault();
+            _client   = first?.BillingClient?.CompanyName;
+            _branch   = first?.Branch?.BranchName;
+            _currency = first?.Currency?.CurrencyCode ?? first?.Currency?.CurrencyName;
+
+            // The bill the user came from starts selected.
+            if (CurrentBillId != 0 && _all.Any(b => b.Id == CurrentBillId))
+                _selected.Add(CurrentBillId);
+        }
+        finally { _loading = false; }
+    }
+
+    // ── Selection (Bill level only — Jobs are never selectable) ───────────────
+    private void Toggle(long billId)
+    {
+        if (!_selected.Remove(billId)) _selected.Add(billId);
+    }
+
+    private void SelectAll() { foreach (var b in _all) _selected.Add(b.Id); }
+    private void ClearAll()  => _selected.Clear();
+
+    private async Task ExpandAll()
+    {
+        foreach (var b in _all) await Expand(b.Id, true);
+    }
+    private void CollapseAll() => _expanded.Clear();
+
+    /// <summary>Expanding lazy-loads the bill's originating record — a group with many bills costs nothing
+    /// until the user actually opens a card.</summary>
+    private async Task Expand(long billId, bool force = false)
+    {
+        if (!force && _expanded.Contains(billId)) { _expanded.Remove(billId); return; }
+        _expanded.Add(billId);
+        if (!_sources.ContainsKey(billId))
+            _sources[billId] = await GroupSvc.GetBillSourceAsync(billId);
+    }
+
+    private async Task Generate()
+    {
+        if (_selected.Count == 0) return;
+        _busy = true;
+        try
+        {
+            var invoice = await InvoiceSvc.GenerateAsync(_selected.ToList());
+            ToastService.Show(new()
+            {
+                Title = "Invoice generated",
+                Content = $"Customer invoice {invoice.InvoiceNo} raised over {_selected.Count} bill(s).",
+                CssClass = "e-toast-success",
+            });
+            if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
+            Modal?.Close(ModalResult.OK());
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Cannot generate", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally { _busy = false; }
+    }
+
+    private void Close() => this.Modal?.Close(ModalResult.Cancel());
+
+    // ── Bill card (checkbox + summary row, expandable read-only job preview) ──
+    private RenderFragment BillCard(Bill b) => __builder =>
+    {
+        var isSel = _selected.Contains(b.Id);
+        var isExp = _expanded.Contains(b.Id);
+
+        <div class="gci-card @(isSel ? "sel" : "")">
+            <div class="gci-row" @onclick="() => Expand(b.Id)">
+                @* stopPropagation: ticking the box must not also expand the card *@
+                <input type="checkbox" checked="@isSel"
+                       @onclick:stopPropagation="true"
+                       @onchange="() => Toggle(b.Id)" />
+                <span class="gci-caret">@(isExp ? "▾" : "▸")</span>
+                <span class="gci-no">@b.BillNo</span>
+                <span class="gci-meta">
+                    @b.BillDate.ToString("dd-MMM-yyyy") &nbsp;·&nbsp; @b.Mode
+                    &nbsp;·&nbsp; @(b.BillingClient?.CompanyName ?? "—")
+                    &nbsp;·&nbsp; @(b.Branch?.BranchName ?? "—")
+                </span>
+                <span class="gci-st">@b.Status</span>
+                <span class="gci-amt">
+                    <div class="t">@b.TotalAmount.ToString("N2")</div>
+                    <div class="s">Amt @b.SubTotal.ToString("N2") · GST @b.GstAmount.ToString("N2")</div>
+                </span>
+            </div>
+
+            @if (isExp)
+            {
+                <div class="gci-detail">
+                    <div class="gci-ro">READ ONLY — selection happens at bill level</div>
+                    @if (_sources.TryGetValue(b.Id, out var s))
+                    {
+                        @if (s.SourceKey is null)
+                        {
+                            <div class="gci-meta">Standalone bill — no originating operational record.</div>
+                        }
+                        else
+                        {
+                            <div class="gci-jobgrid">
+                                @Cell("Record", $"{s.Kind} {s.Number}")
+                                @Cell("Job Type", s.JobType)
+                                @Cell("Shipment Type", s.ShipmentType)
+                                @Cell("Shipper", s.Shipper)
+                                @Cell("Consignee", s.Consignee)
+                                @Cell("HAWB / MAWB", s.AwbOrBl)
+                                @Cell("Container No", s.ContainerNo)
+                                @Cell("Vehicle No", s.VehicleNo)
+                                @Cell("Origin", s.Origin)
+                                @Cell("Destination", s.Destination)
+                                @Cell("Weight (kg)", s.WeightKg?.ToString("N2"))
+                                @Cell("Packages", s.Packages?.ToString("N0"))
+                                @Cell("Remarks", s.Remarks)
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="gci-meta">Loading…</div>
+                    }
+                </div>
+            }
+        </div>
+    };
+
+    private RenderFragment Cell(string label, string? value) => __builder =>
+    {
+        <div>
+            <div class="k">@label</div>
+            <div class="v">@(string.IsNullOrWhiteSpace(value) ? "—" : value)</div>
+        </div>
+    };
+}

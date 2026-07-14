@@ -21,6 +21,29 @@ public sealed record BillingGroupDoc(
     string?  Remarks,
     string   Route);      // page this document opens on
 
+/// <summary>
+/// The operational record a Bill was raised from, flattened for the READ-ONLY job preview inside an
+/// expandable bill card. <paramref name="SourceKey"/> is the stable identity used by duplicate-billing
+/// detection ("JOB:12", "AWB:4", "EXP:7") — detection compares these keys, never bill numbers.
+/// </summary>
+public sealed record BillSourceDetail(
+    long    BillId,
+    string? SourceKey,       // null when the bill is standalone (nothing to duplicate)
+    string  Kind,            // "Clearance Job" | "Forwarding Job" | "Export Job" | "AWB Shipment" | "Standalone"
+    string? Number,
+    string? JobType,
+    string? ShipmentType,
+    string? Shipper,
+    string? Consignee,
+    string? AwbOrBl,
+    string? ContainerNo,
+    string? VehicleNo,
+    string? Origin,
+    string? Destination,
+    decimal? WeightKg,
+    decimal? Packages,
+    string? Remarks);
+
 /// <summary>Everything sharing one CustomerInvoiceNumber. The group is <b>virtual</b> — nothing is stored to
 /// create it; it is derived on read from the reference the documents already carry.</summary>
 public sealed record BillingGroup(
@@ -183,6 +206,116 @@ public class BillingGroupService
             .Where(j => j.Id == jobId).Select(j => j.CustomerInvoiceNumber).FirstOrDefaultAsync(ct);
         return await GetBillingGroupAsync(cinv, ct);
     }
+
+    // ── Bill → originating operational record (read-only preview + duplicate detection) ──
+
+    /// <summary>
+    /// The operational record behind one Bill. Called lazily when a bill card is EXPANDED, so a group with
+    /// many bills costs nothing until the user actually looks inside one.
+    /// </summary>
+    public async Task<BillSourceDetail> GetBillSourceAsync(long billId, CancellationToken ct = default)
+    {
+        var b = await _db.Bills.AsNoTracking()
+            .Where(x => x.Id == billId)
+            .Select(x => new { x.Id, x.JobOrderId, x.SourceType, x.SourceId })
+            .FirstOrDefaultAsync(ct);
+
+        if (b is null) return Standalone(billId);
+
+        // A job-linked bill (Clearance / Forwarding, and job-raised Transportation).
+        if (b.JobOrderId is { } jobId)
+        {
+            var j = await _db.JobOrders.AsNoTracking()
+                .Where(x => x.Id == jobId)
+                .Select(x => new
+                {
+                    x.Id, x.JobOrderNo, x.Mode, x.ShipmentType, x.ShipmentMode,
+                    Shipper   = x.Shipper!.CompanyName,
+                    Consignee = x.Consignee!.CompanyName,
+                    Origin    = x.LoadPort!.PortName,
+                    Dest      = x.DischargePort!.PortName,
+                    Container = x.ContainerSize!.SizeName,
+                    x.GrossWeightKg, x.LclUnits, x.Remarks,
+                })
+                .FirstOrDefaultAsync(ct);
+
+            if (j is null) return Standalone(billId);
+            return new BillSourceDetail(billId, $"JOB:{j.Id}",
+                j.Mode == JobMode.Forwarding ? "Forwarding Job" : "Clearance Job",
+                j.JobOrderNo, j.Mode.ToString(), $"{j.ShipmentMode} {j.ShipmentType}",
+                j.Shipper, j.Consignee, null, j.Container, null,
+                j.Origin, j.Dest, j.GrossWeightKg, j.LclUnits, j.Remarks);
+        }
+
+        switch (b.SourceType)
+        {
+            case BillSourceType.AwbShipment when b.SourceId is { } awbId:
+            {
+                var a = await _db.AwbShipments.AsNoTracking()
+                    .Where(x => x.Id == (int)awbId)
+                    .Select(x => new
+                    {
+                        x.Id, x.HawbNo, x.ShipperName, x.ConsigneeName, x.OriginStation, x.DestinationStation,
+                        x.VehicleNumber, x.GrossWeightKg, x.Pieces, x.HandlingInfo,
+                    })
+                    .FirstOrDefaultAsync(ct);
+
+                if (a is null) return Standalone(billId);
+                return new BillSourceDetail(billId, $"AWB:{a.Id}", "AWB Shipment",
+                    a.HawbNo, "AWB", "Air",
+                    a.ShipperName, a.ConsigneeName, a.HawbNo, null, a.VehicleNumber,
+                    a.OriginStation, a.DestinationStation, (decimal)a.GrossWeightKg, a.Pieces, a.HandlingInfo);
+            }
+            case BillSourceType.ExportJob when b.SourceId is { } expId:
+            {
+                var e = await _db.ExportJobs.AsNoTracking()
+                    .Where(x => x.Id == (int)expId)
+                    .Select(x => new
+                    {
+                        x.Id, x.JobReference, x.CustomerName, x.ContainerNumber, x.ShippingBillNumber,
+                        x.VehicleNumber, x.VesselName, x.GrossWeightKg, x.Pieces, x.Notes,
+                    })
+                    .FirstOrDefaultAsync(ct);
+
+                if (e is null) return Standalone(billId);
+                return new BillSourceDetail(billId, $"EXP:{e.Id}", "Export Job",
+                    e.JobReference, "Export", "Export",
+                    null, e.CustomerName, e.ShippingBillNumber, e.ContainerNumber, e.VehicleNumber,
+                    null, e.VesselName, (decimal)e.GrossWeightKg, e.Pieces, e.Notes);
+            }
+        }
+
+        return Standalone(billId);
+    }
+
+    /// <summary>
+    /// Source keys for many bills in ONE query — the input to duplicate-billing detection. Projects ids only
+    /// (no related entities loaded), so it stays fast for a large Billing Group.
+    /// </summary>
+    public async Task<Dictionary<long, string>> GetSourceKeysAsync(IReadOnlyCollection<long> billIds,
+                                                                   CancellationToken ct = default)
+    {
+        if (billIds is null || billIds.Count == 0) return new();
+
+        var rows = await _db.Bills.AsNoTracking()
+            .Where(b => billIds.Contains(b.Id))
+            .Select(b => new { b.Id, b.JobOrderId, b.SourceType, b.SourceId })
+            .ToListAsync(ct);
+
+        var map = new Dictionary<long, string>();
+        foreach (var b in rows)
+        {
+            string? key = b.JobOrderId is { } j ? $"JOB:{j}"
+                        : b.SourceType == BillSourceType.AwbShipment && b.SourceId is { } a ? $"AWB:{a}"
+                        : b.SourceType == BillSourceType.ExportJob   && b.SourceId is { } e ? $"EXP:{e}"
+                        : null;
+            if (key is not null) map[b.Id] = key;
+        }
+        return map;
+    }
+
+    private static BillSourceDetail Standalone(long billId) =>
+        new(billId, null, "Standalone", null, null, null, null, null, null, null, null, null, null, null, null, null);
 
     // ── Internals ────────────────────────────────────────────────────────────
 
