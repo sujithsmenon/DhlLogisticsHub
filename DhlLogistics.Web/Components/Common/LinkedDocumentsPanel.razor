@@ -174,12 +174,35 @@
     private bool _loading = true;
     private string _filter = string.Empty;
 
-    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    /// <summary>The anchor the last load ran for — so a re-render with UNCHANGED parameters does not reload.</summary>
+    private string? _loadedFor;
+    private bool _busy;
+
+    /// <summary>
+    /// OnParametersSetAsync fires on EVERY parameter set, including re-renders triggered by the host popup.
+    /// Loading unconditionally meant two loads could overlap, and (when this service still shared the
+    /// circuit's scoped DbContext) issue concurrent commands on one connection —
+    /// <c>NpgsqlOperationInProgressException: A command is already in progress</c>, then
+    /// <c>The reader is closed</c>.
+    ///
+    /// <para>So: skip if a load is already running, and skip if the anchor has not actually changed.</para>
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        var anchor = CustomerInvoiceNumber ?? (BillId?.ToString() ?? JobOrderId?.ToString());
+        if (_busy || anchor == _loadedFor) return;
+
+        _loadedFor = anchor;
+        await LoadAsync();
+    }
 
     /// <summary>Loads asynchronously and resolves the group from whichever anchor was supplied. One service
     /// call — the panel never issues per-section queries.</summary>
     private async Task LoadAsync()
     {
+        if (_busy) return;
+
+        _busy = true;
         _loading = true;
         try
         {
@@ -196,7 +219,19 @@
 
             _data = await GroupSvc.GetLinkedDocumentsAsync(cinv, viewable);
         }
-        finally { _loading = false; }
+        catch (Exception)
+        {
+            // A failure to load the panel must not take the whole circuit down with it — the panel is a
+            // read-only convenience on top of a bill/job screen, not the screen itself.
+            _data = null;
+            _loadedFor = null;      // allow a retry on the next parameter set
+            throw;
+        }
+        finally
+        {
+            _loading = false;
+            _busy    = false;
+        }
     }
 
     // ── Search within the loaded graph (no re-query) ──────────────────────────

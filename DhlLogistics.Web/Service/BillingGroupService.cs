@@ -126,14 +126,32 @@ public interface IBillingGroupContributor
 /// </summary>
 public class BillingGroupService
 {
-    private readonly AppDbContext _db;
+    private readonly IDbContextFactory<AppDbContext> _factory;
     private readonly IEnumerable<IBillingGroupContributor> _contributors;
 
-    public BillingGroupService(AppDbContext db, IEnumerable<IBillingGroupContributor> contributors)
+    public BillingGroupService(IDbContextFactory<AppDbContext> factory,
+                               IEnumerable<IBillingGroupContributor> contributors)
     {
-        _db = db;
+        _factory = factory;
         _contributors = contributors;
     }
+
+    /// <summary>
+    /// A DbContext of this call's OWN, never the circuit's scoped one.
+    ///
+    /// <para>This service used to take the scoped <c>AppDbContext</c> — the single context a Blazor Server
+    /// circuit shares with every component on the page. LinkedDocumentsPanel loads from
+    /// <c>OnParametersSetAsync</c>, which fires on every parameter set, so two loads could overlap (and could
+    /// overlap with the host popup's own queries) and issue concurrent commands on one connection:
+    /// <c>NpgsqlOperationInProgressException: A command is already in progress</c>, followed by
+    /// <c>The reader is closed</c>.</para>
+    ///
+    /// <para>Every query here is read-only (<c>AsNoTracking</c> throughout), so owning a short-lived context
+    /// per call is safe and removes the sharing entirely — the same pattern GlobalSearchService already uses.
+    /// The panel additionally guards against overlapping loads; this makes the service safe regardless of who
+    /// calls it or when.</para>
+    /// </summary>
+    private Task<AppDbContext> DbAsync(CancellationToken ct = default) => _factory.CreateDbContextAsync(ct);
 
     /// <summary>Normalised group key. Empty/whitespace never forms a group — otherwise every legacy record
     /// with a blank reference would collapse into one giant bogus group.</summary>
@@ -155,6 +173,8 @@ public class BillingGroupService
         var key = Key(cinv);
         if (key is null) return new();
         var lower = key.ToLower();
+
+        await using var _db = await DbAsync(ct);
 
         var jobs = await _db.JobOrders.AsNoTracking()
             .Where(j => j.CustomerInvoiceNumber != null && j.CustomerInvoiceNumber.ToLower() == lower)
@@ -200,6 +220,8 @@ public class BillingGroupService
         var key = Key(cinv);
         if (key is null) return null;
 
+        await using var _db = await DbAsync(ct);
+
         return await _db.CustomerInvoices.AsNoTracking()
             .Where(i => i.CustomerInvoiceNumber.ToLower() == key.ToLower()
                      && i.Status != CustomerInvoiceStatus.Cancelled)
@@ -224,8 +246,12 @@ public class BillingGroupService
         var invoice   = await GetCustomerInvoiceAsync(key, ct);
 
         // Future modules join the group here without this file changing.
-        foreach (var c in _contributors)
-            clearance.AddRange(await c.GetAsync(_db, key, ct));
+        if (_contributors.Any())
+        {
+            await using var _db = await DbAsync(ct);
+            foreach (var c in _contributors)
+                clearance.AddRange(await c.GetAsync(_db, key, ct));
+        }
 
         return new BillingGroup(key, jobs, clearance, transport, invoice);
     }
@@ -235,16 +261,22 @@ public class BillingGroupService
     /// <summary>Group that the given Bill belongs to (searching a Bill No must surface the sibling bills).</summary>
     public async Task<BillingGroup> GetGroupForBillAsync(long billId, CancellationToken ct = default)
     {
-        var cinv = await _db.Bills.AsNoTracking()
-            .Where(b => b.Id == billId).Select(b => b.CustomerInvoiceNumber).FirstOrDefaultAsync(ct);
+        string? cinv;
+        await using (var _db = await DbAsync(ct))
+            cinv = await _db.Bills.AsNoTracking()
+                .Where(b => b.Id == billId).Select(b => b.CustomerInvoiceNumber).FirstOrDefaultAsync(ct);
+
         return await GetBillingGroupAsync(cinv, ct);
     }
 
     /// <summary>Group that the given Job belongs to (searching a Job No must surface its bills + invoice).</summary>
     public async Task<BillingGroup> GetGroupForJobAsync(long jobId, CancellationToken ct = default)
     {
-        var cinv = await _db.JobOrders.AsNoTracking()
-            .Where(j => j.Id == jobId).Select(j => j.CustomerInvoiceNumber).FirstOrDefaultAsync(ct);
+        string? cinv;
+        await using (var _db = await DbAsync(ct))
+            cinv = await _db.JobOrders.AsNoTracking()
+                .Where(j => j.Id == jobId).Select(j => j.CustomerInvoiceNumber).FirstOrDefaultAsync(ct);
+
         return await GetBillingGroupAsync(cinv, ct);
     }
 
@@ -270,6 +302,8 @@ public class BillingGroupService
 
         var group   = await GetBillingGroupAsync(key, ct);
         var invoice = group.CustomerInvoice;
+
+        await using var _db = await DbAsync(ct);
 
         // Split the bills the way the panel shows them (Clearance / Forwarding / Transportation).
         var clearance  = group.ClearanceBills.Where(b => b.Kind == "Clearance Bill").ToList();
@@ -401,6 +435,8 @@ public class BillingGroupService
     /// </summary>
     public async Task<BillSourceDetail> GetBillSourceAsync(long billId, CancellationToken ct = default)
     {
+        await using var _db = await DbAsync(ct);
+
         // The job case (by far the common one) resolves in ONE round-trip: the job is projected through the
         // bill's navigation rather than fetched by a second query. Only AWB/Export — which have no navigation
         // from Bill — need the follow-up lookup.
@@ -490,6 +526,8 @@ public class BillingGroupService
     {
         if (billIds is null || billIds.Count == 0) return new();
 
+        await using var _db = await DbAsync(ct);
+
         var rows = await _db.Bills.AsNoTracking()
             .Where(b => billIds.Contains(b.Id))
             .Select(b => new { b.Id, b.JobOrderId, b.SourceType, b.SourceId })
@@ -516,6 +554,8 @@ public class BillingGroupService
     {
         var key = Key(cinv);
         if (key is null) return new();
+
+        await using var _db = await DbAsync(ct);
 
         var q = _db.Bills.AsNoTracking()
             .Where(b => b.CustomerInvoiceNumber != null && b.CustomerInvoiceNumber.ToLower() == key.ToLower());
