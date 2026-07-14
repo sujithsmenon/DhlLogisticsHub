@@ -30,13 +30,19 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
+    <!-- Our hand-written stylesheets carry a ?v= stamp derived from the file's last
+         write time (see Ver() below). Without it these are plain unversioned URLs and
+         a browser will happily serve a cached copy for a deploy or two — which shows
+         up as new markup rendering with NO styles (e.g. a status chip degrading to
+         bare text). The stamp changes whenever the file does, so a deploy always
+         invalidates. Framework/vendor CSS is already fingerprinted or immutable. -->
     <!-- CBM-ported modal / card / toolbar overrides -->
-    <link rel="stylesheet" href="default.css" />
+    <link rel="stylesheet" href="default.css@(Ver("default.css"))" />
 
-    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="app.css@(Ver("app.css"))" />
     <link rel="stylesheet" href="DhlLogistics.Web.styles.css" />
     <!-- CBM-style grid overlay (PVGT blue header) -->
-    <link rel="stylesheet" href="syncfusion-grid-pvgt.css" />
+    <link rel="stylesheet" href="syncfusion-grid-pvgt.css@(Ver("syncfusion-grid-pvgt.css"))" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />
 </head>
@@ -72,3 +78,24 @@
 </body>
 
 </html>
+
+@code {
+    [Inject] private IWebHostEnvironment Env { get; set; } = default!;
+
+    // "?v=<last-write-ticks>" for a file under wwwroot, so a changed stylesheet always
+    // busts the browser cache on deploy. Cached per file — one stat call, not one per
+    // request. Returns "" if the file is missing (never break the page over a stamp).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _verCache = new();
+
+    private string Ver(string file) => _verCache.GetOrAdd(file, f =>
+    {
+        try
+        {
+            var path = Path.Combine(Env.WebRootPath, f);
+            return File.Exists(path)
+                ? $"?v={File.GetLastWriteTimeUtc(path).Ticks}"
+                : "";
+        }
+        catch { return ""; }
+    });
+}

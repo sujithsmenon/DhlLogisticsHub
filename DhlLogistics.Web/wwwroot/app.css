@@ -288,47 +288,122 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, -apple-system, BlinkMacS
 .pill-inactive  { background: #fee2e2; color: #991b1b; }
 
 /* ── Status badges (StatusBadge.razor) ────────────────────────────────────────
-   The one status chip used across every grid. Each variant sets three tokens and
-   the shape below consumes them, so the dark-theme block only has to re-point the
-   tokens. Unknown/unmapped statuses fall through to .st-unknown (neutral grey). */
-.st-badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 88px;                 /* keeps the column visually aligned */
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1.55;
-    white-space: nowrap;
-    background: var(--st-bg); color: var(--st-fg);
-    border: 1px solid var(--st-bd);
+   The one status chip used across every grid in the ERP. Screens never define
+   their own status colours — add new statuses to StatusBadge.Kind() + a token
+   pair here.
+
+   Each variant sets --st-bg / --st-fg and the shape below consumes them. Fills
+   are solid and each pairs with white or black ink at >= 4.5:1 (WCAG AA for bold
+   small text), so the chip carries its own contrast and reads on ANY row colour
+   in either theme. The dark block therefore only has to lift the few fills that
+   are so dark they'd sink into a dark row — the ink stays white. */
+:root {
+    --st-draft-bg:      #C62828;  --st-draft-fg:      #FFFFFF;  /* red      */
+    --st-pending-bg:    #F59E0B;  --st-pending-fg:    #1A1A1A;  /* orange   */
+    --st-assigned-bg:   #15803D;  --st-assigned-fg:   #FFFFFF;  /* green    */
+    --st-inprogress-bg: #1D4ED8;  --st-inprogress-fg: #FFFFFF;  /* blue     */
+    --st-verified-bg:   #6D28D9;  --st-verified-fg:   #FFFFFF;  /* purple   */
+    --st-approved-bg:   #047857;  --st-approved-fg:   #FFFFFF;  /* emerald  */
+    --st-completed-bg:  #14532D;  --st-completed-fg:  #FFFFFF;  /* dk green */
+    --st-issued-bg:     #0F766E;  --st-issued-fg:     #FFFFFF;  /* teal     */
+    --st-superseded-bg: #94A3B8;  --st-superseded-fg: #1A1A1A;  /* muted    */
+    --st-onhold-bg:     #FACC15;  --st-onhold-fg:     #1A1A1A;  /* yellow   */
+    --st-delayed-bg:    #991B1B;  --st-delayed-fg:    #FFFFFF;  /* dk red   */
+    --st-cancelled-bg:  #374151;  --st-cancelled-fg:  #FFFFFF;  /* dk gray  */
+    --st-rejected-bg:   #BE123C;  --st-rejected-fg:   #FFFFFF;  /* crimson  */
+    --st-closed-bg:     #0E2A47;  --st-closed-fg:     #FFFFFF;  /* navy     */
+    --st-unknown-bg:    #6B7280;  --st-unknown-fg:    #FFFFFF;  /* gray     */
 }
 
-/* Light theme */
-.st-unknown    { --st-bg: #E9EDF3; --st-fg: #475569; --st-bd: #D3DAE4; }
-.st-draft      { --st-bg: #E9EDF3; --st-fg: #475569; --st-bd: #D3DAE4; }
-.st-pending    { --st-bg: #FFF1E3; --st-fg: #B45309; --st-bd: #FBD7AE; }
-.st-assigned   { --st-bg: #E0EDFB; --st-fg: #1E40AF; --st-bd: #BBD5F5; }
-.st-inprogress { --st-bg: #DEF3F7; --st-fg: #0E7490; --st-bd: #B4E2EC; }
-.st-completed  { --st-bg: #DCF5E4; --st-fg: #15803D; --st-bd: #B2E5C4; }
-.st-delayed    { --st-bg: #FDE2E2; --st-fg: #B91C1C; --st-bd: #F7BFBF; }
-.st-cancelled  { --st-bg: #D8DDE5; --st-fg: #334155; --st-bd: #C0C8D4; }
-.st-verified   { --st-bg: #EDE6FD; --st-fg: #6D28D9; --st-bd: #D6C8F8; }
-.st-approved   { --st-bg: #D6F5EA; --st-fg: #047857; --st-bd: #A9E6D2; }
+/* Dark theme — the near-black fills (navy / dark green / dark gray / dark red)
+   lose their edge against a dark row, so lift them a step. White ink throughout,
+   contrast stays >= 4.5:1. Everything else is already legible as-is. */
+[data-dark="true"] {
+    --st-completed-bg: #1B6E3C;
+    --st-cancelled-bg: #4B5563;
+    --st-delayed-bg:   #C02626;
+    --st-closed-bg:    #1E4B7A;
+    --st-unknown-bg:   #7C8698;
+    --st-issued-bg:     #14918A;
+    --st-superseded-bg: #64748B;  --st-superseded-fg: #FFFFFF;
+}
 
-/* Dark theme — translucent fill + light ink, so the chip reads against the dark
-   grid row instead of glowing like a light-theme pastel. */
-[data-dark="true"] .st-unknown    { --st-bg: rgba(148,163,184,.18); --st-fg: #CBD5E1; --st-bd: rgba(148,163,184,.35); }
-[data-dark="true"] .st-draft      { --st-bg: rgba(148,163,184,.18); --st-fg: #CBD5E1; --st-bd: rgba(148,163,184,.35); }
-[data-dark="true"] .st-pending    { --st-bg: rgba(234,88,12,.22);   --st-fg: #FDBA74; --st-bd: rgba(234,88,12,.45); }
-[data-dark="true"] .st-assigned   { --st-bg: rgba(59,130,246,.22);  --st-fg: #93C5FD; --st-bd: rgba(59,130,246,.45); }
-[data-dark="true"] .st-inprogress { --st-bg: rgba(6,182,212,.20);   --st-fg: #67E8F9; --st-bd: rgba(6,182,212,.42); }
-[data-dark="true"] .st-completed  { --st-bg: rgba(34,197,94,.20);   --st-fg: #86EFAC; --st-bd: rgba(34,197,94,.42); }
-[data-dark="true"] .st-delayed    { --st-bg: rgba(239,68,68,.22);   --st-fg: #FCA5A5; --st-bd: rgba(239,68,68,.45); }
-[data-dark="true"] .st-cancelled  { --st-bg: rgba(100,116,139,.28); --st-fg: #94A3B8; --st-bd: rgba(100,116,139,.5); }
-[data-dark="true"] .st-verified   { --st-bg: rgba(124,58,237,.24);  --st-fg: #C4B5FD; --st-bd: rgba(124,58,237,.48); }
-[data-dark="true"] .st-approved   { --st-bg: rgba(16,185,129,.20);  --st-fg: #6EE7B7; --st-bd: rgba(16,185,129,.42); }
+.st-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 92px;                 /* keeps the column visually aligned */
+    padding: 3px 10px;
+    border-radius: 999px;            /* full pill */
+    font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1.55;
+    white-space: nowrap; text-align: center;
+    background: var(--st-bg); color: var(--st-fg);
+    transition: filter .15s ease;
+}
+.st-badge:hover { filter: brightness(1.10); }
+
+/* Pointer only when the badge is actually wired to an action. */
+.st-clickable { cursor: pointer; }
+
+/* Narrow screens: let the pill shrink to its text rather than force h-scroll. */
+@media (max-width: 640px) {
+    .st-badge { min-width: 0; padding: 3px 8px; font-size: 10.5px; }
+}
+
+.st-draft      { --st-bg: var(--st-draft-bg);      --st-fg: var(--st-draft-fg); }
+.st-pending    { --st-bg: var(--st-pending-bg);    --st-fg: var(--st-pending-fg); }
+.st-assigned   { --st-bg: var(--st-assigned-bg);   --st-fg: var(--st-assigned-fg); }
+.st-inprogress { --st-bg: var(--st-inprogress-bg); --st-fg: var(--st-inprogress-fg); }
+.st-verified   { --st-bg: var(--st-verified-bg);   --st-fg: var(--st-verified-fg); }
+.st-approved   { --st-bg: var(--st-approved-bg);   --st-fg: var(--st-approved-fg); }
+.st-completed  { --st-bg: var(--st-completed-bg);  --st-fg: var(--st-completed-fg); }
+.st-issued     { --st-bg: var(--st-issued-bg);     --st-fg: var(--st-issued-fg); }
+.st-superseded { --st-bg: var(--st-superseded-bg); --st-fg: var(--st-superseded-fg); }
+.st-onhold     { --st-bg: var(--st-onhold-bg);     --st-fg: var(--st-onhold-fg); }
+.st-delayed    { --st-bg: var(--st-delayed-bg);    --st-fg: var(--st-delayed-fg); }
+.st-cancelled  { --st-bg: var(--st-cancelled-bg);  --st-fg: var(--st-cancelled-fg); }
+.st-rejected   { --st-bg: var(--st-rejected-bg);   --st-fg: var(--st-rejected-fg); }
+.st-closed     { --st-bg: var(--st-closed-bg);     --st-fg: var(--st-closed-fg); }
+.st-unknown    { --st-bg: var(--st-unknown-bg);    --st-fg: var(--st-unknown-fg); }
 
 /* Syncfusion grid cells are tight; keep the chip centred in the row. */
 .e-grid td.e-rowcell .st-badge { vertical-align: middle; }
+
+/* ── Status CELL fill (SfGrid QueryCellInfo → td gets .st-cell .st-cell-{slug}) ──
+   Fills the ENTIRE <td>, not just behind the text. Reuses the same --st-*-bg /
+   --st-*-fg tokens as the badges above, so the palette (incl. the dark-theme
+   lifts) is defined once.
+
+   !important + the .e-row ancestor is deliberate, not lazy: Syncfusion paints
+   e-rowcell backgrounds on the normal, alt-row, hover and selected states, and
+   each of those would otherwise win and knock a hole in the fill (fill vanishing
+   on hover / on every second row). This is what guarantees "no transparent
+   background". */
+.e-grid .e-row td.e-rowcell.st-cell,
+.e-grid .e-row.e-altrow td.e-rowcell.st-cell,
+.e-grid .e-row:hover td.e-rowcell.st-cell,
+.e-grid .e-row.e-rowselect td.e-rowcell.st-cell,
+.e-grid .e-row.e-selectionbackground td.e-rowcell.st-cell {
+    /* Fill edge-to-edge: kill the cell's own padding/indent so no gutter shows. */
+    padding-left: 4px; padding-right: 4px;
+    text-align: center; vertical-align: middle;
+    font-weight: 700; letter-spacing: .02em;
+    background-color: var(--st-cell-bg) !important;
+    color: var(--st-cell-fg) !important;
+    background-clip: padding-box;
+}
+
+.st-cell-draft      { --st-cell-bg: var(--st-draft-bg);      --st-cell-fg: var(--st-draft-fg); }
+.st-cell-pending    { --st-cell-bg: var(--st-pending-bg);    --st-cell-fg: var(--st-pending-fg); }
+.st-cell-assigned   { --st-cell-bg: var(--st-assigned-bg);   --st-cell-fg: var(--st-assigned-fg); }
+.st-cell-inprogress { --st-cell-bg: var(--st-inprogress-bg); --st-cell-fg: var(--st-inprogress-fg); }
+.st-cell-verified   { --st-cell-bg: var(--st-verified-bg);   --st-cell-fg: var(--st-verified-fg); }
+.st-cell-approved   { --st-cell-bg: var(--st-approved-bg);   --st-cell-fg: var(--st-approved-fg); }
+.st-cell-completed  { --st-cell-bg: var(--st-completed-bg);  --st-cell-fg: var(--st-completed-fg); }
+.st-cell-onhold     { --st-cell-bg: var(--st-onhold-bg);     --st-cell-fg: var(--st-onhold-fg); }
+.st-cell-delayed    { --st-cell-bg: var(--st-delayed-bg);    --st-cell-fg: var(--st-delayed-fg); }
+.st-cell-cancelled  { --st-cell-bg: var(--st-cancelled-bg);  --st-cell-fg: var(--st-cancelled-fg); }
+.st-cell-rejected   { --st-cell-bg: var(--st-rejected-bg);   --st-cell-fg: var(--st-rejected-fg); }
+.st-cell-closed     { --st-cell-bg: var(--st-closed-bg);     --st-cell-fg: var(--st-closed-fg); }
+.st-cell-unknown    { --st-cell-bg: var(--st-unknown-bg);    --st-cell-fg: var(--st-unknown-fg); }
 
 /* ── Data rows ────────────────────────────────────────────────────────────── */
 .data-row {

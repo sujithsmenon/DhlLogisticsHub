@@ -1,53 +1,40 @@
 @*
-    StatusBadge — the single status chip used by every grid/detail screen.
+    StatusBadge — the single status chip for every grid/detail screen in the ERP.
 
-    Callers pass the raw status (enum or string) and, optionally, the display text
-    when it differs from the enum name (e.g. InProgress → "In Progress"):
+    Status rendering logic lives here and ONLY here; screens never hand-roll their
+    own colour switch. Callers pass the raw status (enum or string) and, optionally,
+    display text when it differs from the enum name (InProgress → "In Progress"):
 
         <StatusBadge Status="@op.Status" Text="@op.StatusName" />
         <StatusBadge Status="@bill.Status" />
+        <StatusBadge Status="@job.Status" Clickable="true" />   (pointer cursor)
 
-    Any status the map does not recognise falls back to a neutral grey chip, so a
-    new enum member renders sanely (just uncoloured) instead of blowing up or
-    disappearing into the row background. Colours live in app.css (.st-badge /
-    .st-*) and are defined for both the light and dark themes.
+    Status is typed as object so any module's enum works without this component
+    taking a dependency on it (JobOperationStatus, BillStatus, VoucherStatus, …).
+    Kind() normalises the value, so "In Progress", in_progress and InProgress all
+    resolve to the same colour. Anything unmapped falls through to a neutral grey
+    chip — a new enum member renders sanely rather than vanishing into the row.
+
+    Colours are CSS tokens in app.css (.st-badge / .st-*), defined for both themes.
 *@
 
-<span class="st-badge st-@Kind(Status)">@(Text ?? Fallback(Status))</span>
+<span class="st-badge st-@Kind(Status) @(Clickable ? "st-clickable" : null)">@(Text ?? Humanise(Status))</span>
 
 @code {
-    /// The status value — an enum member or a string. Only used to pick the colour.
+    /// The status value — any enum member or string. Drives the colour only.
     [Parameter, EditorRequired] public object? Status { get; set; }
 
-    /// Display text. Defaults to the status itself, de-PascalCased ("InProgress" → "In Progress").
+    /// Display text. Defaults to the status de-PascalCased ("InProgress" → "In Progress").
     [Parameter] public string? Text { get; set; }
 
-    /// Maps a status to a colour slug. Unknown → "unknown" (neutral grey).
-    public static string Kind(object? status)
-    {
-        var key = status?.ToString();
-        if (string.IsNullOrWhiteSpace(key)) return "unknown";
+    /// Set when the badge is wired to a click action — switches on the pointer cursor.
+    [Parameter] public bool Clickable { get; set; }
 
-        // Normalise so "In Progress", "in_progress" and "InProgress" all collide.
-        key = new string(key.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
-
-        return key switch
-        {
-            "draft"                                  => "draft",
-            "pending" or "open" or "new"             => "pending",
-            "assigned"                               => "assigned",
-            "inprogress" or "processing" or "active" => "inprogress",
-            "completed" or "complete" or "closed"    => "completed",
-            "delayed" or "overdue" or "late"         => "delayed",
-            "cancelled" or "canceled" or "rejected"  => "cancelled",
-            "verified"                               => "verified",
-            "approved" or "posted"                   => "approved",
-            _                                        => "unknown",
-        };
-    }
+    /// Colour slug for this status. Delegates to StatusKind — the one shared map.
+    public static string Kind(object? status) => StatusKind.Of(status);
 
     /// "InProgress" → "In Progress"; leaves already-spaced text alone.
-    private static string Fallback(object? status)
+    private static string Humanise(object? status)
     {
         var s = status?.ToString();
         if (string.IsNullOrWhiteSpace(s)) return "—";

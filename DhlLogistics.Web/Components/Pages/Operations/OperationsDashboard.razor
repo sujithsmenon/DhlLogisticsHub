@@ -116,7 +116,7 @@
                 AllowResizing="true" AllowReordering="true" CssClass="e-small"
                 Toolbar="@(new List<string>{ "Search" })" Height="calc(100vh - 340px)" RowHeight="28" Width="100%">
             <GridPageSettings PageSize="20" PageSizes="@(new[] { "All", "10", "20", "50" })" />
-            <GridEvents CommandClicked="OnOpen" TValue="JobOperationDto" />
+            <GridEvents CommandClicked="OnOpen" QueryCellInfo="OnQueryCellInfo" TValue="JobOperationDto" />
             <GridColumns>
                 <GridColumn HeaderText="Open" Width="80" TextAlign="TextAlign.Center" AllowReordering="false" AllowResizing="false">
                     <GridCommandColumns>
@@ -129,10 +129,13 @@
                 <GridColumn Field="@nameof(JobOperationDto.OperationType)" HeaderText="Operation Type" Width="180" />
                 <GridColumn Field="@nameof(JobOperationDto.Department)"    HeaderText="Department"     Width="140" />
                 <GridColumn Field="@nameof(JobOperationDto.AssignedStaffName)" HeaderText="Assigned Staff" Width="160" />
-                <GridColumn HeaderText="Status" Width="120">
+                @* Status: the whole <td> is colour-filled by OnQueryCellInfo below —
+                   a Template can only paint inside the cell, so the fill is applied
+                   to the cell element itself, not to any wrapper. *@
+                <GridColumn HeaderText="Status" Width="120" TextAlign="TextAlign.Center">
                     <Template>
                         @{ var op = (context as JobOperationDto)!; }
-                        <StatusBadge Status="@op.Status" Text="@op.StatusName" />
+                        @op.StatusName
                     </Template>
                 </GridColumn>
                 <GridColumn Field="@nameof(JobOperationDto.PriorityName)"  HeaderText="Priority"      Width="100" />
@@ -280,5 +283,15 @@
         o.ControlParameters.Add("LoadOnSaveReference", LoadOnSaveReference);
         var r = await _modal!.Context.ShowAsync<JobOrderPages.JobOrderPopup>(o);
         if (r.ResultType == ModalResultType.OK) await Reload();
+    }
+
+    // Colour-fill the whole Status cell. QueryCellInfo hands us the actual <td>
+    // (args.Cell), which is the only hook that can paint the cell itself — a
+    // <Template> renders *inside* the td and would leave its background showing.
+    // The status → slug map is shared (StatusKind), never re-declared here.
+    private void OnQueryCellInfo(QueryCellInfoEventArgs<JobOperationDto> args)
+    {
+        if (args.Column?.HeaderText != "Status" || args.Cell is null || args.Data is null) return;
+        args.Cell.AddClass(new[] { "st-cell", $"st-cell-{StatusKind.Of(args.Data.Status)}" });
     }
 }
