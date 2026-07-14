@@ -24,6 +24,31 @@ window.dhlTheme = {
     isDark: function () { return this.current() === 'dark'; }
 };
 
+// Opens PDF bytes (base64 from Blazor) in a new tab — used by the invoice Preview, which builds the
+// document in memory and persists nothing. Falls back to a download if the popup is blocked.
+window.dhlOpenPdf = function (base64, fileName) {
+    try {
+        var bin = atob(base64);
+        var buf = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        var url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
+
+        var w = window.open(url, '_blank');
+        if (!w) {                       // popup blocked → download instead of silently doing nothing
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = fileName || 'invoice.pdf';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+        // Revoke late: revoking immediately can kill the tab's load in some browsers.
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+    } catch (e) {
+        console.error('dhlOpenPdf failed', e);
+    }
+};
+
 // Layout helpers — keep the hamburger doing the right thing per breakpoint without
 // a continuous resize listener (one cheap call per click → minimal interop chatter).
 window.dhlLayout = {

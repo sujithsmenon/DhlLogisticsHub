@@ -1,6 +1,8 @@
 @inject CustomerInvoiceService InvoiceSvc
 @inject BillingGroupService GroupSvc
 @inject DuplicateBillingService DuplicateSvc
+@inject InvoiceService PdfSvc
+@inject IJSRuntime JS
 @inject IToastService ToastService
 
 @*
@@ -262,6 +264,12 @@
 
 <div class="modal-footer">
     <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Cancel</SfButton>
+    @* Preview builds the consolidated PDF from the selection WITHOUT persisting anything — no CI number is
+       consumed and no bill is touched until the user actually generates. *@
+    <SfButton OnClick="@Preview" CssClass="e-small" IconCss="e-icons e-print"
+              Disabled="@(SelectedCount == 0 || _busy)">
+        Preview Invoice
+    </SfButton>
     <SfButton IsPrimary="true" OnClick="@Generate" CssClass="e-small" IconCss="e-icons e-save-as"
               Disabled="@(SelectedCount == 0 || _busy)">
         Generate Invoice (@SelectedCount)
@@ -409,6 +417,24 @@
         await DoGenerateAsync(overrodeWarning: true);
     }
 
+    /// <summary>Builds the consolidated PDF from the current selection and opens it — persists NOTHING.</summary>
+    private async Task Preview()
+    {
+        if (_selected.Count == 0) return;
+        _busy = true;
+        try
+        {
+            var bytes = await PdfSvc.BuildConsolidatedPreviewAsync(_selected.ToList());
+            await JS.InvokeVoidAsync("dhlOpenPdf", Convert.ToBase64String(bytes),
+                                     $"Preview-{CustomerInvoiceNumber}.pdf");
+        }
+        catch (Exception ex)
+        {
+            ToastService.Show(new() { Title = "Preview failed", Content = ex.Message, CssClass = "e-toast-danger" });
+        }
+        finally { _busy = false; }
+    }
+
     private async Task DoGenerateAsync(bool overrodeWarning)
     {
         _busy = true;
@@ -416,6 +442,10 @@
         {
             var billIds = _selected.ToList();
             var invoice = await InvoiceSvc.GenerateAsync(billIds);
+
+            // The consolidated PDF. Generation creates NO accounting entries — A/R was posted per bill at
+            // approval; this only draws a document.
+            await PdfSvc.IssueConsolidatedAsync(invoice.Id);
 
             // Audit the override AFTER the invoice exists, so the entry can name it.
             if (overrodeWarning && _dup is not null)

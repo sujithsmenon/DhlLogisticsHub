@@ -21,7 +21,7 @@ using iText.Kernel.Colors;
 /// the customer-invoice PDF from Bill data, and (c) stores/serves uploaded documents
 /// (vendor invoices, credit / debit notes). No duplicate charges / totals / GST / accounting.
 /// </summary>
-public class InvoiceService
+public partial class InvoiceService
 {
     private readonly AppDbContext _db;
     private readonly AuthenticationStateProvider _auth;
