@@ -32,7 +32,9 @@ public partial class FinanceReportService
             ?? throw new KeyNotFoundException($"Account head {accountHeadId} not found.");
 
         // Only Posted vouchers contribute to the ledger.
-        IQueryable<VoucherLine> q = _db.VoucherLines.AsNoTracking()
+        // Identity resolution (not plain AsNoTracking): the Voucher -> Lines -> Voucher
+        // include path is a cycle, which plain no-tracking queries reject.
+        IQueryable<VoucherLine> q = _db.VoucherLines.AsNoTrackingWithIdentityResolution()
             .Include(l => l.Voucher).ThenInclude(v => v!.Lines).ThenInclude(l => l.AccountHead)
             .Where(l => l.AccountHeadId == accountHeadId
                      && l.Voucher!.Status == VoucherStatus.Posted);
