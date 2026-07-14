@@ -401,31 +401,38 @@ public class BillingGroupService
     /// </summary>
     public async Task<BillSourceDetail> GetBillSourceAsync(long billId, CancellationToken ct = default)
     {
+        // The job case (by far the common one) resolves in ONE round-trip: the job is projected through the
+        // bill's navigation rather than fetched by a second query. Only AWB/Export — which have no navigation
+        // from Bill — need the follow-up lookup.
         var b = await _db.Bills.AsNoTracking()
             .Where(x => x.Id == billId)
-            .Select(x => new { x.Id, x.JobOrderId, x.SourceType, x.SourceId })
+            .Select(x => new
+            {
+                x.Id, x.JobOrderId, x.SourceType, x.SourceId,
+                Job = x.JobOrder == null ? null : new
+                {
+                    x.JobOrder.Id,
+                    x.JobOrder.JobOrderNo,
+                    x.JobOrder.Mode,
+                    x.JobOrder.ShipmentType,
+                    x.JobOrder.ShipmentMode,
+                    Shipper   = x.JobOrder.Shipper!.CompanyName,
+                    Consignee = x.JobOrder.Consignee!.CompanyName,
+                    Origin    = x.JobOrder.LoadPort!.PortName,
+                    Dest      = x.JobOrder.DischargePort!.PortName,
+                    Container = x.JobOrder.ContainerSize!.SizeName,
+                    x.JobOrder.GrossWeightKg,
+                    x.JobOrder.LclUnits,
+                    x.JobOrder.Remarks,
+                },
+            })
             .FirstOrDefaultAsync(ct);
 
         if (b is null) return Standalone(billId);
 
         // A job-linked bill (Clearance / Forwarding, and job-raised Transportation).
-        if (b.JobOrderId is { } jobId)
+        if (b.Job is { } j)
         {
-            var j = await _db.JobOrders.AsNoTracking()
-                .Where(x => x.Id == jobId)
-                .Select(x => new
-                {
-                    x.Id, x.JobOrderNo, x.Mode, x.ShipmentType, x.ShipmentMode,
-                    Shipper   = x.Shipper!.CompanyName,
-                    Consignee = x.Consignee!.CompanyName,
-                    Origin    = x.LoadPort!.PortName,
-                    Dest      = x.DischargePort!.PortName,
-                    Container = x.ContainerSize!.SizeName,
-                    x.GrossWeightKg, x.LclUnits, x.Remarks,
-                })
-                .FirstOrDefaultAsync(ct);
-
-            if (j is null) return Standalone(billId);
             return new BillSourceDetail(billId, $"JOB:{j.Id}",
                 j.Mode == JobMode.Forwarding ? "Forwarding Job" : "Clearance Job",
                 j.JobOrderNo, j.Mode.ToString(), $"{j.ShipmentMode} {j.ShipmentType}",
