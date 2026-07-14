@@ -1,0 +1,262 @@
+@inject BillingGroupService GroupSvc
+@inject PermissionService Permissions
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+@*
+    Linked Documents — the ONE traceability panel, reused everywhere.
+
+    Give it any anchor into a Billing Group and it renders the whole graph:
+
+        <LinkedDocumentsPanel CustomerInvoiceNumber="@bill.CustomerInvoiceNumber" />
+        <LinkedDocumentsPanel BillId="@bill.Id" />
+        <LinkedDocumentsPanel JobOrderId="@job.Id" />
+
+    Every item is clickable and navigates straight to its page — no re-searching.
+
+    Permission-scoped in the SERVICE (BillingGroupService.GetLinkedDocumentsAsync filters by the caller's
+    viewable page-paths), so a document the user may not access is never emitted to the markup at all — it
+    cannot leak through a link.
+
+    Future modules (Fleet, Warehouse, Finance, CRM, Vendor/Customer portal) join the panel by registering an
+    IBillingGroupContributor — no change to this component.
+*@
+
+<style>
+    .ld-wrap   { border:1px solid var(--border); border-radius:10px; background:var(--card); }
+    .ld-hd     { display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid var(--border);
+                 font-weight:800; font-size:13px; }
+    .ld-hd .sp { margin-left:auto; font-weight:600; font-size:11.5px; color:var(--muted); }
+    .ld-body   { padding:10px 12px; }
+    .ld-grp    { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px 14px;
+                 padding:9px 11px; border:1px solid var(--border); border-radius:8px;
+                 background:var(--surface2); margin-bottom:10px; }
+    .ld-grp .k { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
+    .ld-grp .v { font-size:12.5px; font-weight:700; }
+    .ld-sec    { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;
+                 color:var(--muted); margin:10px 0 5px; }
+    .ld-item   { display:flex; align-items:center; gap:9px; padding:6px 8px; border:1px solid var(--border);
+                 border-radius:7px; margin-bottom:5px; cursor:pointer; background:var(--card); }
+    .ld-item:hover { background:var(--surface2); border-color:#0868B2; }
+    .ld-type   { font-size:10px; font-weight:700; color:var(--muted); min-width:118px; }
+    .ld-no     { font-weight:800; font-size:12.5px; min-width:120px; }
+    .ld-meta   { font-size:11px; color:var(--muted); }
+    .ld-amt    { margin-left:auto; font-weight:800; font-size:12.5px; white-space:nowrap; }
+    .ld-pdf    { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--border);
+                 border-radius:7px; margin-bottom:5px; font-size:12px; }
+    .ld-pdf.sup{ opacity:.62; }
+    .ld-pdf .n { font-weight:700; }
+    .ld-btns   { margin-left:auto; display:flex; gap:5px; }
+    .ld-audit  { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:5px 14px;
+                 border-top:1px dashed var(--border); margin-top:9px; padding-top:8px; }
+    .ld-audit .k { font-size:10px; font-weight:700; text-transform:uppercase; color:var(--muted); }
+    .ld-audit .v { font-size:11.5px; }
+    .ld-empty  { padding:14px; text-align:center; color:var(--muted); font-size:12px;
+                 border:1px dashed var(--border); border-radius:8px; }
+    .ld-search { width:100%; margin-bottom:9px; }
+    @@media (max-width:768px) {
+        .ld-item { flex-wrap:wrap; }
+        .ld-amt  { margin-left:0; width:100%; }
+    }
+</style>
+
+<div class="ld-wrap">
+    <div class="ld-hd">
+        <span>🔗</span>
+        <span>Linked Documents</span>
+        @if (_data is not null && !_data.IsEmpty)
+        {
+            <span class="sp">@_data.BillCount bill(s) · @_data.JobCount record(s) · @_data.Pdfs.Count document(s)</span>
+        }
+    </div>
+
+    <div class="ld-body">
+        @if (_loading)
+        {
+            <div class="ld-empty">Loading linked documents…</div>
+        }
+        else if (_data is null || _data.IsEmpty)
+        {
+            <div class="ld-empty">
+                No Customer Invoice Number on this record — it belongs to no billing group.
+            </div>
+        }
+        else
+        {
+            <!-- Billing Group header -->
+            <div class="ld-grp">
+                <div><div class="k">Customer Invoice No</div><div class="v">@_data.CustomerInvoiceNumber</div></div>
+                <div><div class="k">System Invoice No</div><div class="v">@(_data.SystemInvoiceNo ?? "— not generated")</div></div>
+                <div><div class="k">Customer</div><div class="v">@(_data.Customer ?? "—")</div></div>
+                <div><div class="k">Bills</div><div class="v">@_data.BillCount</div></div>
+                <div><div class="k">Jobs / Records</div><div class="v">@_data.JobCount</div></div>
+                <div>
+                    <div class="k">Invoice Status</div>
+                    <div class="v">
+                        @if (_data.InvoiceStatus is not null) { <StatusBadge Status="@_data.InvoiceStatus" /> }
+                        else { <span class="ld-meta">Not generated</span> }
+                    </div>
+                </div>
+                <div><div class="k">Total Amount</div><div class="v">@(_data.InvoiceTotal?.ToString("N2") ?? "—")</div></div>
+            </div>
+
+            <!-- Search within the linked documents (client-side over the already-loaded graph — no re-query) -->
+            <input class="dhl-input ld-search" placeholder="Search linked documents — invoice no, bill no, job no, container, AWB, customer…"
+                   @bind="_filter" @bind:event="oninput" />
+
+            @* Customer Invoice *@
+            @if (Visible(_data.CustomerInvoice) is { } inv)
+            {
+                <div class="ld-sec">Customer Invoice</div>
+                @Item(inv)
+            }
+
+            @* Bills — split by type, per spec *@
+            @RenderSection("Clearance Bills",      Filter(_data.ClearanceBills))
+            @RenderSection("Forwarding Bills",     Filter(_data.ForwardingBills))
+            @RenderSection("Transportation Bills", Filter(_data.TransportationBills))
+
+            @* Operational records *@
+            @RenderSection("Clearance / Forwarding Jobs", Filter(_data.Jobs))
+            @RenderSection("Export Jobs",                 Filter(_data.ExportJobs))
+            @RenderSection("AWB Shipments",               Filter(_data.AwbShipments))
+
+            @* PDFs + supporting documents *@
+            @if (FilterPdfs().Count > 0)
+            {
+                <div class="ld-sec">Invoice PDFs &amp; Documents</div>
+                @foreach (var d in FilterPdfs())
+                {
+                    <div class="ld-pdf @(d.IsActive ? "" : "sup")">
+                        <span>📄</span>
+                        <span class="n">@d.FileName</span>
+                        <span class="ld-meta">
+                            @d.Kind · v@d.Version · @d.UploadedOn.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")
+                            @(string.IsNullOrWhiteSpace(d.UploadedBy) ? "" : $" · {d.UploadedBy}")
+                        </span>
+                        @if (!d.IsActive)
+                        {
+                            <StatusBadge Status="@("Superseded")" />
+                        }
+                        <span class="ld-btns">
+                            <SfButton CssClass="e-small" IconCss="e-icons e-open-link"
+                                      OnClick="@(() => OpenPdf(d, inline: true))">Open</SfButton>
+                            <SfButton CssClass="e-small" IconCss="e-icons e-download"
+                                      OnClick="@(() => OpenPdf(d, inline: false))">Download</SfButton>
+                        </span>
+                    </div>
+                }
+            }
+
+            <!-- Audit -->
+            <div class="ld-audit">
+                <div><div class="k">Created By</div><div class="v">@(_data.CreatedBy ?? "—")</div></div>
+                <div><div class="k">Created On</div><div class="v">@(_data.CreatedOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm") ?? "—")</div></div>
+                <div><div class="k">Last Modified By</div><div class="v">@(_data.ModifiedBy ?? "—")</div></div>
+                <div><div class="k">Last Modified On</div><div class="v">@(_data.ModifiedOn?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm") ?? "—")</div></div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    // Any ONE of these anchors the panel into a Billing Group.
+    [Parameter] public string? CustomerInvoiceNumber { get; set; }
+    [Parameter] public long?   BillId { get; set; }
+    [Parameter] public long?   JobOrderId { get; set; }
+
+    /// <summary>Raised when the user clicks through to another document — lets a host popup close itself
+    /// before the navigation happens.</summary>
+    [Parameter] public EventCallback<string> OnNavigate { get; set; }
+
+    private LinkedDocuments? _data;
+    private bool _loading = true;
+    private string _filter = string.Empty;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    /// <summary>Loads asynchronously and resolves the group from whichever anchor was supplied. One service
+    /// call — the panel never issues per-section queries.</summary>
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var cinv = CustomerInvoiceNumber;
+
+            if (string.IsNullOrWhiteSpace(cinv) && BillId is { } bid)
+                cinv = (await GroupSvc.GetGroupForBillAsync(bid)).CustomerInvoiceNumber;
+            else if (string.IsNullOrWhiteSpace(cinv) && JobOrderId is { } jid)
+                cinv = (await GroupSvc.GetGroupForJobAsync(jid)).CustomerInvoiceNumber;
+
+            // Permission scope — the service drops anything the user may not view.
+            var state    = await AuthProvider.GetAuthenticationStateAsync();
+            var viewable = await Permissions.GetViewablePagePathsAsync(state.User);
+
+            _data = await GroupSvc.GetLinkedDocumentsAsync(cinv, viewable);
+        }
+        finally { _loading = false; }
+    }
+
+    // ── Search within the loaded graph (no re-query) ──────────────────────────
+    private bool Matches(BillingGroupDoc d) =>
+        string.IsNullOrWhiteSpace(_filter)
+        || (d.Number?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (d.Client?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (d.Branch?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (d.Remarks?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+        || d.Kind.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+        || (_data?.CustomerInvoiceNumber.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (_data?.SystemInvoiceNo?.Contains(_filter, StringComparison.OrdinalIgnoreCase) ?? false);
+
+    private List<BillingGroupDoc> Filter(List<BillingGroupDoc> items) => items.Where(Matches).ToList();
+
+    private BillingGroupDoc? Visible(BillingGroupDoc? d) => d is not null && Matches(d) ? d : null;
+
+    private List<LinkedDoc> FilterPdfs() =>
+        (_data?.Pdfs ?? new()).Where(d =>
+            string.IsNullOrWhiteSpace(_filter)
+            || d.FileName.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+            || d.Kind.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    // ── Navigation ───────────────────────────────────────────────────────────
+    private async Task Open(BillingGroupDoc d)
+    {
+        if (OnNavigate.HasDelegate) await OnNavigate.InvokeAsync(d.Route);
+        Nav.NavigateTo(d.Route);
+    }
+
+    /// <summary>Open inline in a new tab, or force a download. Both hit the existing /invoices/doc/{id}
+    /// endpoint — no second document pipeline.</summary>
+    private async Task OpenPdf(LinkedDoc d, bool inline)
+    {
+        var url = inline ? d.Url : $"{d.Url}?dl=true";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private RenderFragment RenderSection(string title, List<BillingGroupDoc> items) => __builder =>
+    {
+        if (items.Count == 0) return;
+        <div class="ld-sec">@title (@items.Count)</div>
+        foreach (var d in items) { @Item(d) }
+    };
+
+    private RenderFragment Item(BillingGroupDoc d) => __builder =>
+    {
+        <div class="ld-item" @onclick="() => Open(d)" title="@($"Open {d.Number}")">
+            <span class="ld-type">@d.Kind</span>
+            <span class="ld-no">@d.Number</span>
+            <StatusBadge Status="@d.Status" />
+            <span class="ld-meta">
+                @d.Date.ToLocalTime().ToString("dd-MMM-yyyy")
+                @(string.IsNullOrWhiteSpace(d.Client) ? "" : $" · {d.Client}")
+                @(string.IsNullOrWhiteSpace(d.Branch) ? "" : $" · {d.Branch}")
+            </span>
+            @if (d.Amount is { } amt)
+            {
+                <span class="ld-amt">@amt.ToString("N2")</span>
+            }
+        </div>
+    };
+}

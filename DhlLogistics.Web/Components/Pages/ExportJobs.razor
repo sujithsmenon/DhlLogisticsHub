@@ -159,6 +159,13 @@ else
                                 <span class="awb-sub">links this job's bills into one Billing Group</span>
                             }
                         </div>
+                        @* Traceability from the export job: its bills, the customer invoice, every PDF. *@
+                        @if (!string.IsNullOrWhiteSpace(_sel.CustomerInvoiceNumber))
+                        {
+                            <div style="margin:10px 0;">
+                                <LinkedDocumentsPanel CustomerInvoiceNumber="@_sel.CustomerInvoiceNumber" />
+                            </div>
+                        }
                         <div class="awb-divider"></div>
                         <div class="awb-sub" style="font-size:11px;">Received: @_sel.ReceivedAt.ToString("dd MMM yyyy HH:mm")</div>
                     </div>

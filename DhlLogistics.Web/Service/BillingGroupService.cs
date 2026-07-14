@@ -44,6 +44,47 @@ public sealed record BillSourceDetail(
     decimal? Packages,
     string? Remarks);
 
+/// <summary>A PDF (or future supporting document) hanging off a Billing Group.</summary>
+public sealed record LinkedDoc(
+    long     DocId,
+    string   Kind,          // "Customer Invoice PDF" | "Bill Invoice PDF" | "Vendor Invoice" | …
+    string   FileName,
+    DateTime UploadedOn,
+    string?  UploadedBy,
+    int      Version,
+    bool     IsActive,      // superseded PDFs stay for audit, flagged inactive
+    string   Url);          // /invoices/doc/{id}
+
+/// <summary>
+/// Everything reachable from one CustomerInvoiceNumber, in one shot — what the Linked Documents panel binds
+/// to. Extends <see cref="BillingGroup"/> with the consolidated-invoice header, the PDFs, and audit stamps.
+/// </summary>
+public sealed record LinkedDocuments(
+    string                CustomerInvoiceNumber,
+    // Billing Group header
+    string?               SystemInvoiceNo,
+    string?               InvoiceStatus,
+    string?               Customer,
+    string?               Branch,
+    decimal?              InvoiceTotal,
+    int                   BillCount,
+    int                   JobCount,
+    // Documents, split as the panel displays them
+    List<BillingGroupDoc> ClearanceBills,
+    List<BillingGroupDoc> ForwardingBills,
+    List<BillingGroupDoc> TransportationBills,
+    List<BillingGroupDoc> Jobs,             // Clearance + Forwarding JobOrders
+    List<BillingGroupDoc> ExportJobs,
+    List<BillingGroupDoc> AwbShipments,
+    BillingGroupDoc?      CustomerInvoice,
+    List<LinkedDoc>       Pdfs,
+    // Audit
+    string?               CreatedBy,  DateTime? CreatedOn,
+    string?               ModifiedBy, DateTime? ModifiedOn)
+{
+    public bool IsEmpty => BillCount == 0 && JobCount == 0 && CustomerInvoice is null;
+}
+
 /// <summary>Everything sharing one CustomerInvoiceNumber. The group is <b>virtual</b> — nothing is stored to
 /// create it; it is derived on read from the reference the documents already carry.</summary>
 public sealed record BillingGroup(
@@ -205,6 +246,151 @@ public class BillingGroupService
         var cinv = await _db.JobOrders.AsNoTracking()
             .Where(j => j.Id == jobId).Select(j => j.CustomerInvoiceNumber).FirstOrDefaultAsync(ct);
         return await GetBillingGroupAsync(cinv, ct);
+    }
+
+    // ── Linked Documents (the reusable panel's single data source) ───────────
+
+    /// <summary>
+    /// The whole linked-document graph for one Billing Group. Reuses the group queries above rather than
+    /// re-implementing them, so there is exactly one definition of "what is in this group".
+    ///
+    /// <para><paramref name="viewablePaths"/> is the caller's permission scope (from
+    /// <c>PermissionService.GetViewablePagePathsAsync</c>; null = everything visible, per that contract).
+    /// Documents the user may not view are filtered OUT here rather than hidden in the UI, so the panel can
+    /// never leak a record through a link.</para>
+    /// </summary>
+    public async Task<LinkedDocuments> GetLinkedDocumentsAsync(string? cinv,
+                                                               HashSet<string>? viewablePaths = null,
+                                                               CancellationToken ct = default)
+    {
+        var key = Key(cinv);
+        if (key is null)
+            return new LinkedDocuments(string.Empty, null, null, null, null, null, 0, 0,
+                new(), new(), new(), new(), new(), new(), null, new(), null, null, null, null);
+
+        var group   = await GetBillingGroupAsync(key, ct);
+        var invoice = group.CustomerInvoice;
+
+        // Split the bills the way the panel shows them (Clearance / Forwarding / Transportation).
+        var clearance  = group.ClearanceBills.Where(b => b.Kind == "Clearance Bill").ToList();
+        var forwarding = group.ClearanceBills.Where(b => b.Kind == "Forwarding Bill").ToList();
+        var transport  = group.TransportationBills;
+
+        // …and the operational records by module.
+        var jobs    = group.Jobs.Where(j => j.Kind == "Job").ToList();
+        var exports = group.Jobs.Where(j => j.Kind == "Export Job").ToList();
+        var awbs    = group.Jobs.Where(j => j.Kind == "AWB Shipment").ToList();
+
+        // Consolidated-invoice header + audit.
+        string? sysNo = null, invStatus = null, customer = null, branch = null;
+        string? createdBy = null, modifiedBy = null;
+        DateTime? createdOn = null, modifiedOn = null;
+        decimal? invTotal = null;
+
+        var inv = await _db.CustomerInvoices.AsNoTracking()
+            .Where(i => i.CustomerInvoiceNumber.ToLower() == key.ToLower())
+            .OrderByDescending(i => i.Id)
+            .Select(i => new
+            {
+                i.Id, i.InvoiceNo, i.Status, i.TotalAmount, i.CreatedBy, i.CreatedOn,
+                Client = i.BillingClient!.CompanyName, Branch = i.Branch!.BranchName,
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var pdfs = new List<LinkedDoc>();
+
+        if (inv is not null)
+        {
+            sysNo = inv.InvoiceNo; invStatus = inv.Status.ToString(); invTotal = inv.TotalAmount;
+            customer = inv.Client; branch = inv.Branch;
+            createdBy = inv.CreatedBy; createdOn = inv.CreatedOn;
+
+            // Consolidated PDFs (superseded versions kept — flagged inactive).
+            pdfs.AddRange(await _db.InvoiceDocuments.AsNoTracking()
+                .Where(d => d.CustomerInvoiceId == inv.Id)
+                .OrderByDescending(d => d.Version)
+                .Select(d => new LinkedDoc(d.Id, "Customer Invoice PDF", d.OriginalFileName,
+                                           d.UploadedDate, d.UploadedBy, d.Version, d.IsActive,
+                                           $"/invoices/doc/{d.Id}"))
+                .ToListAsync(ct));
+        }
+
+        // Per-bill PDFs (the pre-consolidation invoices — superseded ones stay visible for audit).
+        var billIds = clearance.Concat(forwarding).Concat(transport).Select(b => b.Id).ToList();
+        if (billIds.Count > 0)
+        {
+            pdfs.AddRange(await _db.InvoiceDocuments.AsNoTracking()
+                .Where(d => billIds.Contains(d.BillId) && d.CustomerInvoiceId == null)
+                .OrderByDescending(d => d.UploadedDate)
+                .Select(d => new LinkedDoc(d.Id,
+                    d.DocumentType == InvoiceDocumentType.CustomerInvoice ? "Bill Invoice PDF"
+                        : d.DocumentType.ToString(),
+                    d.OriginalFileName, d.UploadedDate, d.UploadedBy, d.Version, d.IsActive,
+                    $"/invoices/doc/{d.Id}"))
+                .ToListAsync(ct));
+
+            // Bill-level audit (latest touch across the group's bills).
+            var audit = await _db.Bills.AsNoTracking()
+                .Where(b => billIds.Contains(b.Id))
+                .OrderByDescending(b => b.ModifiedOn ?? b.CreatedOn)
+                .Select(b => new { b.CreatedBy, b.CreatedOn, b.ModifiedBy, b.ModifiedOn })
+                .FirstOrDefaultAsync(ct);
+            if (audit is not null)
+            {
+                createdBy  ??= audit.CreatedBy;
+                createdOn  ??= audit.CreatedOn;
+                modifiedBy   = audit.ModifiedBy;
+                modifiedOn   = audit.ModifiedOn;
+            }
+            customer ??= clearance.Concat(forwarding).Concat(transport).FirstOrDefault()?.Client;
+            branch   ??= clearance.Concat(forwarding).Concat(transport).FirstOrDefault()?.Branch;
+        }
+
+        var result = new LinkedDocuments(
+            key, sysNo, invStatus, customer, branch, invTotal,
+            clearance.Count + forwarding.Count + transport.Count,
+            jobs.Count + exports.Count + awbs.Count,
+            clearance, forwarding, transport, jobs, exports, awbs, invoice, pdfs,
+            createdBy, createdOn, modifiedBy, modifiedOn);
+
+        return viewablePaths is null ? result : Scope(result, viewablePaths);
+    }
+
+    /// <summary>Drops any section the user may not view. Filtering here (not in the UI) means the panel
+    /// cannot expose a document the user has no access to, however it is rendered.</summary>
+    private static LinkedDocuments Scope(LinkedDocuments d, HashSet<string> viewable)
+    {
+        static List<BillingGroupDoc> Keep(List<BillingGroupDoc> items, HashSet<string> ok) =>
+            items.Where(i => ok.Contains(PermissionService.Normalise(i.Route))).ToList();
+
+        var clearance  = Keep(d.ClearanceBills,      viewable);
+        var forwarding = Keep(d.ForwardingBills,     viewable);
+        var transport  = Keep(d.TransportationBills, viewable);
+        var jobs       = Keep(d.Jobs,                viewable);
+        var exports    = Keep(d.ExportJobs,          viewable);
+        var awbs       = Keep(d.AwbShipments,        viewable);
+
+        var invoice = d.CustomerInvoice is not null
+                   && viewable.Contains(PermissionService.Normalise(d.CustomerInvoice.Route))
+            ? d.CustomerInvoice : null;
+
+        // No visible bills ⇒ no right to their PDFs either.
+        var pdfs = (clearance.Count + forwarding.Count + transport.Count) == 0 && invoice is null
+            ? new List<LinkedDoc>() : d.Pdfs;
+
+        return d with
+        {
+            ClearanceBills      = clearance,
+            ForwardingBills     = forwarding,
+            TransportationBills = transport,
+            Jobs                = jobs,
+            ExportJobs          = exports,
+            AwbShipments        = awbs,
+            CustomerInvoice     = invoice,
+            Pdfs                = pdfs,
+            BillCount           = clearance.Count + forwarding.Count + transport.Count,
+            JobCount            = jobs.Count + exports.Count + awbs.Count,
+        };
     }
 
     // ── Bill → originating operational record (read-only preview + duplicate detection) ──

@@ -331,6 +331,16 @@
                     </div>
                 </div>
 
+                @* Full traceability from this job: its billing group, every bill raised from it, sibling
+                   records and the consolidated customer invoice. Same component as the bill screens. *@
+                @if (Id != 0 && !string.IsNullOrWhiteSpace(item.CustomerInvoiceNumber))
+                {
+                    <div style="margin-bottom:12px;">
+                        <LinkedDocumentsPanel CustomerInvoiceNumber="@item.CustomerInvoiceNumber"
+                                              OnNavigate="@(_ => { Modal?.Close(ModalResult.Cancel()); return Task.CompletedTask; })" />
+                    </div>
+                }
+
                 <!-- ── Sale Charges — copied into the linked bill on approval ─────────────── -->
                 <div class="card">
                     <div class="card-header d-flex align-items-center">

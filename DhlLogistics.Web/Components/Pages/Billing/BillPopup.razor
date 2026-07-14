@@ -148,6 +148,16 @@
                     </div>
                 }
 
+                @* Full traceability from this bill: its billing group, sibling bills, originating records,
+                   the consolidated customer invoice and every PDF. Same component everywhere. *@
+                @if (Id != 0 && !string.IsNullOrWhiteSpace(item.CustomerInvoiceNumber))
+                {
+                    <div style="margin-bottom:10px;">
+                        <LinkedDocumentsPanel CustomerInvoiceNumber="@item.CustomerInvoiceNumber"
+                                              OnNavigate="@(_ => { Modal?.Close(ModalResult.Cancel()); return Task.CompletedTask; })" />
+                    </div>
+                }
+
                 @* ── Transport Details — the source snapshot (AWB/BL, container, vehicle, driver, route, cargo).
                      Shown for Transportation bills and any bill carrying source detail. Editable; saved on the
                      Bill so the record is self-contained regardless of shipment type. ── *@
