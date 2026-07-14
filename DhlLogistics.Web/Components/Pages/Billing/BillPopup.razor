@@ -576,6 +576,11 @@
         }
         else
         {
+            // Un-linked from the job: drop the inherited reference too, or the bill would keep the old job's
+            // Customer Invoice No and stay in that job's Billing Group (and be pulled into its consolidated
+            // invoice). BillWorkflowHandler enforces the same rule on save; this just keeps the field honest
+            // on screen. A user-entered reference on a genuinely standalone bill can still be typed back in.
+            item.CustomerInvoiceNumber = null;
             _job = null;
         }
     }

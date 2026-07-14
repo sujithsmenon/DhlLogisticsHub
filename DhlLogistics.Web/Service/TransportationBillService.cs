@@ -52,7 +52,9 @@ public class TransportationBillService
         bill.Quantity         = a.Pieces;
         bill.WeightKg         = (decimal)a.GrossWeightKg;
         bill.VolumeCbm        = (decimal)a.VolumeCbm;
-        bill.CustomerInvoiceNumber = a.InvoiceNumber;
+        // The CUSTOMER's reference (Billing Group key) — NOT a.InvoiceNumber, which is the Stage-5 invoice we
+        // raise TO DHL. Seeding the group key from that would file the bill under our own invoice number.
+        bill.CustomerInvoiceNumber = a.CustomerInvoiceNumber;
         bill.Remarks          = a.HandlingInfo;
         return bill;
     }
@@ -80,6 +82,7 @@ public class TransportationBillService
         bill.CommodityName    = e.CargoDescription;
         bill.Quantity         = e.Pieces;
         bill.WeightKg         = (decimal)e.GrossWeightKg;
+        bill.CustomerInvoiceNumber = e.CustomerInvoiceNumber;   // Billing Group key
         bill.Remarks          = e.Notes;
         return bill;
     }

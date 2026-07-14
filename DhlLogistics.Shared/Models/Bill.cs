@@ -38,6 +38,12 @@ public enum InvoiceStatus
     NotIssued = 0,
     Issued    = 10,
     Cancelled = 20,
+
+    /// <summary>The bill's individual invoice was rolled into a consolidated <see cref="CustomerInvoice"/>.
+    /// The original invoice row/PDF is NEVER deleted or rewritten — it stays for audit, flagged inactive, and
+    /// <see cref="Bill.CustomerInvoiceId"/> points at the consolidated invoice that superseded it. There is
+    /// exactly ONE active invoice per bill: the consolidated one.</summary>
+    Superseded = 30,
 }
 
 public class Bill
@@ -153,6 +159,14 @@ public class Bill
     public string?        PaymentTerms   { get; set; }
     public string?        InvoicePdfPath { get; set; }
     public string?        InvoiceRemarks { get; set; }
+
+    // ── Consolidated customer invoice (Billing Group) ────────────────────────
+    /// <summary>The consolidated <see cref="CustomerInvoice"/> this Bill was invoiced on, if any. Null for
+    /// every existing bill and for any bill invoiced the old per-bill way — so legacy behaviour is unchanged.
+    /// Non-null is also the <b>double-invoice guard</b>: a Bill on a consolidated invoice can neither be
+    /// pulled onto a second one nor issued individually.</summary>
+    public long?            CustomerInvoiceId { get; set; }
+    public CustomerInvoice? CustomerInvoice   { get; set; }
 
     public List<BillCharge> Charges { get; set; } = new();
     public List<BillEvent>  Events  { get; set; } = new();

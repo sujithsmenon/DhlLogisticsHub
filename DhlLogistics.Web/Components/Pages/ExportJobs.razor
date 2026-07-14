@@ -78,6 +78,12 @@ else
                     <div class="card-body">
                         <div class="form-grid">
                             <label>DHL Pick Confirmation No.<input class="dhl-input" @bind="_form.JobReference" placeholder="DHL-2026-XXXXX" /></label>
+                            @* Billing Group key — shared with Jobs / Bills / the consolidated Customer Invoice.
+                               Optional (unlike a JobOrder, where it is mandatory): an export job with none
+                               simply forms no group, exactly as today. *@
+                            <label>Customer Invoice No.
+                                <input class="dhl-input" @bind="_form.CustomerInvoiceNumber" placeholder="e.g. CINV-10025" />
+                            </label>
                             <label>Customer Name<input class="dhl-input" @bind="_form.CustomerName" /></label>
                             <label>Cargo Description<input class="dhl-input" @bind="_form.CargoDescription" /></label>
                             <label>HS Code<input class="dhl-input" @bind="_form.HsCode" /></label>
@@ -137,6 +143,21 @@ else
                                 <div class="awb-sub">HS Code: @(string.IsNullOrWhiteSpace(_sel.HsCode) ? "—" : _sel.HsCode)</div>
                                 <div class="awb-sub">@_sel.Pieces pcs &nbsp;·&nbsp; @_sel.GrossWeightKg kg</div>
                             </div>
+                        </div>
+                        <div class="awb-divider"></div>
+                        @* Billing Group key, editable in place — Export has no edit screen, so without this a
+                           job created before the field existed could never join a group. *@
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;">
+                                Customer Invoice No.
+                            </label>
+                            <input class="dhl-input" style="max-width:220px;" placeholder="e.g. CINV-10025"
+                                   value="@_sel.CustomerInvoiceNumber"
+                                   @onchange="@(e => SaveCustomerInvoiceNoAsync(e.Value?.ToString()))" />
+                            @if (!string.IsNullOrWhiteSpace(_sel.CustomerInvoiceNumber))
+                            {
+                                <span class="awb-sub">links this job's bills into one Billing Group</span>
+                            }
                         </div>
                         <div class="awb-divider"></div>
                         <div class="awb-sub" style="font-size:11px;">Received: @_sel.ReceivedAt.ToString("dd MMM yyyy HH:mm")</div>
@@ -766,6 +787,15 @@ else
         ApplyFilter();
         if (_sel is not null)
             _sel = _all.FirstOrDefault(j => j.Id == _sel.Id);
+    }
+
+    /// <summary>Saves the Billing Group key on the selected export job. Any Transportation bill raised from
+    /// this job inherits it (BillWorkflowHandler is the authoritative rule); blank clears it.</summary>
+    private async Task SaveCustomerInvoiceNoAsync(string? value)
+    {
+        if (_sel is null) return;
+        await Svc.SetCustomerInvoiceNumberAsync(_sel.Id, value);
+        await Reload();
     }
 
     // ── Transportation Bill ─────────────────────────────────────────────────────

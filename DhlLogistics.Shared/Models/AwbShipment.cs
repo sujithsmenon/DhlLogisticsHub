@@ -9,6 +9,12 @@ public class AwbShipment
     public DateTime? IssuedDate { get; set; }
     public string StationCode { get; set; } = "";
 
+    /// <summary>The CUSTOMER's own invoice reference — the Billing Group key shared with Jobs and Bills
+    /// (see <see cref="Bill.CustomerInvoiceNumber"/>). Deliberately NOT <see cref="InvoiceNumber"/>, which is
+    /// the Stage-5 invoice WE raise TO DHL and is a completely different document. Nullable: existing AWB
+    /// shipments have none and keep behaving exactly as before (no group, no consolidated invoice).</summary>
+    public string? CustomerInvoiceNumber { get; set; }
+
     // ── Shipper ───────────────────────────────────────────────────────────────
     public string ShipperAccount { get; set; } = "";
     public string ShipperName { get; set; } = "";

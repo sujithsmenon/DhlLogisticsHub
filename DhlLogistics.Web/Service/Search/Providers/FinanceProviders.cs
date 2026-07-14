@@ -95,6 +95,56 @@ public sealed class TransportationBillSearchProvider : SearchProviderBase
     }
 }
 
+// ── Consolidated customer invoices (Billing Group) ────────────────────────────
+// Bills and Jobs already match on CustomerInvoiceNumber (see BillSearch above and the job provider), so
+// searching a customer reference such as CINV-10025 ALREADY returns the group's jobs + bills. This provider
+// adds the fourth member — the consolidated invoice itself — so one search surfaces the whole Billing Group.
+public sealed class CustomerInvoiceSearchProvider : SearchProviderBase
+{
+    public override string   Module          => "Customer Invoices";
+    public override string   Icon            => "🧮";
+    public override string[] Keywords        => new[] { "customer invoice", "customerinvoice", "ci", "consolidated", "cinv" };
+    public override string[] PermissionPaths => new[] { "bills/clearance", "bills/forwarding" };
+
+    public override async Task<List<SearchHit>> SearchAsync(AppDbContext db, SearchQuery q, int take, CancellationToken ct)
+    {
+        var like = q.Like; var norm = q.NormalizedLike;
+        var scope = db.CustomerInvoices.AsNoTracking().AsQueryable();
+
+        if (q.HasText)
+            scope = scope.Where(i =>
+                   EF.Functions.ILike(i.InvoiceNo, like)
+                || EF.Functions.ILike(i.InvoiceNo.Replace("-", "").Replace("/", "").Replace(" ", ""), norm)
+                // the Billing Group key — searching CINV-10025 must find this invoice
+                || EF.Functions.ILike(i.CustomerInvoiceNumber, like)
+                || EF.Functions.ILike(i.CustomerInvoiceNumber.Replace("-", "").Replace("/", "").Replace(" ", ""), norm)
+                || (i.Remarks != null && EF.Functions.ILike(i.Remarks, like))
+                || EF.Functions.ILike(i.BillingClient!.CompanyName, like)
+                // a bill number in the group must also surface the invoice it was consolidated onto
+                || i.Bills.Any(b => EF.Functions.ILike(b.BillNo, like)));
+
+        var rows = await scope.OrderByDescending(i => i.Id).Take(SearchProviderBase.FetchN)
+            .Select(i => new
+            {
+                i.Id, i.InvoiceNo, i.CustomerInvoiceNumber, i.InvoiceDate, i.Status, i.TotalAmount,
+                Client = i.BillingClient!.CompanyName,
+                Branch = i.Branch!.BranchName,
+                Bills  = i.Bills.Count,
+            })
+            .ToListAsync(ct);
+
+        var hits = rows.Select(r => new SearchHit(
+            Module, Icon, r.InvoiceNo,
+            $"{r.Client} · Cust Inv {r.CustomerInvoiceNumber} · {r.Bills} bill(s)",
+            r.Status.ToString(), r.Branch, r.InvoiceDate,
+            "/bills/customer-invoices", new[]
+            {
+                new QuickAction("View", "📂", "/bills/customer-invoices"),
+            }));
+        return Rank(hits, q, take);
+    }
+}
+
 // ── Vouchers / Payments / Receipts / Journal ──────────────────────────────────
 public sealed class VoucherSearchProvider : SearchProviderBase
 {

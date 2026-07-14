@@ -25,6 +25,12 @@ public class InvoiceDocument
     public long  BillId { get; set; }
     public Bill? Bill   { get; set; }
 
+    /// <summary>Set when this document is the PDF of a consolidated <see cref="CustomerInvoice"/> (Billing
+    /// Group) rather than of a single Bill. BillId still points at the anchor bill, so every existing query
+    /// that filters by BillId keeps working untouched. Null for all existing rows.</summary>
+    public long?            CustomerInvoiceId { get; set; }
+    public CustomerInvoice? CustomerInvoice   { get; set; }
+
     public InvoiceDocumentType DocumentType { get; set; } = InvoiceDocumentType.CustomerInvoice;
 
     /// <summary>Stored file name on disk (unique, e.g. a GUID + extension).</summary>

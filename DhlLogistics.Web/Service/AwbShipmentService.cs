@@ -97,6 +97,27 @@ public class AwbShipmentService
         await _orchestrator.RunAsync(ctx);
     }
 
+    /// <summary>
+    /// Sets/updates the customer's invoice reference — the Billing Group key — on an existing AWB shipment.
+    /// Needed because AWB has no edit screen: without this, a shipment created before the field existed (or
+    /// left blank) could never join a Billing Group. Scoped to this one field rather than going through
+    /// UpdateAwbDetailsAsync, so setting a reference cannot disturb the stage workflow.
+    ///
+    /// NOTE: this is the CUSTOMER's reference, not <see cref="AwbShipment.InvoiceNumber"/> (the Stage-5
+    /// invoice we raise TO DHL) — two unrelated documents.
+    /// </summary>
+    public async Task SetCustomerInvoiceNumberAsync(int id, string? customerInvoiceNumber)
+    {
+        var awb = await _db.AwbShipments.FindAsync(id);
+        if (awb is null) return;
+
+        var value = string.IsNullOrWhiteSpace(customerInvoiceNumber) ? null : customerInvoiceNumber.Trim();
+        if (awb.CustomerInvoiceNumber == value) return;
+
+        awb.CustomerInvoiceNumber = value;
+        await _db.SaveChangesAsync();
+    }
+
     // ── Workflow actions ──────────────────────────────────────────────────────
 
     public async Task AssignTransporterAsync(int awbId, int transporterId,

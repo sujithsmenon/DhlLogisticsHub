@@ -104,6 +104,7 @@ public class InvoiceService
             .Include(b => b.Charges).ThenInclude(c => c.Sac)
             .Include(b => b.Charges).ThenInclude(c => c.ChargeCode)
             .Include(b => b.InvoiceDocuments)
+            .Include(b => b.CustomerInvoice)          // for the double-invoice guard's message
             .FirstOrDefaultAsync(b => b.Id == billId)
             ?? throw new InvalidOperationException("Bill not found.");
 
@@ -111,6 +112,13 @@ public class InvoiceService
             throw new InvalidOperationException("Only an approved bill can be issued as an invoice.");
         if (bill.TotalAmount <= 0)
             throw new InvalidOperationException("Cannot issue an invoice for a zero-value bill.");
+        // Double-invoice guard: this bill is already consolidated onto a CustomerInvoice. Issuing it again
+        // on its own would bill the customer twice for the same charges. (CustomerInvoiceService.CancelAsync
+        // releases the bill if the consolidated invoice is cancelled.)
+        if (bill.CustomerInvoiceId is not null)
+            throw new InvalidOperationException(
+                $"Bill {bill.BillNo} is already included in customer invoice " +
+                $"{bill.CustomerInvoice?.InvoiceNo ?? bill.CustomerInvoiceId.ToString()} and cannot be issued separately.");
 
         var user = actor ?? await CurrentUserAsync();
 

@@ -22,19 +22,81 @@ public sealed class BillWorkflowHandler : IWorkflowHandler
 
     private static Bill B(IWorkflowContext ctx) => (Bill)ctx.Entity;
 
-    public Task ValidateAsync(IWorkflowContext ctx)
+    public async Task ValidateAsync(IWorkflowContext ctx)
     {
         var bill = B(ctx);
         if (ctx.Operation == WorkflowOperationType.Delete)
         {
             if (bill.Status != BillStatus.Draft)
                 ctx.Abort("Only Draft bills can be deleted.");
-            return Task.CompletedTask;
+            return;
         }
         if (bill.BillingClientId == 0) ctx.Abort("Billing Client is required.");
         if (bill.Charges.Count == 0)   ctx.Abort("At least one charge is required.");
-        return Task.CompletedTask;
+
+        await InheritCustomerInvoiceNumberAsync(bill);
     }
+
+    /// <summary>
+    /// The Billing Group invariant — the SINGLE authoritative rule, enforced at the one choke point every
+    /// bill write passes through (Create AND Update, from every page: bill lists, the Job / AWB / Export
+    /// "raise bill" launchers, and any creation path added in future).
+    ///
+    /// <para>A bill raised from ANY of the four operational modules — Clearance Job, Forwarding Job, Export
+    /// Job, AWB Shipment — carries that source's CustomerInvoiceNumber, and the SOURCE is authoritative: the
+    /// value is re-read from it on every save, so the bill cannot drift out of its group. The individual
+    /// Prepare* mappings still populate the field for the UI, but they are a convenience, not the guarantee;
+    /// this method is the guarantee.</para>
+    ///
+    /// <para>Un-linking a bill from its source also CLEARS the reference — otherwise a bill that once pointed
+    /// at job A would keep A's reference, stay in A's Billing Group, and be pulled into A's consolidated
+    /// invoice. A genuinely standalone bill keeps whatever the user typed.</para>
+    ///
+    /// <para>Null stays null: a source with no CustomerInvoiceNumber (every legacy AWB / Export row) yields a
+    /// bill with none, which forms no group and behaves exactly as it does today.</para>
+    /// </summary>
+    private async Task InheritCustomerInvoiceNumberAsync(Bill bill)
+    {
+        // A job-linked bill always wins on JobOrderId (Clearance / Forwarding, and job-raised Transportation).
+        if (bill.JobOrderId is { } jobId)
+        {
+            var jobRef = await _db.JobOrders.AsNoTracking()
+                .Where(j => j.Id == jobId)
+                .Select(j => j.CustomerInvoiceNumber)
+                .FirstOrDefaultAsync();
+            bill.CustomerInvoiceNumber = Clean(jobRef);
+            return;
+        }
+
+        // Otherwise fall back to the generic billing source (AWB shipment / Export job).
+        switch (bill.SourceType)
+        {
+            case BillSourceType.AwbShipment when bill.SourceId is { } awbId:
+            {
+                // NOTE: AwbShipment.CustomerInvoiceNumber — deliberately NOT AwbShipment.InvoiceNumber, which
+                // is the Stage-5 invoice raised TO DHL and is an unrelated document.
+                var awbRef = await _db.AwbShipments.AsNoTracking()
+                    .Where(a => a.Id == (int)awbId)
+                    .Select(a => a.CustomerInvoiceNumber)
+                    .FirstOrDefaultAsync();
+                bill.CustomerInvoiceNumber = Clean(awbRef);
+                return;
+            }
+            case BillSourceType.ExportJob when bill.SourceId is { } expId:
+            {
+                var expRef = await _db.ExportJobs.AsNoTracking()
+                    .Where(e => e.Id == (int)expId)
+                    .Select(e => e.CustomerInvoiceNumber)
+                    .FirstOrDefaultAsync();
+                bill.CustomerInvoiceNumber = Clean(expRef);
+                return;
+            }
+        }
+
+        // Truly standalone bill — nothing to inherit from. Leave the user-entered value (may be null) alone.
+    }
+
+    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     public async Task GenerateNumberAsync(IWorkflowContext ctx)
     {

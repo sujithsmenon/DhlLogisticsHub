@@ -380,3 +380,6 @@ currentprojectpopupwindowlook.png
 
 # Runtime invoice/document storage (generated PDFs + uploads)
 DhlLogistics.Web/App_Data/
+
+# Local DB backups (never commit — contains production data)
+*.dump

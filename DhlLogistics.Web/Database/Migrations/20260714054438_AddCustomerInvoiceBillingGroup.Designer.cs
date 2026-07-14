@@ -3,6 +3,7 @@ using System;
 using DhlLogistics.Web.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DhlLogistics.Web.Database.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714054438_AddCustomerInvoiceBillingGroup")]
+    partial class AddCustomerInvoiceBillingGroup
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -104,10 +107,6 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<string>("CustomerInvoiceNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("CustomsDocPath")
                         .HasColumnType("text");
@@ -259,8 +258,6 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasColumnType("double precision");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CustomerInvoiceNumber");
 
                     b.HasIndex("HawbNo");
 
@@ -1167,10 +1164,6 @@ namespace DhlLogistics.Web.Database.Migrations
                     b.Property<DateTime?>("CustomerConfirmedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("CustomerInvoiceNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("CustomerName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1296,8 +1289,6 @@ namespace DhlLogistics.Web.Database.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CustomerInvoiceNumber");
 
                     b.HasIndex("JobReference");
 

@@ -78,6 +78,12 @@ else
                         <div class="form-grid">
                             <label>HAWB No.<input class="dhl-input" @bind="_form.HawbNo" /></label>
                             <label>Issued Date<input type="date" class="dhl-input" @bind="_form.IssuedDate" /></label>
+                            @* Billing Group key — shared with Jobs / Bills / the consolidated Customer Invoice.
+                               Optional here (unlike a JobOrder, where it is mandatory): an AWB with none simply
+                               forms no group, exactly as today. *@
+                            <label>Customer Invoice No.
+                                <input class="dhl-input" @bind="_form.CustomerInvoiceNumber" placeholder="e.g. CINV-10025" />
+                            </label>
                             <label>Shipper Account<input class="dhl-input" @bind="_form.ShipperAccount" /></label>
                             <label>Station Code<input class="dhl-input" @bind="_form.StationCode" /></label>
                             <label>Shipper Name<input class="dhl-input" @bind="_form.ShipperName" /></label>
@@ -167,6 +173,21 @@ else
                                 <div class="awb-sub">Station: <strong>@_sel.StationCode</strong></div>
                                 <div class="awb-sub">Issued: <strong>@(_sel.IssuedDate?.ToString("dd MMM yyyy") ?? "—")</strong></div>
                             </div>
+                        </div>
+                        <div class="awb-divider"></div>
+                        @* Billing Group key, editable in place — AWB has no edit screen, so without this a
+                           shipment created before the field existed could never join a group. *@
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                            <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;">
+                                Customer Invoice No.
+                            </label>
+                            <input class="dhl-input" style="max-width:220px;" placeholder="e.g. CINV-10025"
+                                   value="@_sel.CustomerInvoiceNumber"
+                                   @onchange="@(e => SaveCustomerInvoiceNoAsync(e.Value?.ToString()))" />
+                            @if (!string.IsNullOrWhiteSpace(_sel.CustomerInvoiceNumber))
+                            {
+                                <span class="awb-sub">links this shipment's bills into one Billing Group</span>
+                            }
                         </div>
                         <div class="awb-divider"></div>
                         <div class="cargo-grid">
@@ -561,6 +582,15 @@ else
         ApplyFilter();
         if (_sel is not null)
             _sel = _all.FirstOrDefault(a => a.Id == _sel.Id);
+    }
+
+    /// <summary>Saves the Billing Group key on the selected shipment. Any Transportation bill raised from this
+    /// AWB inherits it (BillWorkflowHandler is the authoritative rule); blank clears it.</summary>
+    private async Task SaveCustomerInvoiceNoAsync(string? value)
+    {
+        if (_sel is null) return;
+        await Svc.SetCustomerInvoiceNumberAsync(_sel.Id, value);
+        await Reload();
     }
 
     // ── Filtering ─────────────────────────────────────────────────────────────

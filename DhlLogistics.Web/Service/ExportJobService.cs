@@ -61,6 +61,26 @@ public class ExportJobService
         return job;
     }
 
+    /// <summary>
+    /// Sets/updates the customer's invoice reference — the Billing Group key — on an existing export job.
+    /// Needed because Export has no edit screen: without this, a job created before the field existed (or
+    /// simply left blank) could never join a Billing Group. Touches ONLY this field, so it cannot disturb the
+    /// stage workflow. Blank clears it (job leaves the group and reverts to today's behaviour).
+    /// </summary>
+    public async Task SetCustomerInvoiceNumberAsync(int id, string? customerInvoiceNumber)
+    {
+        var job = await _db.ExportJobs.FindAsync(id);
+        if (job is null) return;
+
+        var value = string.IsNullOrWhiteSpace(customerInvoiceNumber) ? null : customerInvoiceNumber.Trim();
+        if (job.CustomerInvoiceNumber == value) return;
+
+        job.CustomerInvoiceNumber = value;
+        AddEvent(job, "CustomerInvoiceNumber",
+            value is null ? "Customer Invoice No. cleared." : $"Customer Invoice No. set to {value}.");
+        await _db.SaveChangesAsync();
+    }
+
     // ── Workflow actions ──────────────────────────────────────────────────────
 
     public async Task InitiatePickupAsync(int id)

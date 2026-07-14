@@ -6,6 +6,13 @@ public class ExportJob
 
     // ── Job Identity ──────────────────────────────────────────────────────────
     public string JobReference { get; set; } = "";      // DHL Pick Confirmation No.
+
+    /// <summary>The customer's own invoice reference — the Billing Group key shared with Clearance /
+    /// Forwarding Jobs and every Bill raised from this job (see <see cref="Bill.CustomerInvoiceNumber"/>).
+    /// Nullable (unlike JobOrder, where it is mandatory): existing export jobs have none and keep behaving
+    /// exactly as before.</summary>
+    public string? CustomerInvoiceNumber { get; set; }
+
     public string CustomerName { get; set; } = "";
     public string CargoDescription { get; set; } = "";
     public string HsCode { get; set; } = "";

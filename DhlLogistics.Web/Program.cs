@@ -224,6 +224,7 @@ builder.Services.AddScoped<ISearchProvider, AwbSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, ExportJobSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, BillSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, TransportationBillSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, CustomerInvoiceSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, VoucherSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, ClientSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, TransporterSearchProvider>();
@@ -237,6 +238,11 @@ builder.Services.AddScoped<ISearchProvider, ContainerSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, AccountHeadSearchProvider>();
 // Invoice layer over Bill: issue (generate customer-invoice PDF) + upload vendor/credit/debit docs.
 builder.Services.AddScoped<InvoiceService>();
+// Billing Group = the documents sharing one CustomerInvoiceNumber (virtual — nothing is stored to form it).
+// A future module joins a group by registering an IBillingGroupContributor here; BillingGroupService itself
+// does not change.
+builder.Services.AddScoped<BillingGroupService>();
+builder.Services.AddScoped<CustomerInvoiceService>();
 builder.Services.AddScoped<VoucherService>();
 builder.Services.AddScoped<AccountHeadService>();
 // Automatic accounting engine: bill approval → revenue voucher, job approval → expense/payable,

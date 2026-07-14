@@ -86,6 +86,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<BillCharge>      BillCharges      => Set<BillCharge>();
     public DbSet<BillEvent>       BillEvents       => Set<BillEvent>();
     public DbSet<InvoiceDocument> InvoiceDocuments => Set<InvoiceDocument>();
+    public DbSet<CustomerInvoice> CustomerInvoices => Set<CustomerInvoice>();
 
     // ── M4 Accounts ──────────────────────────────────────────────────────────
     public DbSet<AccountHead>   AccountHeads   => Set<AccountHead>();
@@ -365,6 +366,40 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .OnDelete(DeleteBehavior.Cascade);
         mb.Entity<InvoiceDocument>().HasIndex(d => new { d.BillId, d.IsActive });
 
+        // ── Consolidated customer invoice (Billing Group = bills sharing a CustomerInvoiceNumber) ──
+        // Own number sequence (CI/FY/NNNN) per FY, mirroring the Bill numbering rule.
+        mb.Entity<CustomerInvoice>().HasIndex(i => i.InvoiceNo).IsUnique();
+        mb.Entity<CustomerInvoice>().HasIndex(i => new { i.FinYear });
+        mb.Entity<CustomerInvoice>().Property(i => i.CustomerInvoiceNumber).HasMaxLength(100).IsRequired();
+        // The Billing Group key — indexed, since every group lookup and search goes through it.
+        mb.Entity<CustomerInvoice>().HasIndex(i => i.CustomerInvoiceNumber);
+        mb.Entity<CustomerInvoice>().Property(i => i.SubTotal).HasPrecision(18, 2);
+        mb.Entity<CustomerInvoice>().Property(i => i.GstAmount).HasPrecision(18, 2);
+        mb.Entity<CustomerInvoice>().Property(i => i.TotalAmount).HasPrecision(18, 2);
+        mb.Entity<CustomerInvoice>()
+            .HasOne(i => i.BillingClient).WithMany().HasForeignKey(i => i.BillingClientId)
+            .OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<CustomerInvoice>()
+            .HasOne(i => i.Branch).WithMany().HasForeignKey(i => i.BranchId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<CustomerInvoice>()
+            .HasOne(i => i.Currency).WithMany().HasForeignKey(i => i.CurrencyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Bill → consolidated invoice. SetNull (not Cascade): cancelling/deleting an invoice must release
+        // its bills back to un-invoiced, never delete the bills or their accounting.
+        mb.Entity<Bill>()
+            .HasOne(b => b.CustomerInvoice).WithMany(i => i.Bills).HasForeignKey(b => b.CustomerInvoiceId)
+            .OnDelete(DeleteBehavior.SetNull);
+        mb.Entity<Bill>().HasIndex(b => b.CustomerInvoiceId);
+
+        // Consolidated-invoice PDF reuses the InvoiceDocument store (BillId still points at the anchor bill,
+        // so every existing by-BillId query is unaffected).
+        mb.Entity<InvoiceDocument>()
+            .HasOne(d => d.CustomerInvoice).WithMany(i => i.Documents).HasForeignKey(d => d.CustomerInvoiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<InvoiceDocument>().HasIndex(d => new { d.CustomerInvoiceId, d.IsActive });
+
         // ── Workflow Engine audit/activity log (no hard FK — survives entity deletion) ──
         mb.Entity<WorkflowAuditLog>().HasIndex(l => new { l.Kind, l.At });
         mb.Entity<WorkflowAuditLog>().HasIndex(l => new { l.EntityType, l.EntityId });
@@ -375,6 +410,14 @@ public class AppDbContext : IdentityDbContext<AppUser>
         mb.Entity<Bill>().HasIndex(b => b.InvoiceNumber);
         mb.Entity<AwbShipment>().HasIndex(a => a.HawbNo);
         mb.Entity<ExportJob>().HasIndex(e => e.JobReference);
+
+        // Billing Group key on the two remaining operational modules, so all four (Clearance, Forwarding,
+        // Export, AWB) share one business reference. Same shape as Bill/JobOrder: 100 chars, indexed
+        // (every group lookup and search goes through it). Nullable — legacy rows simply form no group.
+        mb.Entity<AwbShipment>().Property(a => a.CustomerInvoiceNumber).HasMaxLength(100);
+        mb.Entity<AwbShipment>().HasIndex(a => a.CustomerInvoiceNumber);
+        mb.Entity<ExportJob>().Property(e => e.CustomerInvoiceNumber).HasMaxLength(100);
+        mb.Entity<ExportJob>().HasIndex(e => e.CustomerInvoiceNumber);
         mb.Entity<Container>().HasIndex(c => c.ContainerNumber);
         mb.Entity<Vehicle>().HasIndex(v => v.PlateNumber);
 

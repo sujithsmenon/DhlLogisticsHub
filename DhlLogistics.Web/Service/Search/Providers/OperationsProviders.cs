@@ -76,7 +76,9 @@ public sealed class AwbSearchProvider : SearchProviderBase
                 || EF.Functions.ILike(a.GoodsDescription, like)
                 || (a.VehicleNumber != null && EF.Functions.ILike(a.VehicleNumber, like))
                 || (a.DriverName != null && EF.Functions.ILike(a.DriverName, like))
-                || (a.InvoiceNumber != null && EF.Functions.ILike(a.InvoiceNumber, like)));
+                || (a.InvoiceNumber != null && EF.Functions.ILike(a.InvoiceNumber, like))
+                // Billing Group key — searching CINV-10025 must return this shipment alongside its bills.
+                || (a.CustomerInvoiceNumber != null && EF.Functions.ILike(a.CustomerInvoiceNumber, like)));
 
         var rows = await query.OrderByDescending(a => a.Id).Take(Fetch)
             .Select(a => new { a.HawbNo, a.ConsigneeName, a.OriginStation, a.DestinationStation, a.Status, a.ReceivedAt })
@@ -116,7 +118,9 @@ public sealed class ExportJobSearchProvider : SearchProviderBase
                 || (e.BookingReference != null && EF.Functions.ILike(e.BookingReference, like))
                 || (e.VehicleNumber != null && EF.Functions.ILike(e.VehicleNumber, like))
                 || (e.DriverName != null && EF.Functions.ILike(e.DriverName, like))
-                || (e.VesselName != null && EF.Functions.ILike(e.VesselName, like)));
+                || (e.VesselName != null && EF.Functions.ILike(e.VesselName, like))
+                // Billing Group key — searching CINV-10025 must return this job alongside its bills.
+                || (e.CustomerInvoiceNumber != null && EF.Functions.ILike(e.CustomerInvoiceNumber, like)));
 
         var rows = await query.OrderByDescending(e => e.Id).Take(Fetch)
             .Select(e => new { e.JobReference, e.CustomerName, e.ContainerNumber, e.Status, e.ReceivedAt })
