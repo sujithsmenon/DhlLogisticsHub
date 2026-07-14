@@ -111,7 +111,11 @@ public sealed class BillSearchProvider : SearchProviderBase
                 new QuickAction("Customer Invoice", "🧮", "/bills/customer-invoices"),
                 new QuickAction("Approve / Post", "✅", "/bills/approve"),
             })
-            { Related = BillSearch.RelatedLine(r) };
+            {
+                Related  = BillSearch.RelatedLine(r),
+                Customer = r.Client,
+                Type     = r.Mode.ToString(),      // Bill Type filter
+            };
         });
         return Rank(hits, q, take);
     }
@@ -136,7 +140,11 @@ public sealed class TransportationBillSearchProvider : SearchProviderBase
                 new QuickAction("Customer Invoice", "🧮", "/bills/customer-invoices"),
                 new QuickAction("Post to Accounts", "✅", "/bills/approve"),
             })
-            { Related = BillSearch.RelatedLine(r) });
+            {
+                Related  = BillSearch.RelatedLine(r),
+                Customer = r.Client,
+                Type     = r.Mode.ToString(),      // always "Transportation" here
+            });
         return Rank(hits, q, take);
     }
 }
@@ -199,7 +207,10 @@ public sealed class CustomerInvoiceSearchProvider : SearchProviderBase
                     new QuickAction("View", "📂", "/bills/customer-invoices"),
                     new QuickAction("Bills", "💰", "/bills/clearance"),
                 })
-                { Related = string.Join("  ·  ", chain) };
+                {
+                    Related  = string.Join("  ·  ", chain),
+                    Customer = r.Client,
+                };
         });
         return Rank(hits, q, take);
     }

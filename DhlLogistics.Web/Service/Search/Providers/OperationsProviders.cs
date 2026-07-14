@@ -57,7 +57,9 @@ public sealed class JobOrderSearchProvider : SearchProviderBase
                     new QuickAction("Transportation Bill", "🚚", "/bills/transportation"),
                 })
                 {
-                    Related = RelatedLine(r.CustomerInvoiceNumber, r.BillNos, r.LoadPort, r.DischargePort),
+                    Related  = RelatedLine(r.CustomerInvoiceNumber, r.BillNos, r.LoadPort, r.DischargePort),
+                    Customer = r.Client,
+                    Type     = r.Mode.ToString(),      // Job Type filter (Clearance / Forwarding)
                 };
         });
         return Rank(hits, q, take);

@@ -70,6 +70,78 @@ public sealed record SearchHit(
     /// Computed from data ALREADY fetched by the provider — never an extra per-row query.
     /// </summary>
     public string? Related { get; init; }
+
+    /// <summary>Billing client / customer on this record. Drives the Advanced Search "Customer" filter.</summary>
+    public string? Customer { get; init; }
+
+    /// <summary>Sub-type within the module — the Bill mode (Clearance / Forwarding / Transportation) or the
+    /// Job mode (Clearance / Forwarding). Drives the "Bill Type" and "Job Type" filters.</summary>
+    public string? Type { get; init; }
+}
+
+/// <summary>
+/// Advanced Search filters. Applied to the hits the providers return, so a provider needs no knowledge of
+/// them — a module added later is filterable for free.
+///
+/// <para>Filters COMBINE with AND: every set filter must match. An unset filter matches everything.</para>
+/// </summary>
+public sealed class SearchFilter
+{
+    /// <summary>Restrict to these module names (empty = all modules).</summary>
+    public HashSet<string> Modules { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public string?   Status   { get; init; }
+    public string?   Customer { get; init; }
+    public string?   Branch   { get; init; }
+    public DateTime? From     { get; init; }
+    public DateTime? To       { get; init; }
+
+    /// <summary>Clearance / Forwarding / Transportation — matched against <see cref="SearchHit.Type"/>.</summary>
+    public string? BillType { get; init; }
+
+    /// <summary>Clearance / Forwarding — matched against <see cref="SearchHit.Type"/>.</summary>
+    public string? JobType { get; init; }
+
+    public bool IsEmpty =>
+        Modules.Count == 0 && Status is null && Customer is null && Branch is null
+        && From is null && To is null && BillType is null && JobType is null;
+
+    /// <summary>Does this hit satisfy every set filter?</summary>
+    public bool Matches(SearchHit h)
+    {
+        if (Modules.Count > 0 && !Modules.Contains(h.Module)) return false;
+
+        if (Status is not null &&
+            !string.Equals(h.Status, Status, StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (Branch is not null &&
+            !(h.Branch?.Contains(Branch, StringComparison.OrdinalIgnoreCase) ?? false)) return false;
+
+        if (Customer is not null &&
+            // fall back to Secondary: older providers put the client there
+            !((h.Customer?.Contains(Customer, StringComparison.OrdinalIgnoreCase) ?? false)
+              || (h.Secondary?.Contains(Customer, StringComparison.OrdinalIgnoreCase) ?? false))) return false;
+
+        if (From is not null && (h.Date is null || h.Date.Value.Date < From.Value.Date)) return false;
+        if (To   is not null && (h.Date is null || h.Date.Value.Date > To.Value.Date))   return false;
+
+        // Bill Type / Job Type only constrain the modules they belong to — setting "Transportation" must not
+        // wipe out the Clients group, it must simply not apply to it.
+        if (BillType is not null && IsBillModule(h.Module) &&
+            !string.Equals(h.Type, BillType, StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (JobType is not null && IsJobModule(h.Module) &&
+            !string.Equals(h.Type, JobType, StringComparison.OrdinalIgnoreCase)) return false;
+
+        return true;
+    }
+
+    private static bool IsBillModule(string module) =>
+        module.Contains("Bill", StringComparison.OrdinalIgnoreCase)
+        || module.Contains("Invoice", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsJobModule(string module) =>
+        module.Equals("Jobs", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>A quick action on a result — a label, an icon and a destination route (an existing page).</summary>

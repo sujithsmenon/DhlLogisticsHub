@@ -41,11 +41,24 @@ public class GlobalSearchService
     public IEnumerable<(string Module, string Icon)> Modules =>
         _providers.Select(p => (p.Module, p.Icon));
 
-    public async Task<SearchResponse> SearchAsync(string term, CancellationToken ct = default)
+    /// <summary>
+    /// Runs the search. <paramref name="filter"/> (Advanced Search) is applied to the hits the providers
+    /// return, in ONE place — so a provider needs no knowledge of it and a module added later is filterable
+    /// for free. Filters combine with AND.
+    ///
+    /// <para>Note: filtering happens after each provider's fetch, so a heavily-filtered search can return
+    /// fewer than PerModuleLimit rows per module even when more would match deeper in that module. Providers
+    /// already over-fetch (FetchN) to soften this.</para>
+    /// </summary>
+    public async Task<SearchResponse> SearchAsync(string term, SearchFilter? filter = null,
+                                                  CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var q  = Parse(term);
-        if (q.NormalizedText.Length < 2 && q.ModuleHint is null)
+
+        // With an active filter, a bare/short term is legitimate — "show me everything Approved in July".
+        var hasFilter = filter is not null && !filter.IsEmpty;
+        if (q.NormalizedText.Length < 2 && q.ModuleHint is null && !hasFilter)
             return new SearchResponse(Array.Empty<SearchGroup>(), 0, 0, null);
 
         var user     = (await _auth.GetAuthenticationStateAsync()).User;
@@ -64,14 +77,23 @@ public class GlobalSearchService
         foreach (var p in ordered)
         {
             if (total >= TotalLimit) break;
+
+            // A module excluded by the Advanced Search filter is never even queried.
+            if (hasFilter && filter!.Modules.Count > 0 && !filter.Modules.Contains(p.Module)) continue;
+
             // With no free-text (e.g. bare "awb") only the hinted module runs — it lists its top rows.
-            if (!q.HasText && !(q.ModuleHint is not null && p.Keywords.Contains(q.ModuleHint, StringComparer.OrdinalIgnoreCase)))
+            // An active filter is itself a reason to run: "everything Approved this month" has no text.
+            if (!q.HasText && !hasFilter
+                && !(q.ModuleHint is not null && p.Keywords.Contains(q.ModuleHint, StringComparer.OrdinalIgnoreCase)))
                 continue;
 
             try
             {
                 var take = Math.Min(PerModuleLimit, TotalLimit - total);
                 var hits = await p.SearchAsync(db, q, take, ct);
+
+                if (hasFilter) hits = hits.Where(filter!.Matches).ToList();
+
                 if (hits.Count > 0)
                 {
                     groups.Add(new SearchGroup(p.Module, p.Icon, hits));

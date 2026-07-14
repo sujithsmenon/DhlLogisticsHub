@@ -62,12 +62,77 @@
                         {
                             <span class="search-spin" aria-hidden="true"></span>
                         }
+                        @* Advanced Search toggle — shows a dot when any filter is active. *@
+                        <button class="search-adv-btn @(_advOpen ? "on" : "")" type="button"
+                                title="Advanced search" @onclick="ToggleAdvanced">
+                            ⚙@(FilterCount > 0 ? $" {FilterCount}" : "")
+                        </button>
                     </div>
+
+                    @if (_advOpen)
+                    {
+                        <div class="search-adv glass">
+                            <div class="adv-hdr">Advanced Search <span class="adv-note">filters combine (AND)</span></div>
+                            <div class="adv-grid">
+                                <div class="adv-f">
+                                    <label>Module</label>
+                                    <select @bind="_fModule">
+                                        <option value="">All modules</option>
+                                        @foreach (var m in GlobalSearch.Modules)
+                                        {
+                                            <option value="@m.Module">@m.Icon @m.Module</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="adv-f">
+                                    <label>Status</label>
+                                    <input placeholder="e.g. Approved" @bind="_fStatus" />
+                                </div>
+                                <div class="adv-f">
+                                    <label>Customer</label>
+                                    <input placeholder="Customer name" @bind="_fCustomer" />
+                                </div>
+                                <div class="adv-f">
+                                    <label>Branch</label>
+                                    <input placeholder="Branch" @bind="_fBranch" />
+                                </div>
+                                <div class="adv-f">
+                                    <label>Bill Type</label>
+                                    <select @bind="_fBillType">
+                                        <option value="">Any</option>
+                                        <option value="Clearance">Clearance</option>
+                                        <option value="Forwarding">Forwarding</option>
+                                        <option value="Transportation">Transportation</option>
+                                    </select>
+                                </div>
+                                <div class="adv-f">
+                                    <label>Job Type</label>
+                                    <select @bind="_fJobType">
+                                        <option value="">Any</option>
+                                        <option value="Clearance">Clearance</option>
+                                        <option value="Forwarding">Forwarding</option>
+                                    </select>
+                                </div>
+                                <div class="adv-f">
+                                    <label>From</label>
+                                    <input type="date" @bind="_fFrom" />
+                                </div>
+                                <div class="adv-f">
+                                    <label>To</label>
+                                    <input type="date" @bind="_fTo" />
+                                </div>
+                            </div>
+                            <div class="adv-actions">
+                                <button class="adv-btn" @onclick="ClearFilters">Clear</button>
+                                <button class="adv-btn primary" @onclick="ApplyFilters">Apply</button>
+                            </div>
+                        </div>
+                    }
 
                     @if (_searchOpen)
                     {
                         <div class="search-results glass">
-                            @if (_searchTerm.Trim().Length < 2)
+                            @if (_searchTerm.Trim().Length < 2 && FilterCount == 0)
                             {
                                 @* Recent + pinned searches (shown when the box is empty/short). *@
                                 @if (_pinned.Count == 0 && _recent.Count == 0)
@@ -362,6 +427,41 @@
 .search-item-main { flex: 1; min-width: 0; }
 .search-item-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-item-sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Advanced Search ──────────────────────────────────────────────────────── */
+.search-adv-btn {
+    flex-shrink: 0; border: none; background: transparent; cursor: pointer;
+    font-size: 12px; color: var(--muted); padding: 2px 6px; border-radius: 6px;
+}
+.search-adv-btn:hover { background: var(--surface2); color: var(--text); }
+.search-adv-btn.on    { background: var(--blue); color: #fff; }
+
+.search-adv {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+    width: min(560px, 92vw); padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+}
+.search-adv .adv-hdr {
+    font-size: 12px; font-weight: 800; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+}
+.search-adv .adv-note { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+.search-adv .adv-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px 10px;
+}
+.search-adv .adv-f { display: flex; flex-direction: column; gap: 2px; }
+.search-adv .adv-f label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+.search-adv .adv-f input,
+.search-adv .adv-f select {
+    font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--card); color: var(--text);
+}
+.search-adv .adv-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.search-adv .adv-btn {
+    font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer;
+}
+.search-adv .adv-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
 
 /* Matched text inside a result. Transparent-ish so it reads in both themes. */
 .search-mark {
@@ -669,6 +769,56 @@
         if (!_recentLoaded) { await LoadRecentAsync(); _recentLoaded = true; }
     }
 
+    // ── Advanced Search ──────────────────────────────────────────────────────
+    private bool _advOpen;
+    private string _fModule = "", _fStatus = "", _fCustomer = "", _fBranch = "", _fBillType = "", _fJobType = "";
+    private DateTime? _fFrom, _fTo;
+
+    /// <summary>How many filters are set — shown on the toggle so an active filter is never invisible.</summary>
+    private int FilterCount =>
+        (string.IsNullOrWhiteSpace(_fModule)   ? 0 : 1) + (string.IsNullOrWhiteSpace(_fStatus)   ? 0 : 1)
+      + (string.IsNullOrWhiteSpace(_fCustomer) ? 0 : 1) + (string.IsNullOrWhiteSpace(_fBranch)   ? 0 : 1)
+      + (string.IsNullOrWhiteSpace(_fBillType) ? 0 : 1) + (string.IsNullOrWhiteSpace(_fJobType)  ? 0 : 1)
+      + (_fFrom is null ? 0 : 1) + (_fTo is null ? 0 : 1);
+
+    private SearchFilter? BuildFilter()
+    {
+        if (FilterCount == 0) return null;
+        var f = new SearchFilter
+        {
+            Status   = Blank(_fStatus),
+            Customer = Blank(_fCustomer),
+            Branch   = Blank(_fBranch),
+            BillType = Blank(_fBillType),
+            JobType  = Blank(_fJobType),
+            From     = _fFrom,
+            To       = _fTo,
+        };
+        if (!string.IsNullOrWhiteSpace(_fModule)) f.Modules.Add(_fModule);
+        return f;
+
+        static string? Blank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    }
+
+    private void ToggleAdvanced()
+    {
+        _advOpen = !_advOpen;
+        if (_advOpen) { _searchOpen = false; _panelOpen = false; _userMenuOpen = false; }
+    }
+
+    private async Task ApplyFilters()
+    {
+        _advOpen = false;
+        await OnSearchInput(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = _searchTerm });
+    }
+
+    private async Task ClearFilters()
+    {
+        _fModule = _fStatus = _fCustomer = _fBranch = _fBillType = _fJobType = "";
+        _fFrom = _fTo = null;
+        await OnSearchInput(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = _searchTerm });
+    }
+
     private async Task OnSearchInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
     {
         _searchTerm = e.Value?.ToString() ?? "";
@@ -678,7 +828,8 @@
         _searchCts?.Cancel();
 
         var term = _searchTerm.Trim();
-        if (term.Length < 2)
+        // With an active Advanced filter a short/empty term is legitimate ("everything Approved in July").
+        if (term.Length < 2 && FilterCount == 0)
         {
             _searching = false;
             _searchResponse = null;
@@ -694,7 +845,7 @@
         try
         {
             await Task.Delay(250, cts.Token);   // debounce
-            var resp = await GlobalSearch.SearchAsync(term, cts.Token);
+            var resp = await GlobalSearch.SearchAsync(term, BuildFilter(), cts.Token);
             if (cts.Token.IsCancellationRequested) return;
             _searchResponse = resp;
             _searching      = false;
