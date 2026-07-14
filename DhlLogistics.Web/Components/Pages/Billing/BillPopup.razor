@@ -442,10 +442,19 @@
                 <div class="col-md-2 text-center">
                     @if (Id != 0 && item.Status == BillStatus.Draft)
                     {
-                        <SfButton OnClick="@Submit" CssClass="e-small wf-btn-submit" IconCss="e-icons e-send-1">Submit</SfButton>
+                        @* Same circuit, same DbContext — clicking Submit mid-save would race exactly as a
+                           second Update click does. *@
+                        <SfButton OnClick="@Submit" CssClass="e-small wf-btn-submit" IconCss="e-icons e-send-1"
+                                  Disabled="@_saving">Submit</SfButton>
                     }
-                    <SfButton IsPrimary="true" OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save-as">@btnText</SfButton>
-                    <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close">Close</SfButton>
+                    @* Disabled while a save is in flight. A Blazor Server circuit holds ONE scoped DbContext,
+                       so a second click before the first save returns runs two overlapping UpdateAsync calls
+                       on it — DbContext is not thread-safe, and WorkflowOrchestrator opens its own
+                       transaction, so the second one crashes. *@
+                    <SfButton IsPrimary="true" OnClick="@Save" CssClass="e-small" IconCss="e-icons e-save-as"
+                              Disabled="@_saving">@(_saving ? "Saving…" : btnText)</SfButton>
+                    <SfButton OnClick="@Close" CssClass="e-small" IconCss="e-icons e-circle-close"
+                              Disabled="@_saving">Close</SfButton>
                 </div>
                 <div class="col-md-5 text-end">
                     @if (item.ModifiedOn != null)
@@ -629,11 +638,30 @@
 
     private void Recalc() => BillService.RecalcTotals(item);
 
+    /// <summary>True while a save is in flight — see <see cref="Save"/>.</summary>
+    private bool _saving;
+
+    /// <summary>
+    /// Saves the bill. Re-entrant clicks are refused.
+    ///
+    /// <para><b>Why the guard.</b> A Blazor Server circuit holds ONE scoped AppDbContext for its whole life,
+    /// and the modal only closes AFTER the save completes. Without this, a second click while the first save
+    /// was still running started a second <c>UpdateAsync</c> on that same DbContext — which is not
+    /// thread-safe, and whose orchestrator opens its own transaction. The result was a crash whose message
+    /// varied with the timing ("A second operation was started on this context instance…" or "The connection
+    /// is already in a transaction…"), landing on whichever await touched the context first.</para>
+    ///
+    /// <para>The flag — not the button's Disabled state — is the real defence: two clicks can be queued
+    /// before the re-render that disables the button ever reaches the browser.</para>
+    /// </summary>
     private async Task Save()
     {
+        if (_saving) return;               // a save is already running — ignore the click
+
         if (item.BillingClientId == 0) { Toast("Billing Client is required."); return; }
         if (item.Charges.Count == 0)   { Toast("At least one charge is required."); return; }
 
+        _saving = true;
         try
         {
             if (Id == 0)
@@ -648,10 +676,18 @@
             ToastService.Show(new() { Title = "Success!", Content = "Bill saved.", CssClass = "e-toast-success" });
             if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
             this.Modal?.Close(ModalResult.OK());
+
+            // NOTE: _saving is deliberately NOT cleared on success. Blazor Server dispatches circuit events
+            // one at a time, so a click queued behind this save is delivered only AFTER it returns — by which
+            // point clearing the flag would let it save a second time and write a duplicate timeline/audit
+            // row. The popup is closing, so leaving the flag set simply makes those queued clicks no-ops.
         }
         catch (Exception ex)
         {
             ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" });
+
+            // Cleared only on FAILURE — the popup stays open and the user must be able to correct and retry.
+            _saving = false;
         }
     }
 

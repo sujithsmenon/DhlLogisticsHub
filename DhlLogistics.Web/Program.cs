@@ -135,7 +135,10 @@ builder.Services.AddCors(options =>
 });
 
 // ── Blazor + Syncfusion ───────────────────────────────────────────────────────
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+// DetailedErrors in Development only: a Blazor Server circuit otherwise reports every server-side exception
+// as the opaque "There was an exception invoking '<method>'", which hides the real message, type and stack.
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents(o => o.DetailedErrors = builder.Environment.IsDevelopment());
 builder.Services.AddSyncfusionBlazor();
 builder.Services.AddScoped<Syncfusion.Blazor.Popups.SfDialogService>();
 builder.Services.AddScoped<DhlLogistics.Web.Components.Common.Toast.IToastService,
