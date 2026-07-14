@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text;
+using DhlLogistics.Shared.Models;
 using DhlLogistics.Web.Api;
 using DhlLogistics.Web.Components;
 using DhlLogistics.Web.Database;
@@ -109,8 +111,12 @@ builder.Services.AddRazorPages();
 // ── Configure Identity cookie paths ──────────────────────────────────────────
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.LoginPath        = "/Account/Login";
-    options.AccessDeniedPath = "/Account/Login";
+    options.LoginPath = "/Account/Login";
+    // AccessDenied must NOT point at the login page. An already-authenticated user who is denied would be
+    // sent to login, which sees a valid session and sends them straight back — an infinite redirect loop
+    // (ERR_TOO_MANY_REDIRECTS on /usermanagement for any non-Admin). Denied means "you are signed in but not
+    // allowed", which is exactly what /no-permission says.
+    options.AccessDeniedPath = "/no-permission";
     options.SlidingExpiration = true;
     options.ExpireTimeSpan   = TimeSpan.FromDays(7);
 });
@@ -519,11 +525,47 @@ app.MapGet("/api/ping", () => Results.Ok(new { ok = true, at = DateTime.UtcNow }
    .AllowAnonymous();
 app.MapGet("/health", () => Results.Ok("OK"));
 
-// ── Invoice / document download (authenticated) ─────────────────────────────
+// ── Invoice / document download (authenticated AND permission-checked) ──────
 // Serves generated customer-invoice PDFs and uploaded vendor/credit/debit docs.
 // ?dl=true forces an attachment download; otherwise the file opens inline (for print).
-app.MapGet("/invoices/doc/{id:long}", async (long id, bool? dl, InvoiceService invoices) =>
+//
+// SECURITY: RequireAuthorization() alone is NOT enough here. It only proves the caller is *some* logged-in
+// user — so any authenticated user could enumerate /invoices/doc/1,2,3… and pull down every customer's tax
+// invoice, regardless of role. The Linked Documents panel is permission-scoped, but that scoping is cosmetic
+// if the URL it links to is not: the UI can simply be bypassed.
+//
+// The document is therefore resolved to the bill it belongs to, and the caller must hold View on the page
+// that bill lives on. An unauthorised caller gets 404, not 403 — a 403 would confirm the document exists and
+// still leak which ids are real.
+app.MapGet("/invoices/doc/{id:long}", async (
+        long id, bool? dl,
+        InvoiceService invoices,
+        DhlLogistics.Web.Service.PermissionService perms,
+        IDbContextFactory<AppDbContext> dbf,
+        ClaimsPrincipal user) =>
 {
+    await using var db = await dbf.CreateDbContextAsync();
+
+    // Which billing page does this document belong to?
+    var owner = await db.InvoiceDocuments.AsNoTracking()
+        .Where(d => d.Id == id)
+        .Select(d => new { Mode = (BillMode?)d.Bill!.Mode, d.CustomerInvoiceId })
+        .FirstOrDefaultAsync();
+
+    if (owner is null) return Results.NotFound();
+
+    var page = owner.CustomerInvoiceId is not null
+        ? "bills/customer-invoices"
+        : owner.Mode switch
+        {
+            BillMode.Forwarding     => "bills/forwarding",
+            BillMode.Transportation => "bills/transportation",
+            _                       => "bills/clearance",
+        };
+
+    if (!await perms.CheckPermissionAsync(user, page, Permission.View))
+        return Results.NotFound();          // deliberately not 403 — do not confirm the id exists
+
     var file = await invoices.GetFileAsync(id);
     if (file is null) return Results.NotFound();
     return (dl == true)

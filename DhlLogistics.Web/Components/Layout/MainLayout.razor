@@ -7,6 +7,7 @@
 @inject LogisticsService Logistics
 @inject GlobalSearchService GlobalSearch
 @inject IDbContextFactory<AppDbContext> MenuFactory
+@inject PermissionService Permissions
 @inject ILogger<MainLayout> Logger
 @using DhlLogistics.Web.Service.Search
 @using Microsoft.EntityFrameworkCore
@@ -662,6 +663,51 @@
 
         // Auto-close the mobile drawer on navigation.
         Nav.LocationChanged += OnLocationChanged;
+
+        await EnforcePagePermissionAsync();
+    }
+
+    /// <summary>
+    /// Page-level authorisation. The sidebar only HIDES pages the user may not view — until now, typing the
+    /// URL still opened them, so any authenticated user could reach /bills/approve, /accounts/* or
+    /// /usermanagement regardless of role. (NoPermission.razor already existed; nothing ever routed to it.)
+    ///
+    /// <para>Enforced here, in the one layout every page renders through, rather than by adding an attribute
+    /// to 77 pages — a page added later is covered automatically instead of being insecure by default.
+    /// Pages with no Menus entry (e.g. /profile, /settings) are not permission-controlled and are allowed.</para>
+    /// </summary>
+    private async Task EnforcePagePermissionAsync()
+    {
+        var path = PermissionService.Normalise(Nav.ToBaseRelativePath(Nav.Uri));
+
+        // Always-open routes: the dashboard, and the pages the guard itself redirects to.
+        if (string.IsNullOrWhiteSpace(path)
+            || path.StartsWith("no-permission", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("not-found", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("error", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("login", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("account/", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        try
+        {
+            // Only pages that ARE permission-controlled (i.e. exist in the Menus table) are gated.
+            await using var db = await MenuFactory.CreateDbContextAsync();
+            var isControlled = await db.Menus.AsNoTracking()
+                .AnyAsync(m => m.PageName != null && m.PageName != "" && m.RequiresPermission
+                            && m.PageName.ToLower() == path.ToLower());
+            if (!isControlled) return;
+
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (await Permissions.CheckPermissionAsync(state.User, path, Permission.View)) return;
+
+            Nav.NavigateTo($"/no-permission/{Uri.EscapeDataString(path)}", forceLoad: false);
+        }
+        catch (Exception ex)
+        {
+            // A failure in the guard must not lock a legitimate user out of the whole app.
+            Logger.LogWarning(ex, "Page permission check failed for '{Path}'; allowing.", path);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -686,6 +732,10 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         if (_mobileOpen) { _mobileOpen = false; InvokeAsync(StateHasChanged); }
+
+        // Re-check on EVERY navigation. Checking only on first render would let a user reach a restricted
+        // page by navigating to it from inside the app rather than by loading its URL directly.
+        _ = InvokeAsync(EnforcePagePermissionAsync);
     }
 
     // Hamburger: collapse the rail on desktop, open the drawer on mobile.

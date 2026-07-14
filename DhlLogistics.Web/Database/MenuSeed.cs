@@ -310,7 +310,19 @@ public static class MenuSeed
         if (!await db.Menus.AnyAsync()) return;   // fresh DB — SeedAsync covers it
 
         const string page = "bills/customer-invoices";
-        if (await db.Menus.AnyAsync(m => m.PageName == page)) return;   // already present
+
+        var existing = await db.Menus.FirstOrDefaultAsync(m => m.PageName == page);
+        if (existing is not null)
+        {
+            // Repair: an earlier build seeded this leaf permission-free, leaving every customer's invoice
+            // totals and PDFs reachable by any authenticated user. Close it on startup wherever it landed.
+            if (!existing.RequiresPermission)
+            {
+                existing.RequiresPermission = true;
+                await db.SaveChangesAsync();
+            }
+            return;
+        }
 
         var billing = await db.Menus.FirstOrDefaultAsync(m => m.ParentId == null && m.MenuName == "Billing");
         if (billing is null) return;
@@ -324,12 +336,15 @@ public static class MenuSeed
 
         db.Menus.Add(new Menu
         {
-            MenuName           = "Customer Invoices",
-            Icon               = "🧮",
-            PageName           = page,
-            ParentId           = billing.MenuId,
-            ShowOrder          = afterOrder + 1,
-            RequiresPermission = false,
+            MenuName  = "Customer Invoices",
+            Icon      = "🧮",
+            PageName  = page,
+            ParentId  = billing.MenuId,
+            ShowOrder = afterOrder + 1,
+            // MUST be permission-controlled: this page exposes every customer's invoice totals and PDFs.
+            // (It was briefly seeded permission-free by copy-paste from the Operations Dashboard seeder,
+            // which is deliberately open. The security audit caught it.)
+            RequiresPermission = true,
             Active             = true,
         });
         await db.SaveChangesAsync();
