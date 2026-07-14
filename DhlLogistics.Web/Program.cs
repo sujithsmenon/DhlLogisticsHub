@@ -243,6 +243,9 @@ builder.Services.AddScoped<InvoiceService>();
 // does not change.
 builder.Services.AddScoped<BillingGroupService>();
 builder.Services.AddScoped<CustomerInvoiceService>();
+// Advisory duplicate-billing detection (compares operational-record IDs, never bill numbers). Never blocks
+// generation and never modifies a bill — the user's selection stays authoritative.
+builder.Services.AddScoped<DuplicateBillingService>();
 builder.Services.AddScoped<VoucherService>();
 builder.Services.AddScoped<AccountHeadService>();
 // Automatic accounting engine: bill approval → revenue voucher, job approval → expense/payable,

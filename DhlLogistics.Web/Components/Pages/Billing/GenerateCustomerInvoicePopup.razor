@@ -1,5 +1,6 @@
 @inject CustomerInvoiceService InvoiceSvc
 @inject BillingGroupService GroupSvc
+@inject DuplicateBillingService DuplicateSvc
 @inject IToastService ToastService
 
 @*
@@ -42,9 +43,41 @@
     .gci-empty    { padding:18px; text-align:center; color:var(--muted); font-size:12.5px;
                     border:1px dashed var(--border); border-radius:8px; }
     .gci-st       { font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:9px; background:#e9edf3; color:#475569; }
+
+    /* Duplicate highlighting — amber = potential duplicate billing, blue = expected (different bill types) */
+    .gci-card.warn { border-color:#D97706; box-shadow:0 0 0 1px #D97706 inset; }
+    .gci-card.info { border-color:#2563EB; }
+    .gci-flag      { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+                     padding:4px 10px; border-top:1px dashed var(--border); }
+    .gci-flag.warn { color:#92400E; background:#FEF3C7; }
+    .gci-flag.info { color:#1E40AF; background:#DBEAFE; }
+    .gci-dupjob    { outline:2px solid #D97706; outline-offset:2px; border-radius:5px; }
+
+    /* Warning dialog — an in-popup overlay (a nested modal inside a modal is fragile) */
+    .gci-ovl      { position:absolute; inset:0; background:rgba(15,23,42,.45); z-index:20;
+                    display:flex; align-items:center; justify-content:center; padding:16px; }
+    .gci-dlg      { background:var(--card); border-radius:10px; max-width:820px; width:100%;
+                    max-height:88%; overflow:auto; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+    .gci-dlg-hd   { padding:12px 16px; border-bottom:1px solid var(--border); font-weight:800; font-size:15px;
+                    display:flex; align-items:center; gap:8px; }
+    .gci-dlg-bd   { padding:12px 16px; }
+    .gci-dlg-ft   { padding:10px 16px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+    .gci-dtbl     { width:100%; border-collapse:collapse; font-size:12px; }
+    .gci-dtbl th  { text-align:left; font-size:10px; text-transform:uppercase; color:var(--muted);
+                    border-bottom:1px solid var(--border); padding:5px 6px; }
+    .gci-dtbl td  { padding:5px 6px; border-bottom:1px solid var(--border); vertical-align:top; }
+    .gci-sev      { font-size:10px; font-weight:800; padding:1px 8px; border-radius:9px; white-space:nowrap; }
+    .gci-sev.warn { background:#FEF3C7; color:#92400E; }
+    .gci-sev.info { background:#DBEAFE; color:#1E40AF; }
+    .gci-dupsum   { display:flex; flex-wrap:wrap; gap:14px; padding:8px 10px; border:1px solid var(--border);
+                    border-radius:8px; background:var(--surface2); margin-bottom:10px; font-size:12px; }
+    .gci-dupsum b { display:block; font-size:15px; }
+
     @@media (max-width: 768px) {
         .gci-row  { flex-wrap:wrap; }
         .gci-amt  { margin-left:0; width:100%; text-align:left; }
+        .gci-dtbl, .gci-dtbl tbody, .gci-dtbl tr, .gci-dtbl td { display:block; width:100%; }
+        .gci-dtbl thead { display:none; }
     }
 </style>
 
@@ -53,7 +86,94 @@
     <button type="button" class="btn-close e-small" @onclick="Close" aria-label="Close"></button>
 </div>
 
-<div class="modal-body">
+<div class="modal-body" style="position:relative;">
+
+    @* ── Duplicate Billing Warning dialog ────────────────────────────────────
+       Advisory: it NEVER blocks generation and never touches a bill. Default action is
+       Review Selection; Generate Anyway proceeds with the user's selection verbatim and
+       writes an audit entry. *@
+    @if (_showDupDialog && _dup is not null)
+    {
+        <div class="gci-ovl">
+            <div class="gci-dlg">
+                <div class="gci-dlg-hd">
+                    <span>@(_dup.HasWarnings ? "⚠️" : "ℹ️")</span>
+                    <span>Duplicate Billing @(_dup.HasWarnings ? "Warning" : "Information")</span>
+                </div>
+                <div class="gci-dlg-bd">
+                    <div class="gci-dupsum">
+                        <div>Expected Duplicates<b>@_dup.ExpectedCount</b></div>
+                        <div>Potential Duplicate Bills<b>@_dup.PotentialDuplicateBills</b></div>
+                        <div>Potential Duplicate Amount<b>@_dup.PotentialDuplicateAmount.ToString("N2")</b></div>
+                    </div>
+
+                    <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+                        The following operational records appear in more than one selected bill.
+                        @if (!_dup.HasWarnings)
+                        {
+                            <span>All of them are <strong>expected</strong> — the same record billed once per bill
+                            type is normal, because different bill types bill different charges.</span>
+                        }
+                    </p>
+
+                    <table class="gci-dtbl">
+                        <thead>
+                            <tr>
+                                <th>Operational Record</th>
+                                <th>Appears In</th>
+                                <th>Amount</th>
+                                <th>Reason</th>
+                                <th>Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var f in _dup.Findings)
+                            {
+                                var warn = f.Severity >= DuplicateSeverity.Warning;
+                                <tr>
+                                    <td>
+                                        <strong>@f.SourceKey</strong><br />
+                                        <span class="gci-meta">@f.RecordLabel</span>
+                                    </td>
+                                    <td>
+                                        @foreach (var o in f.Occurrences)
+                                        {
+                                            <div>@o.BillType — <strong>@o.BillNo</strong></div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @foreach (var o in f.Occurrences)
+                                        {
+                                            <div>@o.Amount.ToString("N2")</div>
+                                        }
+                                        @if (warn)
+                                        {
+                                            <div style="color:#92400E;font-weight:700;margin-top:3px;">
+                                                at risk: @f.PotentialDuplicateAmount.ToString("N2")
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="gci-meta">@f.Reason</td>
+                                    <td>
+                                        <span class="gci-sev @(warn ? "warn" : "info")">
+                                            @(warn ? "⚠️ Warning" : "ℹ️ Information")
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="gci-dlg-ft">
+                    <SfButton OnClick="@CancelFromDialog" CssClass="e-small">Cancel</SfButton>
+                    <SfButton OnClick="@GenerateAnyway" CssClass="e-small" Disabled="@_busy">Generate Anyway</SfButton>
+                    @* Default action, per spec — primary styling. *@
+                    <SfButton IsPrimary="true" OnClick="@ReviewSelection" CssClass="e-small">Review Selection</SfButton>
+                </div>
+            </div>
+        </div>
+    }
+
     @if (_loading)
     {
         <SfSpinner Visible="true" Label="Loading billing group..." />
@@ -117,6 +237,22 @@
                         <div class="r"><span>Subtotal</span><strong>@SelectedSubTotal.ToString("N2")</strong></div>
                         <div class="r"><span>GST</span><strong>@SelectedGst.ToString("N2")</strong></div>
                         <div class="r total"><span>Grand Total</span><span>@SelectedTotal.ToString("N2")</span></div>
+
+                        @* Duplicate summary — live, recomputed whenever the selection changes. *@
+                        @if (_dup is not null && _dup.HasFindings)
+                        {
+                            <div class="gci-sec" style="margin-top:12px;">Duplicate Records</div>
+                            <div class="r">
+                                <span>ℹ️ Expected Duplicates</span><strong>@_dup.ExpectedCount</strong>
+                            </div>
+                            <div class="r">
+                                <span>⚠️ Potential Duplicate Bills</span><strong>@_dup.PotentialDuplicateBills</strong>
+                            </div>
+                            <div class="r">
+                                <span>Potential Duplicate Amount</span>
+                                <strong>@_dup.PotentialDuplicateAmount.ToString("N2")</strong>
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -143,7 +279,8 @@
 
     [Parameter] public EventCallback LoadOnSaveReference { get; set; }
 
-    private bool _loading = true, _busy;
+    private bool _loading = true, _busy, _showDupDialog;
+    private DuplicateReport? _dup;                       // advisory — recomputed on every selection change
     private List<Bill> _all = new(), _cf = new(), _tb = new();
     private readonly HashSet<long> _selected = new();
     private readonly HashSet<long> _expanded = new();
@@ -191,18 +328,34 @@
             // The bill the user came from starts selected.
             if (CurrentBillId != 0 && _all.Any(b => b.Id == CurrentBillId))
                 _selected.Add(CurrentBillId);
+
+            await AnalyseAsync();
         }
         finally { _loading = false; }
     }
 
     // ── Selection (Bill level only — Jobs are never selectable) ───────────────
-    private void Toggle(long billId)
+    private async Task Toggle(long billId)
     {
         if (!_selected.Remove(billId)) _selected.Add(billId);
+        await AnalyseAsync();
     }
 
-    private void SelectAll() { foreach (var b in _all) _selected.Add(b.Id); }
-    private void ClearAll()  => _selected.Clear();
+    private async Task SelectAll()
+    {
+        foreach (var b in _all) _selected.Add(b.Id);
+        await AnalyseAsync();
+    }
+
+    private async Task ClearAll()
+    {
+        _selected.Clear();
+        await AnalyseAsync();
+    }
+
+    /// <summary>Re-runs duplicate detection for the CURRENT selection. Advisory only — it never changes the
+    /// selection, and never touches a bill.</summary>
+    private async Task AnalyseAsync() => _dup = await DuplicateSvc.AnalyseAsync(_selected.ToList());
 
     private async Task ExpandAll()
     {
@@ -220,17 +373,61 @@
             _sources[billId] = await GroupSvc.GetBillSourceAsync(billId);
     }
 
+    // ── Generate (duplicate check gates the FIRST attempt, never blocks) ──────
+
+    /// <summary>Clicking Generate runs duplicate detection. Findings raise the advisory dialog; the user then
+    /// chooses. With no findings we go straight through — no needless interruption.</summary>
     private async Task Generate()
     {
         if (_selected.Count == 0) return;
+
+        await AnalyseAsync();
+        if (_dup is not null && _dup.HasFindings)
+        {
+            _showDupDialog = true;      // Review Selection is the default action inside the dialog
+            return;
+        }
+        await DoGenerateAsync(overrodeWarning: false);
+    }
+
+    /// <summary>"Review Selection" — back to the bill list with the offending bills highlighted. Nothing
+    /// generated, nothing changed.</summary>
+    private void ReviewSelection() => _showDupDialog = false;
+
+    /// <summary>"Cancel" from the dialog — abandons the whole popup.</summary>
+    private void CancelFromDialog()
+    {
+        _showDupDialog = false;
+        Close();
+    }
+
+    /// <summary>"Generate Anyway" — the user's selection is authoritative. We generate EXACTLY what was
+    /// selected (no bill is removed or altered) and record an audit entry.</summary>
+    private async Task GenerateAnyway()
+    {
+        _showDupDialog = false;
+        await DoGenerateAsync(overrodeWarning: true);
+    }
+
+    private async Task DoGenerateAsync(bool overrodeWarning)
+    {
         _busy = true;
         try
         {
-            var invoice = await InvoiceSvc.GenerateAsync(_selected.ToList());
+            var billIds = _selected.ToList();
+            var invoice = await InvoiceSvc.GenerateAsync(billIds);
+
+            // Audit the override AFTER the invoice exists, so the entry can name it.
+            if (overrodeWarning && _dup is not null)
+                await DuplicateSvc.LogOverrideAsync(invoice, _dup, billIds);
+
             ToastService.Show(new()
             {
                 Title = "Invoice generated",
-                Content = $"Customer invoice {invoice.InvoiceNo} raised over {_selected.Count} bill(s).",
+                Content = $"Customer invoice {invoice.InvoiceNo} raised over {billIds.Count} bill(s)."
+                        + (overrodeWarning && _dup!.HasWarnings
+                            ? $" Duplicate warning overridden ({_dup.WarningCount}) — audit entry recorded."
+                            : ""),
                 CssClass = "e-toast-success",
             });
             if (LoadOnSaveReference.HasDelegate) await LoadOnSaveReference.InvokeAsync();
@@ -248,16 +445,20 @@
     // ── Bill card (checkbox + summary row, expandable read-only job preview) ──
     private RenderFragment BillCard(Bill b) => __builder =>
     {
-        var isSel = _selected.Contains(b.Id);
-        var isExp = _expanded.Contains(b.Id);
+        var isSel  = _selected.Contains(b.Id);
+        var isExp  = _expanded.Contains(b.Id);
+        var isWarn = _dup?.WarningBillIds.Contains(b.Id) == true;   // amber — potential duplicate billing
+        var isInfo = _dup?.InfoBillIds.Contains(b.Id) == true;      // blue  — expected (different bill types)
 
-        <div class="gci-card @(isSel ? "sel" : "")">
+        <div class="gci-card @(isSel ? "sel" : "") @(isWarn ? "warn" : isInfo ? "info" : "")">
             <div class="gci-row" @onclick="() => Expand(b.Id)">
                 @* stopPropagation: ticking the box must not also expand the card *@
                 <input type="checkbox" checked="@isSel"
                        @onclick:stopPropagation="true"
                        @onchange="() => Toggle(b.Id)" />
                 <span class="gci-caret">@(isExp ? "▾" : "▸")</span>
+                @if (isWarn) { <span title="Contains duplicate operational records.">⚠️</span> }
+                else if (isInfo) { <span title="Shares an operational record with another bill type (expected).">ℹ️</span> }
                 <span class="gci-no">@b.BillNo</span>
                 <span class="gci-meta">
                     @b.BillDate.ToString("dd-MMM-yyyy") &nbsp;·&nbsp; @b.Mode
@@ -271,6 +472,16 @@
                 </span>
             </div>
 
+            @* Flag banner — states plainly why the card is highlighted. *@
+            @if (isWarn)
+            {
+                <div class="gci-flag warn">⚠️ Contains duplicate operational records.</div>
+            }
+            else if (isInfo)
+            {
+                <div class="gci-flag info">ℹ️ Shares an operational record with another bill type — expected.</div>
+            }
+
             @if (isExp)
             {
                 <div class="gci-detail">
@@ -283,7 +494,18 @@
                         }
                         else
                         {
-                            <div class="gci-jobgrid">
+                            @* Expanding a flagged bill highlights the duplicated record itself. *@
+                            var dupFinding = _dup?.Findings.FirstOrDefault(f => f.SourceKey == s.SourceKey);
+                            var jobWarn    = dupFinding?.Severity >= DuplicateSeverity.Warning;
+
+                            @if (dupFinding is not null)
+                            {
+                                <div class="gci-flag @(jobWarn ? "warn" : "info")" style="border-top:none;margin-bottom:6px;border-radius:5px;">
+                                    @(jobWarn ? "⚠️" : "ℹ️") @s.SourceKey — @dupFinding.Reason
+                                </div>
+                            }
+
+                            <div class="gci-jobgrid @(dupFinding is not null && jobWarn ? "gci-dupjob" : "")">
                                 @Cell("Record", $"{s.Kind} {s.Number}")
                                 @Cell("Job Type", s.JobType)
                                 @Cell("Shipment Type", s.ShipmentType)
