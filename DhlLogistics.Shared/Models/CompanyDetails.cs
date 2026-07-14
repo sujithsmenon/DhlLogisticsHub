@@ -40,10 +40,27 @@ public class CompanyDetails
     public string? CIN { get; set; }
     public string? IEC { get; set; }
 
-    // ── Logo ────────────────────────────────────────────────────────────────────
-    /// <summary>Web-root-relative path of the uploaded logo (e.g. <c>img/company/logo.png</c>).
-    /// When empty the invoice falls back to the bundled <c>img/pvgt-logo.png</c>.</summary>
+    // ── Branding images ─────────────────────────────────────────────────────────
+    // Stored as BYTES in the DB, not as files on disk. The app runs on Elastic Beanstalk, whose instance
+    // filesystem is per-instance and NOT persistent — an uploaded image written to wwwroot survives only
+    // until the next deploy or scale event, and then the invoice silently loses its branding. This is the
+    // same reason InvoiceDocument keeps its PDF bytes in the DB.
+
+    /// <summary>Legacy: web-root-relative path of a logo uploaded before images moved into the DB.
+    /// Still honoured as a fallback so existing installs keep their logo.</summary>
     public string? LogoPath { get; set; }
+
+    /// <summary>Company logo. Takes precedence over <see cref="LogoPath"/>.</summary>
+    public byte[]? LogoImage { get; set; }
+
+    /// <summary>Authorised signatory's signature, printed above the signature line.</summary>
+    public byte[]? SignatureImage { get; set; }
+
+    /// <summary>Company seal / stamp, printed in the signature area.</summary>
+    public byte[]? SealImage { get; set; }
+
+    /// <summary>Payment QR code, printed beside the bank details.</summary>
+    public byte[]? QrCodeImage { get; set; }
 
     // ── Banking Details ─────────────────────────────────────────────────────────
     public string? BankName { get; set; }
@@ -52,6 +69,9 @@ public class CompanyDetails
     public string? IFSC { get; set; }
     public string? SwiftCode { get; set; }
     public string? Branch { get; set; }
+
+    /// <summary>UPI VPA (e.g. <c>pvgt@hdfcbank</c>), printed with the bank block.</summary>
+    public string? UpiId { get; set; }
 
     // ── Invoice Settings ────────────────────────────────────────────────────────
     public string? AuthorisedSignatory { get; set; }

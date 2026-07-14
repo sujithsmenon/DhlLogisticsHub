@@ -208,8 +208,11 @@ public partial class InvoiceService
             var uploaded = Path.Combine(webRoot, co.LogoPath.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(uploaded)) logoPath = uploaded;
         }
-        // (D) No logo → company name in its place. The layout never breaks on a missing file.
-        if (File.Exists(logoPath))
+        // Logo precedence: DB bytes (survives an EB redeploy) → legacy on-disk path → bundled → company name.
+        // (D) With no logo at all the company name takes its place; the layout never breaks.
+        if (co.LogoImage is { Length: > 0 })
+            logoCell.Add(new Image(ImageDataFactory.Create(co.LogoImage)).ScaleToFit(150, 70));
+        else if (File.Exists(logoPath))
             logoCell.Add(new Image(ImageDataFactory.Create(logoPath)).ScaleToFit(150, 70));
         else
             logoCell.Add(new Paragraph(CoName).SetFont(bold).SetFontSize(16).SetFontColor(navy));
@@ -408,23 +411,43 @@ public partial class InvoiceService
         doc.Add(refs);
 
         // ── (E) Bank details + terms — from Company Master, never hardcoded ────
-        var hasBank = !string.IsNullOrWhiteSpace(co.BankName) || !string.IsNullOrWhiteSpace(co.AccountNumber);
+        var hasBank = !string.IsNullOrWhiteSpace(co.BankName) || !string.IsNullOrWhiteSpace(co.AccountNumber)
+                   || !string.IsNullOrWhiteSpace(co.UpiId);
         var notes = new Table(UnitValue.CreatePercentArray(new float[] { 1, 1 })).UseAllAvailableWidth()
             .SetMarginTop(8).SetKeepTogether(true);
 
-        var bankCell = new Cell().SetBorder(line).SetPadding(6)
+        // Bank details + payment QR, side by side. EVERY value comes from the Company master — nothing here
+        // is hardcoded, and a field left blank is simply omitted rather than printing an empty label.
+        var bankOuter = new Table(UnitValue.CreatePercentArray(new float[] { 2.2f, 1f }))
+            .SetBorder(Border.NO_BORDER).UseAllAvailableWidth();
+
+        var bankCell = new Cell().SetBorder(Border.NO_BORDER).SetPadding(0)
             .Add(new Paragraph("Bank Details").SetFont(bold).SetFontSize(8).SetFontColor(teal));
         if (hasBank)
         {
-            // One account today; the block is a list, so additional accounts drop in without a redesign.
+            // A list of lines, so a second bank account drops in later without a redesign.
             if (!string.IsNullOrWhiteSpace(co.BankName))      bankCell.Add(Small(normal, "Bank: " + co.BankName));
             if (!string.IsNullOrWhiteSpace(co.AccountName))   bankCell.Add(Small(normal, "Account Name: " + co.AccountName));
             if (!string.IsNullOrWhiteSpace(co.AccountNumber)) bankCell.Add(Small(normal, "Account No: " + co.AccountNumber));
             if (!string.IsNullOrWhiteSpace(co.IFSC))          bankCell.Add(Small(normal, "IFSC: " + co.IFSC));
+            if (!string.IsNullOrWhiteSpace(co.SwiftCode))     bankCell.Add(Small(normal, "SWIFT: " + co.SwiftCode));
             if (!string.IsNullOrWhiteSpace(co.Branch))        bankCell.Add(Small(normal, "Branch: " + co.Branch));
+            if (!string.IsNullOrWhiteSpace(co.UpiId))         bankCell.Add(Small(normal, "UPI: " + co.UpiId));
         }
         else bankCell.Add(Small(normal, "-"));
-        notes.AddCell(bankCell);
+        bankOuter.AddCell(bankCell);
+
+        var qrCell = new Cell().SetBorder(Border.NO_BORDER).SetPadding(0)
+            .SetTextAlignment(TextAlignment.RIGHT).SetVerticalAlignment(VerticalAlignment.MIDDLE);
+        if (co.QrCodeImage is { Length: > 0 })
+        {
+            qrCell.Add(new Image(ImageDataFactory.Create(co.QrCodeImage)).ScaleToFit(70, 70));
+            qrCell.Add(new Paragraph("Scan to pay").SetFont(normal).SetFontSize(6.5f)
+                .SetFontColor(ColorConstants.GRAY).SetTextAlignment(TextAlignment.RIGHT));
+        }
+        bankOuter.AddCell(qrCell);
+
+        notes.AddCell(new Cell().SetBorder(line).SetPadding(6).Add(bankOuter));
 
         notes.AddCell(new Cell().SetBorder(line).SetPadding(6)
             .Add(new Paragraph("Terms & Conditions").SetFont(bold).SetFontSize(8).SetFontColor(teal))
@@ -436,12 +459,28 @@ public partial class InvoiceService
         // ── Signature + (9) footer ─────────────────────────────────────────────
         var sign = new Table(UnitValue.CreatePercentArray(new float[] { 1.4f, 1f })).UseAllAvailableWidth()
             .SetMarginTop(18).SetKeepTogether(true);
-        sign.AddCell(new Cell().SetBorder(Border.NO_BORDER)
-            .Add(new Paragraph(CoFooter).SetFont(normal).SetFontSize(7.5f).SetFontColor(ColorConstants.GRAY)));
-        sign.AddCell(new Cell().SetBorder(Border.NO_BORDER).SetTextAlignment(TextAlignment.CENTER).SetPaddingTop(24)
-            .Add(new Paragraph("_______________________").SetFont(normal).SetFontSize(9))
-            .Add(new Paragraph(CoSignatory).SetFont(bold).SetFontSize(8.5f))
-            .Add(new Paragraph("for " + CoName).SetFont(normal).SetFontSize(7.5f)));
+
+        // Left: footer text + company seal (both from the master).
+        var footerCell = new Cell().SetBorder(Border.NO_BORDER)
+            .Add(new Paragraph(CoFooter).SetFont(normal).SetFontSize(7.5f).SetFontColor(ColorConstants.GRAY));
+        if (co.SealImage is { Length: > 0 })
+            footerCell.Add(new Image(ImageDataFactory.Create(co.SealImage)).ScaleToFit(75, 75).SetMarginTop(4));
+        sign.AddCell(footerCell);
+
+        // Right: signature image above the line — or the line alone when none is uploaded, so the block keeps
+        // its shape either way.
+        var signCell = new Cell().SetBorder(Border.NO_BORDER).SetTextAlignment(TextAlignment.CENTER);
+        if (co.SignatureImage is { Length: > 0 })
+        {
+            signCell.Add(new Image(ImageDataFactory.Create(co.SignatureImage))
+                .ScaleToFit(120, 45).SetHorizontalAlignment(HorizontalAlignment.CENTER));
+        }
+        else signCell.SetPaddingTop(24);
+
+        signCell.Add(new Paragraph("_______________________").SetFont(normal).SetFontSize(9).SetMarginTop(0))
+                .Add(new Paragraph(CoSignatory).SetFont(bold).SetFontSize(8.5f))
+                .Add(new Paragraph("for " + CoName).SetFont(normal).SetFontSize(7.5f));
+        sign.AddCell(signCell);
         doc.Add(sign);
 
         doc.Add(new Paragraph(

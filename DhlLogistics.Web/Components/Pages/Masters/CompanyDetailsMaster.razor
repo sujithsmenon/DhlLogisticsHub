@@ -51,6 +51,7 @@
                     <div class="col-md-4 mb-3"><label class="form-Custom-label">IFSC:</label><SfTextBox @bind-Value="@item.IFSC" CssClass="e-small" /></div>
                     <div class="col-md-4 mb-3"><label class="form-Custom-label">SWIFT Code:</label><SfTextBox @bind-Value="@item.SwiftCode" CssClass="e-small" /></div>
                     <div class="col-md-4 mb-3"><label class="form-Custom-label">Bank Branch:</label><SfTextBox @bind-Value="@item.Branch" CssClass="e-small" /></div>
+                    <div class="col-md-4 mb-3"><label class="form-Custom-label">UPI ID:</label><SfTextBox @bind-Value="@item.UpiId" CssClass="e-small" Placeholder="e.g. pvgt@hdfcbank" /></div>
                 </div>
 
                 <h6 class="mb-2">Invoice Settings</h6>
@@ -60,19 +61,61 @@
                     <div class="col-md-12 mb-3"><label class="form-Custom-label">Terms &amp; Conditions:</label><SfTextBox @bind-Value="@item.TermsAndConditions" CssClass="e-small" Multiline="true" /></div>
                 </div>
 
-                <h6 class="mb-2">Logo Upload</h6>
+                @* Branding images. Stored as BYTES in the DB (see CompanyDetails): the EB instance filesystem
+                   is not persistent, so an image written to wwwroot would vanish on the next deploy and the
+                   invoice would silently lose its branding. *@
+                <h6 class="mb-2">Branding &amp; Invoice Images</h6>
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-3 mb-3">
                         <label class="form-Custom-label">Logo:</label>
                         <label class="e-btn e-small" style="margin:0;cursor:pointer;">
-                            <span class="e-icons e-upload"></span> Choose logo…
-                            <InputFile OnChange="OnLogoSelected" accept="image/*" style="display:none;" />
+                            <span class="e-icons e-upload"></span> Choose…
+                            <InputFile OnChange="@(e => OnImageSelected(e, ImageKind.Logo))" accept="image/*" style="display:none;" />
                         </label>
-                        @if (!string.IsNullOrWhiteSpace(item.LogoPath))
+                        @if (Preview(item.LogoImage, item.LogoPath) is { } logo)
                         {
-                            <div class="mt-2"><img src="/@item.LogoPath" style="max-height:60px;max-width:180px;" alt="logo" /></div>
+                            <div class="mt-2"><img src="@logo" style="max-height:60px;max-width:170px;" alt="logo" /></div>
+                            <SfButton OnClick="@(() => Clear(ImageKind.Logo))" CssClass="e-small e-flat mt-1">Remove</SfButton>
                         }
                     </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-Custom-label">Signature:</label>
+                        <label class="e-btn e-small" style="margin:0;cursor:pointer;">
+                            <span class="e-icons e-upload"></span> Choose…
+                            <InputFile OnChange="@(e => OnImageSelected(e, ImageKind.Signature))" accept="image/*" style="display:none;" />
+                        </label>
+                        @if (Preview(item.SignatureImage, null) is { } sig)
+                        {
+                            <div class="mt-2"><img src="@sig" style="max-height:55px;max-width:150px;" alt="signature" /></div>
+                            <SfButton OnClick="@(() => Clear(ImageKind.Signature))" CssClass="e-small e-flat mt-1">Remove</SfButton>
+                        }
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-Custom-label">Seal / Stamp:</label>
+                        <label class="e-btn e-small" style="margin:0;cursor:pointer;">
+                            <span class="e-icons e-upload"></span> Choose…
+                            <InputFile OnChange="@(e => OnImageSelected(e, ImageKind.Seal))" accept="image/*" style="display:none;" />
+                        </label>
+                        @if (Preview(item.SealImage, null) is { } seal)
+                        {
+                            <div class="mt-2"><img src="@seal" style="max-height:70px;max-width:120px;" alt="seal" /></div>
+                            <SfButton OnClick="@(() => Clear(ImageKind.Seal))" CssClass="e-small e-flat mt-1">Remove</SfButton>
+                        }
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-Custom-label">Payment QR:</label>
+                        <label class="e-btn e-small" style="margin:0;cursor:pointer;">
+                            <span class="e-icons e-upload"></span> Choose…
+                            <InputFile OnChange="@(e => OnImageSelected(e, ImageKind.Qr))" accept="image/*" style="display:none;" />
+                        </label>
+                        @if (Preview(item.QrCodeImage, null) is { } qr)
+                        {
+                            <div class="mt-2"><img src="@qr" style="max-height:80px;max-width:80px;" alt="qr" /></div>
+                            <SfButton OnClick="@(() => Clear(ImageKind.Qr))" CssClass="e-small e-flat mt-1">Remove</SfButton>
+                        }
+                    </div>
+                </div>
+                <div class="row">
                     <div class="col-md-3 mb-3"><label class="form-Custom-label">Active:</label><SfCheckBox @bind-Checked="@item.IsActive" Label="Active" /></div>
                 </div>
 
@@ -99,22 +142,61 @@
         finally { loader = false; StateHasChanged(); }
     }
 
-    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    private enum ImageKind { Logo, Signature, Seal, Qr }
+
+    /// <summary>
+    /// Reads the upload into memory and stores the BYTES on the entity — deliberately not onto disk. The app
+    /// runs on Elastic Beanstalk, whose instance filesystem is not persistent: a file written to wwwroot is
+    /// gone after the next deploy or scale event, and the invoice would silently lose its branding. Same
+    /// reason InvoiceDocument keeps its PDF bytes in the DB.
+    /// </summary>
+    private async Task OnImageSelected(InputFileChangeEventArgs e, ImageKind kind)
     {
         try
         {
+            const long maxBytes = 4 * 1024 * 1024;
             var file = e.File;
-            var ext  = Path.GetExtension(file.Name);
-            var dir  = Path.Combine(Env.WebRootPath, "img", "company");
-            Directory.CreateDirectory(dir);
-            var storedName = $"{Guid.NewGuid():N}{ext}";
-            await using (var fs = File.Create(Path.Combine(dir, storedName)))
-                await file.OpenReadStream(5 * 1024 * 1024).CopyToAsync(fs);
-            item.LogoPath = $"img/company/{storedName}";   // web-root-relative
-            ToastService.Show(new() { Title = "Logo", Content = "Logo uploaded. Save to apply.", CssClass = "e-toast-success" });
+            if (file.Size > maxBytes)
+            {
+                ToastService.Show(new() { Title = "Too large", Content = "Image must be 4 MB or smaller.", CssClass = "e-toast-warning" });
+                return;
+            }
+
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxBytes).CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            switch (kind)
+            {
+                case ImageKind.Logo:
+                    item.LogoImage = bytes;
+                    item.LogoPath  = null;   // DB bytes supersede any legacy on-disk path
+                    break;
+                case ImageKind.Signature: item.SignatureImage = bytes; break;
+                case ImageKind.Seal:      item.SealImage      = bytes; break;
+                case ImageKind.Qr:        item.QrCodeImage    = bytes; break;
+            }
+            ToastService.Show(new() { Title = kind.ToString(), Content = $"{kind} uploaded. Save to apply.", CssClass = "e-toast-success" });
         }
         catch (Exception ex) { ToastService.Show(new() { Title = "Error!", Content = ex.Message, CssClass = "e-toast-danger" }); }
     }
+
+    private void Clear(ImageKind kind)
+    {
+        switch (kind)
+        {
+            case ImageKind.Logo:      item.LogoImage = null; item.LogoPath = null; break;
+            case ImageKind.Signature: item.SignatureImage = null; break;
+            case ImageKind.Seal:      item.SealImage = null; break;
+            case ImageKind.Qr:        item.QrCodeImage = null; break;
+        }
+    }
+
+    /// <summary>Preview source: DB bytes as a data URI, else the legacy on-disk path, else nothing.</summary>
+    private static string? Preview(byte[]? bytes, string? legacyPath) =>
+        bytes is { Length: > 0 } ? $"data:image;base64,{Convert.ToBase64String(bytes)}"
+        : !string.IsNullOrWhiteSpace(legacyPath) ? "/" + legacyPath
+        : null;
 
     private async Task Save()
     {

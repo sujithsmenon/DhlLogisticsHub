@@ -338,7 +338,11 @@ public partial class InvoiceService
             var uploaded = Path.Combine(webRoot, co.LogoPath.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(uploaded)) logoPath = uploaded;
         }
-        if (File.Exists(logoPath))
+        // Same precedence as the consolidated invoice: DB bytes (survive an EB redeploy) → legacy on-disk
+        // path → bundled → company name.
+        if (co.LogoImage is { Length: > 0 })
+            logoCell.Add(new Image(ImageDataFactory.Create(co.LogoImage)).ScaleToFit(150, 70));
+        else if (File.Exists(logoPath))
             logoCell.Add(new Image(ImageDataFactory.Create(logoPath)).ScaleToFit(150, 70));
         else
             logoCell.Add(new Paragraph(CoName).SetFont(bold).SetFontSize(16).SetFontColor(navy));
