@@ -63,6 +63,13 @@ public sealed record SearchHit(
 {
     /// <summary>0 = exact, 1 = starts-with, 2 = contains, 3 = matched only on a secondary field. Lower first.</summary>
     public int Rank { get; init; } = 2;
+
+    /// <summary>
+    /// Related records reachable from this hit — the Billing Group chain (Customer Invoice → Bills → Jobs →
+    /// Documents). Rendered under the row so the user sees the context without opening anything.
+    /// Computed from data ALREADY fetched by the provider — never an extra per-row query.
+    /// </summary>
+    public string? Related { get; init; }
 }
 
 /// <summary>A quick action on a result — a label, an icon and a destination route (an existing page).</summary>

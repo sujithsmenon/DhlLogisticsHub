@@ -49,6 +49,31 @@ window.dhlOpenPdf = function (base64, fileName) {
     }
 };
 
+// Universal Search — global shortcut. Ctrl+K (and Ctrl+/) focus the search box from anywhere in the app;
+// Escape blurs it. Bound once; re-binding is a no-op so a Blazor re-render cannot stack listeners.
+window.dhlSearch = {
+    _bound: false,
+    bindShortcut: function (inputId) {
+        if (this._bound) return;
+        this._bound = true;
+
+        document.addEventListener('keydown', function (e) {
+            var input = document.getElementById(inputId);
+            if (!input) return;
+
+            var isK     = (e.key === 'k' || e.key === 'K');
+            var isSlash = (e.key === '/');
+            if ((e.ctrlKey || e.metaKey) && (isK || isSlash)) {
+                e.preventDefault();          // don't let the browser take Ctrl+K for its own search
+                input.focus();
+                input.select();
+                return;
+            }
+            if (e.key === 'Escape' && document.activeElement === input) input.blur();
+        });
+    }
+};
+
 // Layout helpers — keep the hamburger doing the right thing per breakpoint without
 // a continuous resize listener (one cheap call per click → minimal interop chatter).
 window.dhlLayout = {

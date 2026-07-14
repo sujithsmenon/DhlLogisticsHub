@@ -225,6 +225,7 @@ builder.Services.AddScoped<ISearchProvider, ExportJobSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, BillSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, TransportationBillSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, CustomerInvoiceSearchProvider>();
+builder.Services.AddScoped<ISearchProvider, DocumentSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, VoucherSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, ClientSearchProvider>();
 builder.Services.AddScoped<ISearchProvider, TransporterSearchProvider>();

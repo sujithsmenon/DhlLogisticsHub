@@ -48,8 +48,8 @@
                 <div class="search-wrap" @onclick:stopPropagation="true">
                     <div class="topbar-search">
                         <span class="search-icon" aria-hidden="true">🔍</span>
-                        <input class="search-input" type="text"
-                               placeholder="Search anything — jobs, invoices, AWB, containers, clients…"
+                        <input class="search-input" type="text" id="dhl-global-search"
+                               placeholder="Search anything — jobs, invoices, AWB, containers, clients…  (Ctrl+K)"
                                aria-label="Search"
                                value="@_searchTerm"
                                @oninput="OnSearchInput"
@@ -117,12 +117,22 @@
                                         <div class="search-item @(i == _activeIndex ? "active" : "")" @onclick="() => OpenResult(h)">
                                             <span class="search-type">@h.Icon</span>
                                             <div class="search-item-main">
-                                                <div class="search-item-title">@h.Primary</div>
+                                                @* Highlight the matched text inside the result. *@
+                                                <div class="search-item-title">@Highlight(h.Primary)</div>
                                                 @if (!string.IsNullOrWhiteSpace(h.Secondary) || h.Date is not null || !string.IsNullOrWhiteSpace(h.Branch))
                                                 {
                                                     <div class="search-item-sub">
-                                                        @h.Secondary@(string.IsNullOrWhiteSpace(h.Branch) ? "" : $" · {h.Branch}")@(h.Date is null ? "" : $" · {h.Date:dd MMM yyyy}")
+                                                        @Highlight(h.Secondary ?? "")@(string.IsNullOrWhiteSpace(h.Branch) ? "" : $" · {h.Branch}")@(h.Date is null ? "" : $" · {h.Date:dd MMM yyyy}")
+                                                        @if (!string.IsNullOrWhiteSpace(h.Status))
+                                                        {
+                                                            <span> · </span><span class="search-status">@h.Status</span>
+                                                        }
                                                     </div>
+                                                }
+                                                @* Related records — the Billing Group chain (Invoice → Bills → Jobs → Documents). *@
+                                                @if (!string.IsNullOrWhiteSpace(h.Related))
+                                                {
+                                                    <div class="search-item-rel">🔗 @Highlight(h.Related!)</div>
                                                 }
                                                 @if (h.Actions.Count > 0)
                                                 {
@@ -349,6 +359,18 @@
 .search-item-main { flex: 1; min-width: 0; }
 .search-item-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-item-sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Matched text inside a result. Transparent-ish so it reads in both themes. */
+.search-mark {
+    background: rgba(245, 180, 0, .35); color: inherit;
+    border-radius: 3px; padding: 0 1px; font-weight: 700;
+}
+/* Related records — the Billing Group chain under a hit (Invoice → Bills → Jobs → Documents). */
+.search-item-rel {
+    font-size: 10.5px; color: var(--muted); margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-left: 2px solid var(--border); padding-left: 6px;
+}
 .search-status {
     flex-shrink: 0; font-size: 10px; font-weight: 600; color: var(--muted);
     background: var(--surface2); border-radius: 5px; padding: 2px 7px;
@@ -551,6 +573,9 @@
         try { _collapsed = await JS.InvokeAsync<bool>("dhlLayout.getCollapsed"); } catch { }
         StateHasChanged();
 
+        // Global search shortcut — Ctrl+K / Ctrl+/ focus the search box from anywhere.
+        try { await JS.InvokeVoidAsync("dhlSearch.bindShortcut", "dhl-global-search"); } catch { }
+
         await ConnectNotificationHubAsync();
         await RegisterWebPushAsync();
     }
@@ -679,6 +704,54 @@
             _searching = false;
             _searchResponse = null;
         }
+    }
+
+    /// <summary>
+    /// Highlights the matched term inside a result. Matches the way the search itself matches — literally
+    /// AND separator-insensitively — so "INV234354" highlights inside "INV-234354" too. HTML-escapes the text
+    /// first: result text is user data and must never be injected as markup.
+    /// </summary>
+    private MarkupString Highlight(string text)
+    {
+        var term = _searchTerm.Trim();
+        if (string.IsNullOrEmpty(text) || term.Length < 2)
+            return (MarkupString)System.Net.WebUtility.HtmlEncode(text);
+
+        var encoded = System.Net.WebUtility.HtmlEncode(text);
+
+        // 1) literal match
+        var idx = encoded.IndexOf(term, StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+            return (MarkupString)(encoded[..idx]
+                + "<mark class=\"search-mark\">" + encoded.Substring(idx, term.Length) + "</mark>"
+                + encoded[(idx + term.Length)..]);
+
+        // 2) separator-insensitive match — walk the text ignoring - / and spaces.
+        var stripped = SearchQuery.Strip(term);
+        if (stripped.Length < 2) return (MarkupString)encoded;
+
+        int si = 0, start = -1;
+        for (int i = 0; i < encoded.Length && si < stripped.Length; i++)
+        {
+            var c = encoded[i];
+            if (c is '-' or '/' or ' ' or '.') continue;               // separators are skippable
+            if (char.ToLowerInvariant(c) == stripped[si]) { if (si == 0) start = i; si++; }
+            else { si = 0; start = -1; }
+        }
+        if (si == stripped.Length && start >= 0)
+        {
+            // find where the run ended
+            int end = start, matched = 0;
+            while (end < encoded.Length && matched < stripped.Length)
+            {
+                if (encoded[end] is not ('-' or '/' or ' ' or '.')) matched++;
+                end++;
+            }
+            return (MarkupString)(encoded[..start]
+                + "<mark class=\"search-mark\">" + encoded[start..end] + "</mark>"
+                + encoded[end..]);
+        }
+        return (MarkupString)encoded;
     }
 
     private void OnSearchKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)

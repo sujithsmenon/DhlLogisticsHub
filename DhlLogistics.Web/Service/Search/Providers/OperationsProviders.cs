@@ -20,17 +20,26 @@ public sealed class JobOrderSearchProvider : SearchProviderBase
             query = query.Where(j =>
                    EF.Functions.ILike(j.JobOrderNo, like)
                 || EF.Functions.ILike(j.JobOrderNo.Replace("-", "").Replace("/", "").Replace(" ", ""), norm)
-                || (j.CustomerInvoiceNumber != null && EF.Functions.ILike(j.CustomerInvoiceNumber, like))
+                || (j.CustomerInvoiceNumber != null && (EF.Functions.ILike(j.CustomerInvoiceNumber, like)
+                        || EF.Functions.ILike(j.CustomerInvoiceNumber.Replace("-", "").Replace("/", "").Replace(" ", ""), norm)))
                 || EF.Functions.ILike(j.BillingClient!.CompanyName, like)
+                || EF.Functions.ILike(j.Branch!.BranchName, like)
                 || (j.Shipper   != null && EF.Functions.ILike(j.Shipper.CompanyName, like))
                 || (j.Consignee != null && EF.Functions.ILike(j.Consignee.CompanyName, like))
                 || (j.Commodity != null && EF.Functions.ILike(j.Commodity.CommodityName, like))
+                // Ports of loading / discharge.
+                || (j.LoadPort      != null && EF.Functions.ILike(j.LoadPort.PortName, like))
+                || (j.DischargePort != null && EF.Functions.ILike(j.DischargePort.PortName, like))
                 || (j.CargoDescription != null && EF.Functions.ILike(j.CargoDescription, like))
                 || (j.Remarks != null && EF.Functions.ILike(j.Remarks, like)));
 
         var rows = await query.OrderByDescending(j => j.Id).Take(Fetch)
             .Select(j => new { j.Id, j.Mode, j.JobOrderNo, j.CustomerInvoiceNumber, j.Status, j.JobOrderDate,
-                               Client = j.BillingClient!.CompanyName, Branch = j.Branch!.BranchName })
+                               Client = j.BillingClient!.CompanyName, Branch = j.Branch!.BranchName,
+                               LoadPort = j.LoadPort!.PortName, DischargePort = j.DischargePort!.PortName,
+                               // The chain, gathered in the SAME query — no per-row follow-up. (JobOrder has no
+                               // Bills navigation, so the bills are counted by the group key they share.)
+                               BillNos = db.Bills.Where(b => b.JobOrderId == j.Id).Select(b => b.BillNo).ToList() })
             .ToListAsync(ct);
 
         var hits = rows.Select(r =>
@@ -46,9 +55,23 @@ public sealed class JobOrderSearchProvider : SearchProviderBase
                     new QuickAction("Approve", "✅", "/jobs/approve"),
                     new QuickAction("Generate Bill", "💰", billUrl),
                     new QuickAction("Transportation Bill", "🚚", "/bills/transportation"),
-                });
+                })
+                {
+                    Related = RelatedLine(r.CustomerInvoiceNumber, r.BillNos, r.LoadPort, r.DischargePort),
+                };
         });
         return Rank(hits, q, take);
+    }
+
+    /// <summary>The Billing Group chain shown under a job hit — built from the row already fetched.</summary>
+    private static string? RelatedLine(string? cinv, List<string> billNos, string? loadPort, string? dischargePort)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(cinv))       parts.Add($"Group {cinv}");
+        if (billNos.Count > 0)                      parts.Add($"Bills {string.Join(", ", billNos)}");
+        if (!string.IsNullOrWhiteSpace(loadPort) || !string.IsNullOrWhiteSpace(dischargePort))
+            parts.Add($"{loadPort ?? "—"} → {dischargePort ?? "—"}");
+        return parts.Count == 0 ? null : string.Join("  ·  ", parts);
     }
 }
 
