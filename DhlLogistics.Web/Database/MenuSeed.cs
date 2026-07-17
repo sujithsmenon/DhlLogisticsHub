@@ -104,7 +104,7 @@ public static class MenuSeed
         var ops = Group("Operations", "⚙");
         Child(ops, "Operations Dashboard", "📊", "operations/dashboard", requiresPermission: false);
         Child(ops, "AWB Shipments", "✈", "awb");
-        Child(ops, "Export Jobs",   "📤", "export");
+        Child(ops, "Sea Shipments", "📤", "export");   // module renamed from "Export Jobs" (route unchanged)
         Child(ops, "Jobs",          "📋", "jobs");
         Child(ops, "Live Tracking", "🗺", "tracking");
         Child(ops, "Cargo",         "📦", "cargo");
@@ -380,6 +380,25 @@ public static class MenuSeed
             RequiresPermission = true,
             Active             = true,
         });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Idempotent display-name fixup: the "Export Jobs" module was renamed to <b>Sea Shipments</b>
+    /// (user-facing text only — the /export route, ExportJob entities, permissions and data are all
+    /// unchanged). <see cref="SeedAsync"/> only runs on an empty table, so already-seeded installs keep
+    /// the old menu text forever without this. Keyed on PageName + the OLD name, so a menu row an admin
+    /// has hand-renamed is never clobbered. Safe on every startup.
+    /// </summary>
+    public static async Task EnsureSeaShipmentsMenuNameAsync(IDbContextFactory<AppDbContext> factory)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+
+        var exportMenu = await db.Menus.FirstOrDefaultAsync(
+            m => m.PageName == "export" && m.MenuName == "Export Jobs");
+        if (exportMenu is null) return;   // fresh DB (SeedAsync covers it), already renamed, or hand-edited
+
+        exportMenu.MenuName = "Sea Shipments";
         await db.SaveChangesAsync();
     }
 

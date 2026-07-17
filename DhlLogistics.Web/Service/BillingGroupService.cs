@@ -29,7 +29,7 @@ public sealed record BillingGroupDoc(
 public sealed record BillSourceDetail(
     long    BillId,
     string? SourceKey,       // null when the bill is standalone (nothing to duplicate)
-    string  Kind,            // "Clearance Job" | "Forwarding Job" | "Export Job" | "AWB Shipment" | "Standalone"
+    string  Kind,            // "Clearance Job" | "Forwarding Job" | "Sea Shipment" | "AWB Shipment" | "Standalone"
     string? Number,
     string? JobType,
     string? ShipmentType,
@@ -190,7 +190,7 @@ public class BillingGroupService
             .Where(e => e.CustomerInvoiceNumber != null && e.CustomerInvoiceNumber.ToLower() == lower)
             .OrderBy(e => e.Id)
             .Select(e => new BillingGroupDoc(
-                "Export Job", e.Id, e.JobReference, e.ReceivedAt,
+                "Sea Shipment", e.Id, e.JobReference, e.ReceivedAt,
                 e.CustomerName, null, e.Status.ToString(), null, null, e.Notes, "/export"))
             .ToListAsync(ct);
 
@@ -312,7 +312,7 @@ public class BillingGroupService
 
         // …and the operational records by module.
         var jobs    = group.Jobs.Where(j => j.Kind == "Job").ToList();
-        var exports = group.Jobs.Where(j => j.Kind == "Export Job").ToList();
+        var exports = group.Jobs.Where(j => j.Kind == "Sea Shipment").ToList();
         var awbs    = group.Jobs.Where(j => j.Kind == "AWB Shipment").ToList();
 
         // Consolidated-invoice header + audit.
@@ -507,7 +507,7 @@ public class BillingGroupService
                     .FirstOrDefaultAsync(ct);
 
                 if (e is null) return Standalone(billId);
-                return new BillSourceDetail(billId, $"EXP:{e.Id}", "Export Job",
+                return new BillSourceDetail(billId, $"EXP:{e.Id}", "Sea Shipment",
                     e.JobReference, "Export", "Export",
                     null, e.CustomerName, e.ShippingBillNumber, e.ContainerNumber, e.VehicleNumber,
                     null, e.VesselName, (decimal)e.GrossWeightKg, e.Pieces, e.Notes);

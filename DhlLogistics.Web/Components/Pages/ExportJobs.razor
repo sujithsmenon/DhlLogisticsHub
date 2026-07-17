@@ -5,10 +5,10 @@
 <!-- ── Header ────────────────────────────────────────────────────────────── -->
 <div class="page-hdr">
     <div>
-        <h1>Export Jobs</h1>
-        <div class="sub">@_all.Count job(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
+        <h1>Sea Shipments</h1>
+        <div class="sub">@_all.Count shipment(s) &nbsp;·&nbsp; @_filtered.Count shown</div>
     </div>
-    <button class="btn-dhl-outline" @onclick="ShowNewForm">+ New Export Job</button>
+    <button class="btn-dhl-outline" @onclick="ShowNewForm">+ New Sea Shipment</button>
 </div>
 
 <!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
@@ -22,7 +22,7 @@
 
 @if (_loading)
 {
-    <div class="loading-wrap">Loading export jobs…</div>
+    <div class="loading-wrap">Loading sea shipments…</div>
 }
 else
 {
@@ -30,7 +30,7 @@ else
 
         <!-- ── List panel ──────────────────────────────────────────────────── -->
         <div class="card">
-            <div class="card-head">Job List <span class="tag">@_filtered.Count</span></div>
+            <div class="card-head">Shipment List <span class="tag">@_filtered.Count</span></div>
             <div class="scroll-y" style="max-height:calc(100vh - 260px);">
                 @foreach (var job in _filtered)
                 {
@@ -57,7 +57,7 @@ else
                 }
                 @if (!_filtered.Any())
                 {
-                    <div class="empty-state">No export jobs match this filter</div>
+                    <div class="empty-state">No sea shipments match this filter</div>
                 }
             </div>
         </div>
@@ -67,14 +67,14 @@ else
             @if (_sel is null && !_showNewForm)
             {
                 <div class="card">
-                    <div class="card-body empty-state">Select a job to see details</div>
+                    <div class="card-body empty-state">Select a shipment to see details</div>
                 </div>
             }
 
             @if (_showNewForm)
             {
                 <div class="card">
-                    <div class="card-head">New Export Job</div>
+                    <div class="card-head">New Sea Shipment</div>
                     <div class="card-body">
                         <div class="form-grid">
                             <label>DHL Pick Confirmation No.<input class="dhl-input" @bind="_form.JobReference" placeholder="DHL-2026-XXXXX" /></label>

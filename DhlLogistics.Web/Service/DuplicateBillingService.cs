@@ -246,7 +246,7 @@ public class DuplicateBillingService
             case "EXP":
                 var e = await _db.ExportJobs.AsNoTracking().Where(x => x.Id == (int)id)
                     .Select(x => x.JobReference).FirstOrDefaultAsync(ct);
-                return e is null ? sourceKey : $"Export Job {e}";
+                return e is null ? sourceKey : $"Sea Shipment {e}";
             default:
                 return sourceKey;
         }

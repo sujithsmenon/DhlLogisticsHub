@@ -120,12 +120,13 @@ public sealed class AwbSearchProvider : SearchProviderBase
     }
 }
 
-// ── Export jobs ───────────────────────────────────────────────────────────────
+// ── Sea shipments (ExportJob entity — module renamed for display; route/data unchanged) ──
 public sealed class ExportJobSearchProvider : SearchProviderBase
 {
-    public override string   Module          => "Export Jobs";
+    public override string   Module          => "Sea Shipments";
     public override string   Icon            => "🚢";
-    public override string[] Keywords        => new[] { "export", "sb", "shippingbill", "booking" };
+    // Old keywords kept so users who still type "export" keep finding the module.
+    public override string[] Keywords        => new[] { "sea", "seashipment", "shipment", "export", "sb", "shippingbill", "booking" };
     public override string[] PermissionPaths => new[] { "export" };
 
     public override async Task<List<SearchHit>> SearchAsync(AppDbContext db, SearchQuery q, int take, CancellationToken ct)

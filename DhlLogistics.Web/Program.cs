@@ -422,6 +422,8 @@ using (var scope = app.Services.CreateScope())
         // Additively insert the Masters → Company Details leaf on already-seeded installs.
         await DhlLogistics.Web.Database.MenuSeed.EnsureCompanyDetailsMenuAsync(menuFactory);
         await DhlLogistics.Web.Database.MenuSeed.EnsureCustomerInvoiceMenuAsync(menuFactory);
+        // Rename the "Export Jobs" menu entry to "Sea Shipments" on already-seeded installs (display only).
+        await DhlLogistics.Web.Database.MenuSeed.EnsureSeaShipmentsMenuNameAsync(menuFactory);
     }
     catch (Exception ex)
     {

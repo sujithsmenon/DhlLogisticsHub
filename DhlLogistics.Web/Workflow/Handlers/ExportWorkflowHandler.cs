@@ -12,7 +12,8 @@ public sealed class ExportWorkflowHandler : IWorkflowHandler
     private readonly AppDbContext _db;
     public ExportWorkflowHandler(AppDbContext db) => _db = db;
 
-    public string Module     => "Export Job";
+    // Display name only — the entity/table/route stay "ExportJob"/"/export" (module renamed 2026-07-17).
+    public string Module     => "Sea Shipment";
     public string EntityType => "ExportJob";
 
     private static ExportJob Job(IWorkflowContext ctx) => (ExportJob)ctx.Entity;
@@ -50,7 +51,7 @@ public sealed class ExportWorkflowHandler : IWorkflowHandler
         {
             ExportJobId   = job.Id,
             EventType     = "Created",
-            Description   = $"Export job created. Customer: {job.CustomerName}. Ref: {job.JobReference}.",
+            Description   = $"Sea shipment created. Customer: {job.CustomerName}. Ref: {job.JobReference}.",
             CreatedByName = ctx.User,
             CreatedAt     = DateTime.UtcNow,
         });
