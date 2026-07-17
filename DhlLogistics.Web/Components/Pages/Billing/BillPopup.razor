@@ -543,6 +543,11 @@
         {
             var e = await Service.GetByIdAsync(Id);
             if (e is not null) { item = e; Recalc(); }
+            // Draft-only synchronization: a job-raised Transportation bill re-inherits the job's
+            // Transport-category charges every time it is (re)opened, matched by SourceJobChargeId so
+            // repeated refreshes never duplicate a row. No-op for any other mode/status — from Submitted
+            // onward the charges are immutable. Persists immediately, so Submit uses the synced totals.
+            await TransportService.SyncDraftBillFromJobAsync(item);
             if (item.JobOrderId.HasValue)
                 _job = await JobOrderService.GetByIdAsync(item.JobOrderId.Value);
             await LoadDocumentsAsync();
@@ -566,6 +571,14 @@
             item = _job is not null
                 ? BillService.PrepareForJob(_job, Mode)
                 : new Bill { Mode = Mode, BillDate = DateTime.UtcNow.Date, ExchangeRate = 1m };
+            // A job-raised Transportation bill inherits the job's Transport-category charges (only). No
+            // Transportation charges on the job → the bill must not be created; close without a bill.
+            if (Mode == BillMode.Transportation && _job is not null
+                && !await TransportService.PopulateJobChargesAsync(item))
+            {
+                Toast(TransportationBillService.NoTransportChargesMessage);
+                _abortOpen = true;
+            }
             Recalc();
         }
         else
@@ -591,6 +604,17 @@
                 item.BillingClientId = _job.BillingClientId;
                 item.CustomerInvoiceNumber = _job.CustomerInvoiceNumber;   // carry the customer's invoice ref
                 if (_job.CurrencyId.HasValue) item.CurrencyId = _job.CurrencyId;
+
+                // Linking a job to a Draft Transportation bill inherits the job's Transport-category
+                // charges (idempotent by SourceJobChargeId). None on the job → the link can't produce a
+                // billable TB bill; warn now — the workflow guard will refuse the save regardless.
+                if (item.Mode == BillMode.Transportation && item.Status == BillStatus.Draft)
+                {
+                    item.Charges.RemoveAll(c => c.SourceJobChargeId.HasValue);   // drop the OLD job's lines
+                    if (!await TransportService.PopulateJobChargesAsync(item))
+                        Toast(TransportationBillService.NoTransportChargesMessage);
+                    Recalc();
+                }
             }
         }
         else
@@ -600,6 +624,9 @@
             // invoice). BillWorkflowHandler enforces the same rule on save; this just keeps the field honest
             // on screen. A user-entered reference on a genuinely standalone bill can still be typed back in.
             item.CustomerInvoiceNumber = null;
+            // Charges inherited from the job leave with it — they belong to the job's transport leg,
+            // not to a standalone bill. Manually keyed lines stay.
+            if (item.Charges.RemoveAll(c => c.SourceJobChargeId.HasValue) > 0) Recalc();
             _job = null;
         }
     }
@@ -637,6 +664,20 @@
     }
 
     private void Recalc() => BillService.RecalcTotals(item);
+
+    /// <summary>Set during init when the popup must not open at all (e.g. raising a Transportation bill
+    /// from a job that has no Transportation charges). The modal can only be dismissed once rendered,
+    /// so the toast fires in init and the close happens on first render.</summary>
+    private bool _abortOpen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _abortOpen)
+        {
+            await Task.Yield();                      // let the first render (and the toast) land
+            Modal?.Close(ModalResult.Cancel());
+        }
+    }
 
     /// <summary>True while a save is in flight — see <see cref="Save"/>.</summary>
     private bool _saving;

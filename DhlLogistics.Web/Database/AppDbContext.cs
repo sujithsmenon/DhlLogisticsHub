@@ -354,6 +354,9 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .OnDelete(DeleteBehavior.SetNull);
         // Plain reference back to the source operation (no FK — an issued bill stays stable). Indexed for grouping.
         mb.Entity<BillCharge>().HasIndex(c => c.JobOperationId);
+        // Plain reference back to the source JobCharge (no FK — same stability rule). Indexed: the Draft-bill
+        // charge sync matches incoming job charges on this id.
+        mb.Entity<BillCharge>().HasIndex(c => c.SourceJobChargeId);
 
         mb.Entity<BillEvent>()
             .HasOne(e => e.Bill).WithMany(b => b.Events).HasForeignKey(e => e.BillId)

@@ -7,6 +7,7 @@
 @inject CommodityService CommodityService
 @inject PortService PortService
 @inject LogisticsService Logistics
+@inject TransportationBillService TransportService
 @inject SfDialogService DialogService
 @inject IToastService ToastService
 <style>
@@ -387,6 +388,13 @@
         if (job.Status != JobOrderStatus.Approved && job.Status != JobOrderStatus.Closed)
         {
             ToastService.Show(new() { Title = "Not billable", Content = "Only Approved or Closed jobs can be billed.", CssClass = "e-toast-warning" });
+            return;
+        }
+        // A job-raised TB bill inherits the job's Transportation charges — no charges, no bill.
+        // (BillPopup and the Bill workflow enforce the same rule; this check just fails fast.)
+        if (!await TransportService.HasTransportChargesAsync(job.Id))
+        {
+            ToastService.Show(new() { Title = "Not billable", Content = TransportationBillService.NoTransportChargesMessage, CssClass = "e-toast-warning" });
             return;
         }
         var o = new BsModalOptions();

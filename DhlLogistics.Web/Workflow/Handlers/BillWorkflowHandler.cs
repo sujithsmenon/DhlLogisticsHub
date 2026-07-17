@@ -34,6 +34,18 @@ public sealed class BillWorkflowHandler : IWorkflowHandler
         if (bill.BillingClientId == 0) ctx.Abort("Billing Client is required.");
         if (bill.Charges.Count == 0)   ctx.Abort("At least one charge is required.");
 
+        // A Transportation bill raised from a Clearance/Forwarding job inherits the job's Transport-category
+        // charges — so it cannot come into existence while the job has none. Enforced here (the choke point
+        // every manual create passes through); the job-list launchers and BillPopup pre-check only for UX.
+        // Standalone TB bills and AWB/Export-sourced ones have no JobOrder and are unaffected.
+        if (ctx.Operation == WorkflowOperationType.Create
+            && bill.Mode == BillMode.Transportation
+            && bill.JobOrderId is { } jobId2)
+        {
+            var (src, _) = await TransportationBillService.LoadTransportChargesAsync(_db, jobId2);
+            if (src.Count == 0) ctx.Abort(TransportationBillService.NoTransportChargesMessage);
+        }
+
         await InheritCustomerInvoiceNumberAsync(bill);
     }
 

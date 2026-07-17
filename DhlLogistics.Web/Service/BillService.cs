@@ -186,9 +186,9 @@ public class BillService
             bill.CreatedOn = DateTime.UtcNow;
 
             // Carry the job's sale charge lines onto the bill so the auto-generated bill already holds the
-            // full charge set (Qty / Rate / GST / Amount / Net) and totals — nothing is re-keyed. Only the
-            // job's PRIMARY-mode bill inherits the charges; a secondary Transportation (TB) bill starts empty
-            // (its transport charges are billed separately), matching the existing header-only TB behaviour.
+            // full charge set (Qty / Rate / GST / Amount / Net) and totals — nothing is re-keyed. The job's
+            // PRIMARY-mode bill inherits every charge; a secondary Transportation (TB) bill inherits ONLY the
+            // job's Transport-category lines (see the else-branch below).
             if (mode == BillModeFor(job.Mode))
             {
                 var jobCharges = await _db.JobCharges
@@ -231,6 +231,16 @@ public class BillService
                     });
                 }
             }
+            else if (mode == BillMode.Transportation)
+            {
+                // A job-raised TB bill inherits ONLY the job's Transportation-category charges (Clearance /
+                // Documentation / CHA / Warehouse / … stay on the primary bill). No Transportation charges on
+                // the job → the bill must not be created at all; the message tells the user what to add.
+                var (src, opNames) = await TransportationBillService.LoadTransportChargesAsync(_db, job.Id);
+                if (src.Count == 0)
+                    throw new InvalidOperationException(TransportationBillService.NoTransportChargesMessage);
+                TransportationBillService.ApplyTransportCharges(bill, src, opNames);
+            }
 
             RecalcTotals(bill);                         // computes Amount/GST/Net per line + bill totals
             _db.Bills.Add(bill);
@@ -247,6 +257,17 @@ public class BillService
         existing.CustomerInvoiceNumber = job.CustomerInvoiceNumber;   // stay in sync with the source job
         existing.ModifiedBy      = user;
         existing.ModifiedOn      = DateTime.UtcNow;
+
+        // A still-Draft Transportation bill keeps mirroring the job's Transport-category charges
+        // (update-in-place by SourceJobChargeId — never duplicates; removes lines deleted on the job).
+        // From Submitted onward the charges are immutable and are never re-synchronized.
+        if (mode == BillMode.Transportation && existing.Status == BillStatus.Draft)
+        {
+            await _db.Entry(existing).Collection(b => b.Charges).LoadAsync();
+            var (src, opNames) = await TransportationBillService.LoadTransportChargesAsync(_db, job.Id);
+            TransportationBillService.ApplyTransportCharges(existing, src, opNames);
+            RecalcTotals(existing);
+        }
         await _db.SaveChangesAsync();
         await LogEventAsync(existing.Id, BillEventType.Updated, $"Synced from job {job.JobOrderNo}.", user);
         return existing;

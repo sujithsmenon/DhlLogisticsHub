@@ -36,6 +36,14 @@ public class BillCharge
     /// charges inside billing. Null = a general charge not tied to any operation.</summary>
     public string? OperationName { get; set; }
 
+    /// <summary>Id of the <see cref="JobCharge"/> this line was inherited from, when the line was copied
+    /// off a job (e.g. Transportation charges pulled onto a job-raised TB bill). Plain reference — no FK —
+    /// same rationale as <see cref="JobOperationId"/>. It is the idempotency key for charge synchronization:
+    /// re-syncing a Draft bill matches on this id and updates in place instead of inserting duplicates, and
+    /// removes lines whose source charge was deleted from the job. Null = a manually keyed bill line, which
+    /// sync never touches.</summary>
+    public long? SourceJobChargeId { get; set; }
+
     /// <summary>Functional bucket (Labour / Freight / Transport / Customs / …).</summary>
     public ChargeCategory Category { get; set; } = ChargeCategory.General;
 
