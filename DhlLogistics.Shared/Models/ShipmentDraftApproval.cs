@@ -43,6 +43,14 @@ public class ShipmentDraftApproval
 
     // ── Review state ──
     public string Status { get; set; } = DraftApprovalStatus.Pending;
+
+    // ── Phase 4: link to the shipment created from this approved draft ──
+    /// <summary>"Awb" | "Export" once a shipment has been created; null until then.</summary>
+    public string? CreatedShipmentType { get; set; }
+    /// <summary>Id of the created AwbShipment / ExportJob; null until created (idempotency guard).</summary>
+    public int? CreatedShipmentId { get; set; }
+    public DateTime? ShipmentCreatedAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ReviewedAt { get; set; }
     public string? ReviewedBy { get; set; }

@@ -3,6 +3,7 @@
 @using DhlLogistics.Web.Service.Ai
 @using DhlLogistics.Shared.Models
 @inject DraftApprovalService Approvals
+@inject ShipmentFromDraftService ShipmentCreator
 @inject AuthenticationStateProvider AuthState
 
 <!-- ── Header ────────────────────────────────────────────────────────────── -->
@@ -166,10 +167,18 @@ else
     {
         if (_sel is null) return;
         _busy = true;
+        var approvalId = _sel.Id;
         var ok = await Approvals.ApproveAsync(_sel, _reviewer);
+        if (!ok) { _busy = false; _msg = "Draft is no longer pending."; return; }
+
+        // Phase 4: approved → create the AWB / Sea shipment (reusing existing services).
+        var result = await ShipmentCreator.CreateFromApprovedDraftAsync(approvalId);
         _busy = false;
-        if (ok) { _sel = null; await Reload(); _msg = "Draft approved."; }
-        else { _msg = "Draft is no longer pending."; }
+        _sel = null;
+        await Reload();
+        _msg = result.Success
+            ? $"Draft approved · {result.Message}"
+            : $"Draft approved, but shipment not created: {result.Message}";
     }
 
     private async Task Reject()
