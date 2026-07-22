@@ -175,6 +175,8 @@ builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.EmailAiReaderService>();
 builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.DraftApprovalService>();
 // Phase 4: create AWB / Sea shipment from an approved draft (reuses existing services).
 builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.ShipmentFromDraftService>();
+// Phase 5: second approval → create Clearing/Forwarding JobOrder (reuses JobOrderService).
+builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.ShipmentJobApprovalService>();
 
 // ── M2 master CRUD services ──────────────────────────────────────────────────
 builder.Services.AddScoped<CountryService>();

@@ -29,17 +29,20 @@ public class ShipmentFromDraftService
     private readonly IDbContextFactory<AppDbContext> _dbf;
     private readonly AwbShipmentService _awb;
     private readonly ExportJobService _export;
+    private readonly ShipmentJobApprovalService _jobApprovals;
     private readonly ILogger<ShipmentFromDraftService> _log;
 
     public ShipmentFromDraftService(
         IDbContextFactory<AppDbContext> dbf,
         AwbShipmentService awb,
         ExportJobService export,
+        ShipmentJobApprovalService jobApprovals,
         ILogger<ShipmentFromDraftService> log)
     {
         _dbf = dbf;
         _awb = awb;
         _export = export;
+        _jobApprovals = jobApprovals;
         _log = log;
     }
 
@@ -93,6 +96,18 @@ public class ShipmentFromDraftService
         }
 
         _log.LogInformation("Draft {Id} -> {Kind} shipment {ShipmentId} created.", approvalId, kind, shipmentId);
+
+        // Phase 5: queue the SECOND approval on the created shipment (best-effort;
+        // never fails the shipment creation).
+        try
+        {
+            await _jobApprovals.QueueAsync(draft, kind == ShipmentKind.Awb ? "Awb" : "Export", shipmentId, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Shipment {ShipmentId} created but second-approval queue failed.", shipmentId);
+        }
+
         return new ShipmentCreationResult(true, kind, shipmentId, $"{kind} shipment #{shipmentId} created.");
     }
 

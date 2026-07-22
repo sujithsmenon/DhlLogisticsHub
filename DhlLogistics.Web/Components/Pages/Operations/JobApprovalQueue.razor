@@ -1,0 +1,177 @@
+@page "/job-approvals"
+@using System.Security.Claims
+@using DhlLogistics.Web.Service.Ai
+@using DhlLogistics.Shared.Models
+@inject ShipmentJobApprovalService JobApprovals
+@inject AuthenticationStateProvider AuthState
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<div class="page-hdr">
+    <div>
+        <h1>Job Approvals (2nd gate)</h1>
+        <div class="sub">Phase 5 · approve a created shipment to open a Clearing / Forwarding job</div>
+    </div>
+    <button class="btn-dhl-outline" @onclick="Reload">Refresh</button>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-wrap">Loading queue…</div>
+}
+else
+{
+    <div class="equal-col" style="align-items:start;">
+
+        <!-- ── Pending queue ─────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-head">Pending <span class="tag">@_pending.Count</span></div>
+            <div class="scroll-y" style="max-height:calc(100vh - 240px);">
+                @if (_pending.Count == 0)
+                {
+                    <div class="sub" style="padding:12px;">No shipments awaiting job approval.</div>
+                }
+                @foreach (var a in _pending)
+                {
+                    <div class="data-row @(_sel?.Id == a.Id ? "selected" : "")" @onclick="() => Select(a.Id)">
+                        <div style="font-weight:600;">@a.ShipmentKind #@a.ShipmentId · @a.ProposedMode</div>
+                        <div class="sub">@(a.DhlInvoiceNumber ?? a.EmailSubject) · @(a.CustomerName ?? "—")</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- ── Review panel ──────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-head">Create Job</div>
+            @if (_sel is null)
+            {
+                <div class="sub" style="padding:12px;">Select a shipment to review.</div>
+            }
+            else
+            {
+                <div style="padding:12px;">
+                    <div class="sub" style="margin-bottom:12px;">
+                        Source: @_sel.ShipmentKind #@_sel.ShipmentId ·
+                        @($"{_sel.ShipmentMode} {_sel.ShipmentDirection}") ·
+                        Invoice @(_sel.DhlInvoiceNumber ?? "—")
+                    </div>
+
+                    <div class="form-grid">
+                        <label>Job Type
+                            <select class="dhl-input" @bind="_mode">
+                                <option value="@JobMode.Clearance">Clearing (Clearance)</option>
+                                <option value="@JobMode.Forwarding">Forwarding</option>
+                            </select>
+                        </label>
+                        <label>Billing Client
+                            <select class="dhl-input" @bind="_clientId">
+                                <option value="0">— select / auto-create from customer —</option>
+                                @foreach (var c in _clients)
+                                {
+                                    <option value="@c.Id">@c.CompanyName</option>
+                                }
+                            </select>
+                        </label>
+                        <label>Customer Invoice No (master ref)
+                            <input class="dhl-input" @bind="_invoice" />
+                        </label>
+                    </div>
+                    <div class="sub" style="margin-top:8px;">
+                        If no client is selected, one is resolved/created from
+                        "@(_sel.CustomerName ?? "the email customer")". Parties can be refined later in the Job screen.
+                    </div>
+
+                    <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;">
+                        <button class="btn-dhl" disabled="@_busy" @onclick="Approve">Approve &amp; Create Job</button>
+                        <button class="btn-dhl-outline" disabled="@_busy" @onclick="() => _showReject = true">Reject</button>
+                        @if (_msg is not null) { <span class="sub">@_msg</span> }
+                    </div>
+
+                    @if (_showReject)
+                    {
+                        <div style="margin-top:12px;">
+                            <label>Reason for rejection
+                                <input class="dhl-input" @bind="_rejectReason" placeholder="Why is this rejected?" />
+                            </label>
+                            <div style="display:flex;gap:8px;margin-top:8px;">
+                                <button class="btn-dhl" disabled="@_busy" @onclick="Reject">Confirm Reject</button>
+                                <button class="btn-dhl-outline" @onclick="() => _showReject = false">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px 14px; }
+    .form-grid label { display:flex; flex-direction:column; font-size:13px; color:#6b7280; gap:4px; }
+</style>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private bool _showReject;
+    private string _rejectReason = string.Empty;
+    private string? _msg;
+    private string _reviewer = "User";
+
+    private List<ShipmentJobApproval> _pending = new();
+    private List<DhlClient> _clients = new();
+    private ShipmentJobApproval? _sel;
+
+    // Review inputs
+    private JobMode _mode = JobMode.Clearance;
+    private int _clientId;
+    private string _invoice = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var u = state.User;
+        _reviewer = u.FindFirst(ClaimTypes.Name)?.Value ?? u.Identity?.Name ?? "User";
+        _clients = await JobApprovals.GetClientsAsync();
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _loading = true;
+        _pending = await JobApprovals.GetByStatusAsync(DraftApprovalStatus.Pending);
+        _loading = false;
+    }
+
+    private void Select(int id)
+    {
+        _msg = null; _showReject = false; _rejectReason = string.Empty;
+        _sel = _pending.FirstOrDefault(a => a.Id == id);
+        if (_sel is null) return;
+        _mode = _sel.ProposedMode;
+        _clientId = 0;
+        _invoice = _sel.DhlInvoiceNumber ?? string.Empty;
+    }
+
+    private async Task Approve()
+    {
+        if (_sel is null) return;
+        _busy = true;
+        var result = await JobApprovals.ApproveAsync(_sel.Id, _reviewer, _mode, _clientId, _invoice);
+        _busy = false;
+        if (result.Success) { _sel = null; await Reload(); _msg = result.Message; }
+        else { _msg = result.Message; }
+    }
+
+    private async Task Reject()
+    {
+        if (_sel is null) return;
+        _busy = true;
+        var ok = await JobApprovals.RejectAsync(_sel.Id, _reviewer,
+            string.IsNullOrWhiteSpace(_rejectReason) ? "Rejected" : _rejectReason);
+        _busy = false;
+        _showReject = false;
+        if (ok) { _sel = null; await Reload(); _msg = "Rejected."; }
+        else { _msg = "No longer pending."; }
+    }
+}
