@@ -177,6 +177,8 @@ builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.DraftApprovalService>();
 builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.ShipmentFromDraftService>();
 // Phase 5: second approval → create Clearing/Forwarding JobOrder (reuses JobOrderService).
 builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.ShipmentJobApprovalService>();
+// Phase 7: read-only pipeline timeline keyed by the DHL Invoice Number (master ref).
+builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.PipelineTimelineService>();
 
 // ── M2 master CRUD services ──────────────────────────────────────────────────
 builder.Services.AddScoped<CountryService>();

@@ -1,0 +1,128 @@
+@page "/pipeline"
+@using DhlLogistics.Web.Service.Ai
+@inject PipelineTimelineService Timeline
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<div class="page-hdr">
+    <div>
+        <h1>Shipment Pipeline Timeline</h1>
+        <div class="sub">Phase 7 · everything for one DHL Invoice Number (master reference), searchable &amp; read-only</div>
+    </div>
+</div>
+
+<!-- ── Search ─────────────────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:12px;">
+    <div style="padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input class="dhl-input" style="max-width:340px;" placeholder="Search DHL Invoice No / reference…"
+               @bind="_term" @bind:event="oninput" @onkeyup="OnKey" />
+        <button class="btn-dhl-outline" @onclick="Search">Search</button>
+        @if (_refs.Count > 0)
+        {
+            <span class="sub">@_refs.Count reference(s)</span>
+        }
+    </div>
+    @if (_refs.Count > 0)
+    {
+        <div class="scroll-y" style="max-height:180px;border-top:1px solid #eee;">
+            @foreach (var r in _refs)
+            {
+                <div class="data-row @(_ref == r ? "selected" : "")" @onclick="() => Load(r)">
+                    <span class="mono" style="font-weight:600;">@r</span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- ── Timeline ───────────────────────────────────────────────────────────── -->
+@if (_busy)
+{
+    <div class="loading-wrap">Building timeline…</div>
+}
+else if (_timeline is not null)
+{
+    <div class="card">
+        <div class="card-head">
+            Timeline · <span class="mono">@_timeline.Reference</span>
+            <span class="tag">@_timeline.Entries.Count events</span>
+        </div>
+        @if (_timeline.IsEmpty)
+        {
+            <div class="sub" style="padding:12px;">No linked records found for this reference.</div>
+        }
+        else
+        {
+            <div style="padding:12px;">
+                @foreach (var e in _timeline.Entries)
+                {
+                    <div class="tl-row">
+                        <div class="tl-when">@e.At.ToString("dd-MMM-yyyy HH:mm")</div>
+                        <div class="tl-dot"></div>
+                        <div class="tl-body">
+                            <span class="tl-cat @CatClass(e.Category)">@e.Category</span>
+                            <span class="tl-title">@e.Title</span>
+                            @if (!string.IsNullOrWhiteSpace(e.Detail))
+                            {
+                                <div class="tl-detail">@e.Detail</div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .tl-row { display:grid; grid-template-columns:130px 16px 1fr; align-items:start; column-gap:10px; }
+    .tl-when { font-size:12px; color:#6b7280; padding-top:2px; text-align:right; }
+    .tl-dot { width:10px; height:10px; border-radius:50%; background:#c8102e; margin-top:5px;
+              box-shadow:0 0 0 3px #f6dfe3; }
+    .tl-body { padding-bottom:16px; border-left:2px solid #eee; margin-left:-8px; padding-left:16px; }
+    .tl-cat { display:inline-block; font-size:11px; font-weight:700; padding:1px 8px; border-radius:10px;
+              background:#eef1f5; color:#33415a; margin-right:8px; }
+    .tl-cat.email { background:#e6f0ff; color:#1d4ed8; }
+    .tl-cat.ai    { background:#f3e8ff; color:#7c3aed; }
+    .tl-cat.appr  { background:#fff5e0; color:#a86400; }
+    .tl-cat.ship  { background:#e6f7ec; color:#137a3b; }
+    .tl-cat.bill  { background:#fdecec; color:#b42318; }
+    .tl-title { font-weight:600; }
+    .tl-detail { font-size:13px; color:#6b7280; margin-top:2px; }
+</style>
+
+@code {
+    private string _term = string.Empty;
+    private string? _ref;
+    private bool _busy;
+    private List<string> _refs = new();
+    private PipelineTimeline? _timeline;
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Search();
+    }
+
+    private async Task Search()
+    {
+        _refs = await Timeline.SearchReferencesAsync(_term);
+    }
+
+    private async Task Load(string reference)
+    {
+        _ref = reference;
+        _busy = true;
+        _timeline = null;
+        _timeline = await Timeline.BuildAsync(reference);
+        _busy = false;
+    }
+
+    private static string CatClass(string category) => category switch
+    {
+        "Email" or "Attachment"        => "email",
+        "AI Extraction"                => "ai",
+        var c when c.StartsWith("Approval") => "appr",
+        "Shipment" or "Job"            => "ship",
+        "Bill" or "Invoice" or "Accounting" => "bill",
+        _                              => "",
+    };
+}
