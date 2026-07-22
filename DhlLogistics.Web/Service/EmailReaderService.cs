@@ -4,6 +4,7 @@ namespace DhlLogistics.Web.Service
     using DhlLogistics.Web.Database;
     using MailKit.Net.Imap;
     using MailKit.Search;
+    using Microsoft.EntityFrameworkCore;
     using MimeKit;
 
     public class EmailReaderService
@@ -39,6 +40,12 @@ namespace DhlLogistics.Web.Service
             foreach (var uid in uids)
             {
                 var message = await inbox.GetMessageAsync(uid);
+
+                // AI Email Automation — Phase 1: store the raw email exactly as
+                // received. Additive and self-contained; never blocks the legacy
+                // AWB auto-create path below.
+                try { await StoreIncomingEmailAsync(message); }
+                catch (Exception ex) { Console.WriteLine($"[EmailReader] raw-store failed: {ex.Message}"); }
 
                 var log = new EmailLog
                 {
@@ -84,6 +91,66 @@ namespace DhlLogistics.Web.Service
 
             await _db.SaveChangesAsync();
             await client.DisconnectAsync(true);
+        }
+
+        /// <summary>
+        /// Persists an incoming email verbatim (headers, bodies, raw MIME and
+        /// attachment bytes). De-duplicated by MessageId so re-polling the same
+        /// unread message does not create duplicate rows.
+        /// </summary>
+        private async Task StoreIncomingEmailAsync(MimeMessage message)
+        {
+            var messageId = message.MessageId ?? string.Empty;
+
+            if (!string.IsNullOrEmpty(messageId) &&
+                await _db.IncomingEmails.AnyAsync(e => e.MessageId == messageId))
+            {
+                return; // already stored
+            }
+
+            var email = new IncomingEmail
+            {
+                MessageId    = messageId,
+                ThreadId     = message.References?.FirstOrDefault()
+                                 ?? message.InReplyTo
+                                 ?? messageId,
+                Subject      = message.Subject ?? string.Empty,
+                From         = message.From?.ToString() ?? string.Empty,
+                To           = message.To?.ToString() ?? string.Empty,
+                Cc           = message.Cc?.ToString() ?? string.Empty,
+                ReceivedDate = message.Date.UtcDateTime,
+                HtmlBody     = message.HtmlBody,
+                TextBody     = message.TextBody,
+                ProcessingStatus = EmailProcessingStatus.Received,
+            };
+
+            using (var raw = new MemoryStream())
+            {
+                await message.WriteToAsync(raw);
+                email.RawMime = raw.ToArray();
+            }
+
+            foreach (var attachment in message.Attachments)
+            {
+                if (attachment is not MimePart part) continue;
+
+                using var ms = new MemoryStream();
+                await part.Content.DecodeToAsync(ms);
+                var bytes = ms.ToArray();
+
+                email.Attachments.Add(new IncomingEmailAttachment
+                {
+                    FileName    = part.FileName ?? string.Empty,
+                    ContentType = part.ContentType?.MimeType ?? string.Empty,
+                    SizeBytes   = bytes.LongLength,
+                    Content     = bytes,
+                });
+            }
+
+            email.HasAttachments = email.Attachments.Count > 0;
+
+            _db.IncomingEmails.Add(email);
+            await _db.SaveChangesAsync();
         }
     }
 

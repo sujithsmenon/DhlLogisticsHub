@@ -17,6 +17,8 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<PickupJob>        Jobs          => Set<PickupJob>();
     public DbSet<GpsLocation>      GpsLocations  => Set<GpsLocation>();
     public DbSet<EmailLog>         EmailLogs     => Set<EmailLog>();
+    public DbSet<IncomingEmail>    IncomingEmails => Set<IncomingEmail>();
+    public DbSet<IncomingEmailAttachment> IncomingEmailAttachments => Set<IncomingEmailAttachment>();
     public DbSet<Vehicle>          Vehicles      => Set<Vehicle>();
 
     // AWB Shipment workflow
@@ -156,6 +158,16 @@ public class AppDbContext : IdentityDbContext<AppUser>
         mb.Entity<Staff>()
             .HasOne(s => s.Designation).WithMany().HasForeignKey(s => s.DesignationId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // AI Email Automation — Phase 1: raw email storage
+        mb.Entity<IncomingEmail>(e =>
+        {
+            e.HasIndex(m => m.MessageId);
+            e.HasMany(m => m.Attachments)
+                .WithOne(a => a.IncomingEmail!)
+                .HasForeignKey(a => a.IncomingEmailId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // Unique indexes on natural keys (codes)
         mb.Entity<Country>().HasIndex(c => c.CountryCode).IsUnique();
