@@ -19,6 +19,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<EmailLog>         EmailLogs     => Set<EmailLog>();
     public DbSet<IncomingEmail>    IncomingEmails => Set<IncomingEmail>();
     public DbSet<IncomingEmailAttachment> IncomingEmailAttachments => Set<IncomingEmailAttachment>();
+    public DbSet<ShipmentDraftApproval>   ShipmentDraftApprovals   => Set<ShipmentDraftApproval>();
     public DbSet<Vehicle>          Vehicles      => Set<Vehicle>();
 
     // AWB Shipment workflow
@@ -166,6 +167,16 @@ public class AppDbContext : IdentityDbContext<AppUser>
             e.HasMany(m => m.Attachments)
                 .WithOne(a => a.IncomingEmail!)
                 .HasForeignKey(a => a.IncomingEmailId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AI Email Automation — Phase 3: approval queue
+        mb.Entity<ShipmentDraftApproval>(e =>
+        {
+            e.HasIndex(a => a.Status);
+            e.HasIndex(a => a.IncomingEmailId);
+            e.HasIndex(a => a.DhlInvoiceNumber);
+            e.HasOne(a => a.IncomingEmail).WithMany().HasForeignKey(a => a.IncomingEmailId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

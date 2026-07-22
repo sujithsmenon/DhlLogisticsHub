@@ -45,5 +45,8 @@ public class IncomingEmail
 /// <summary>Known values for <see cref="IncomingEmail.ProcessingStatus"/>.</summary>
 public static class EmailProcessingStatus
 {
-    public const string Received = "Received";
+    public const string Received     = "Received";
+    public const string DraftCreated = "DraftCreated";   // Phase 3: approval queued
+    public const string Approved     = "Approved";       // Phase 3: draft approved
+    public const string Rejected     = "Rejected";       // Phase 3: draft rejected
 }

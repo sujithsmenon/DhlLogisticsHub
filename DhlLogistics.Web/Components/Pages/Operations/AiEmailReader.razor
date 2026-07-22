@@ -5,6 +5,8 @@
 @using DhlLogistics.Shared.Models
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject EmailAiReaderService Reader
+@inject DraftApprovalService Approvals
+@inject NavigationManager Nav
 
 <!-- ── Header ────────────────────────────────────────────────────────────── -->
 <div class="page-hdr">
@@ -90,6 +92,19 @@ else
                             }
                         </div>
                     }
+
+                    <div style="display:flex;gap:8px;align-items:center;margin-top:16px;">
+                        <button class="btn-dhl" disabled="@_creating" @onclick="CreateApproval">
+                            @(_creating ? "Creating…" : "Create Draft Approval")
+                        </button>
+                        <button class="btn-dhl-outline" @onclick='() => Nav.NavigateTo("/email-approvals")'>
+                            Open Approval Queue
+                        </button>
+                        @if (_createMsg is not null)
+                        {
+                            <span class="sub">@_createMsg</span>
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -109,7 +124,10 @@ else
 @code {
     private bool _loading = true;
     private bool _busy;
+    private bool _creating;
     private int _selId;
+    private string _selSubject = string.Empty;
+    private string? _createMsg;
     private ShipmentDraft? _draft;
 
     private List<EmailRow> _emails = new();
@@ -130,6 +148,8 @@ else
     private async Task Analyze(int id)
     {
         _selId = id;
+        _selSubject = _emails.FirstOrDefault(e => e.Id == id)?.Subject ?? string.Empty;
+        _createMsg = null;
         _busy = true;
         _draft = null;
 
@@ -154,6 +174,28 @@ else
             _draft = await Reader.ReadAsync(content);
 
         _busy = false;
+    }
+
+    private async Task CreateApproval()
+    {
+        if (_draft is null || _selId == 0) return;
+        _creating = true;
+        _createMsg = null;
+        try
+        {
+            var approval = await Approvals.CreateAsync(_selId, _selSubject, _draft);
+            _createMsg = approval is null
+                ? "Could not create draft."
+                : $"Draft #{approval.Id} queued for approval ({approval.Status}).";
+        }
+        catch
+        {
+            _createMsg = "Failed to create draft.";
+        }
+        finally
+        {
+            _creating = false;
+        }
     }
 
     private static string ConfidenceClass(double c) =>

@@ -171,6 +171,8 @@ builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.IEmailExtractor,
 builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.IEmailExtractor,
                             DhlLogistics.Web.Service.Ai.HeuristicEmailExtractor>();
 builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.EmailAiReaderService>();
+// Phase 3: draft approval queue (persist extraction, notify, Approve/Reject/Edit).
+builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.DraftApprovalService>();
 
 // ── M2 master CRUD services ──────────────────────────────────────────────────
 builder.Services.AddScoped<CountryService>();
