@@ -162,6 +162,16 @@ builder.Services.AddScoped<AwbShipmentService>();
 builder.Services.AddScoped<ExportJobService>();
 builder.Services.AddHostedService<EmailPollingService>();
 
+// ── AI Email Automation (Phase 2): provider-agnostic email reader ─────────────
+// Primary provider chosen via config (AiSettings:Provider, default "OpenAI");
+// the heuristic is always registered as the guaranteed fallback.
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.IEmailExtractor,
+                            DhlLogistics.Web.Service.Ai.OpenAIEmailExtractor>();
+builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.IEmailExtractor,
+                            DhlLogistics.Web.Service.Ai.HeuristicEmailExtractor>();
+builder.Services.AddScoped<DhlLogistics.Web.Service.Ai.EmailAiReaderService>();
+
 // ── M2 master CRUD services ──────────────────────────────────────────────────
 builder.Services.AddScoped<CountryService>();
 builder.Services.AddScoped<RegionService>();

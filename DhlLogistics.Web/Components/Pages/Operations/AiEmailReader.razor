@@ -1,0 +1,174 @@
+@page "/ai-email-reader"
+@using Microsoft.EntityFrameworkCore
+@using DhlLogistics.Web.Database
+@using DhlLogistics.Web.Service.Ai
+@using DhlLogistics.Shared.Models
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject EmailAiReaderService Reader
+
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<div class="page-hdr">
+    <div>
+        <h1>AI Email Reader</h1>
+        <div class="sub">Phase 2 · read-only extraction preview — no shipment is created</div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="loading-wrap">Loading stored emails…</div>
+}
+else
+{
+    <div class="equal-col" style="align-items:start;">
+
+        <!-- ── Stored emails ─────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-head">Stored Emails <span class="tag">@_emails.Count</span></div>
+            <div class="scroll-y" style="max-height:calc(100vh - 240px);">
+                @if (_emails.Count == 0)
+                {
+                    <div class="sub" style="padding:12px;">
+                        No stored emails yet. They appear here after the inbox poll (Phase 1).
+                    </div>
+                }
+                @foreach (var e in _emails)
+                {
+                    <div class="data-row @(_selId == e.Id ? "selected" : "")"
+                         @onclick="() => Analyze(e.Id)">
+                        <div style="font-weight:600;">@(string.IsNullOrWhiteSpace(e.Subject) ? "(no subject)" : e.Subject)</div>
+                        <div class="sub">@e.From · @e.ReceivedDate.ToString("dd-MMM-yyyy HH:mm")</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- ── Extraction result ─────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-head">Extracted Draft</div>
+            @if (_busy)
+            {
+                <div class="loading-wrap">Analyzing…</div>
+            }
+            else if (_draft is null)
+            {
+                <div class="sub" style="padding:12px;">Select an email to run the AI reader.</div>
+            }
+            else
+            {
+                <div style="padding:12px;">
+                    <!-- Confidence + provider -->
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+                        <span class="pill @ConfidenceClass(_draft.Confidence)">
+                            <span class="dot"></span>@($"{_draft.Confidence:P0}") confidence
+                        </span>
+                        <span class="tag">via @_draft.Provider</span>
+                    </div>
+
+                    <div class="kv-grid">
+                        @Row("Shipment Type", _draft.ShipmentType)
+                        @Row("Direction", _draft.Direction)
+                        @Row("Customer", _draft.Customer)
+                        @Row("DHL Invoice No", _draft.DhlInvoiceNumber)
+                        @Row("Container", _draft.ContainerNumber)
+                        @Row("HAWB", _draft.Hawb)
+                        @Row("MAWB", _draft.Mawb)
+                        @Row("BL No", _draft.BlNumber)
+                        @Row("Origin Port", _draft.OriginPort)
+                        @Row("Destination Port", _draft.DestinationPort)
+                        @Row("ETA", _draft.Eta?.ToString("dd-MMM-yyyy"))
+                        @Row("ETD", _draft.Etd?.ToString("dd-MMM-yyyy"))
+                        @Row("Reference Numbers", _draft.ReferenceNumbers)
+                    </div>
+
+                    @if (_draft.Notes.Count > 0)
+                    {
+                        <div class="sub" style="margin-top:12px;">
+                            @foreach (var n in _draft.Notes)
+                            {
+                                <div>· @n</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .kv-grid { display:grid; grid-template-columns:170px 1fr; row-gap:8px; column-gap:12px; }
+    .kv-grid .k { color:#6b7280; font-size:13px; }
+    .kv-grid .v { font-weight:600; word-break:break-word; }
+    .kv-grid .v.empty { color:#b0b7c3; font-weight:400; }
+    .pill.conf-hi  { background:#e6f7ec; color:#137a3b; }
+    .pill.conf-mid { background:#fff5e0; color:#a86400; }
+    .pill.conf-lo  { background:#fdecec; color:#b42318; }
+</style>
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private int _selId;
+    private ShipmentDraft? _draft;
+
+    private List<EmailRow> _emails = new();
+
+    private sealed record EmailRow(int Id, string Subject, string From, DateTime ReceivedDate);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _emails = await db.IncomingEmails
+            .OrderByDescending(e => e.ReceivedDate)
+            .Select(e => new EmailRow(e.Id, e.Subject, e.From, e.ReceivedDate))
+            .Take(100)
+            .ToListAsync();
+        _loading = false;
+    }
+
+    private async Task Analyze(int id)
+    {
+        _selId = id;
+        _busy = true;
+        _draft = null;
+
+        // Load only what the extractor needs (metadata + bodies) — never the blobs.
+        EmailContent? content;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var e = await db.IncomingEmails
+                .Where(x => x.Id == id)
+                .Select(x => new
+                {
+                    x.Subject, x.TextBody, x.HtmlBody,
+                    Names = x.Attachments.Select(a => a.FileName).ToList()
+                })
+                .FirstOrDefaultAsync();
+
+            content = e is null ? null
+                : new EmailContent(e.Subject, e.TextBody, e.HtmlBody, e.Names);
+        }
+
+        if (content is not null)
+            _draft = await Reader.ReadAsync(content);
+
+        _busy = false;
+    }
+
+    private static string ConfidenceClass(double c) =>
+        c >= 0.7 ? "conf-hi" : c >= 0.4 ? "conf-mid" : "conf-lo";
+
+    private RenderFragment Row(string key, string? value) => builder =>
+    {
+        var empty = string.IsNullOrWhiteSpace(value);
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "k");
+        builder.AddContent(2, key);
+        builder.CloseElement();
+        builder.OpenElement(3, "div");
+        builder.AddAttribute(4, "class", empty ? "v empty" : "v");
+        builder.AddContent(5, empty ? "—" : value);
+        builder.CloseElement();
+    };
+}
