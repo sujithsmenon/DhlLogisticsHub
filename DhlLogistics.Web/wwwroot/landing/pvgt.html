@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Delivering trusted logistics solutions with precision and reliability. PVGT is a licensed customs broker in Kochi providing enterprise cargo logistics and B2B freight forwarding since 1959.">
+    <title>PVGT</title>
+    <link rel="icon" type="image/png" href="/landing/pvgtlogo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/landing/pvgt.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav id="navbar">
+        <a href="/Pvgt" class="logo-box">
+            <img src="/landing/pvgtwhitelogo.png" alt="PVGT Logistics" class="nav-logo white-logo">
+            <img src="/landing/pvgtlogo.png" alt="PVGT Logistics" class="nav-logo color-logo">
+        </a>
+        
+        <div class="nav-right">
+            <ul class="nav-links">
+                <li><a href="#solutions">Our Services</a></li>
+                <li><a href="#why-us">Our Legacy</a></li>
+                <li><a href="#offices">Location</a></li>
+                <li><a href="#contact">Contact Us</a></li>
+                <li class="mobile-sign-in-li">
+                    <a href="/login" class="btn-primary sign-in-btn">
+                        <i class="fa-solid fa-arrow-right-to-bracket sign-in-icon"></i> Sign In
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="theme-switch-wrapper">
+                <label class="theme-icon-toggle" for="theme-toggle">
+                    <input type="checkbox" id="theme-toggle" />
+                    <div class="icon-container">
+                        <i class="fa-solid fa-sun sun-icon"></i>
+                        <div class="moon-stars">
+                            <i class="fa-solid fa-moon moon-icon"></i>
+                            <i class="fa-solid fa-star star star-1"></i>
+                            <i class="fa-solid fa-star star star-2"></i>
+                        </div>
+                    </div>
+                </label>
+            </div>
+
+            <a href="/login" class="btn-primary sign-in-btn desktop-sign-in">
+                <i class="fa-solid fa-arrow-right-to-bracket sign-in-icon"></i> Sign In
+            </a>
+            <div class="menu-toggle"><i class="fa-solid fa-bars"></i></div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="hero-slider">
+            <div class="slide active">
+                <img src="/landing/transport.png" alt="PVGT Trusted Logistics Solutions">
+            </div>
+            <div class="slide">
+                <img src="/landing/maritime.png" alt="PVGT B2B cargo ship leaving Kochi port">
+            </div>
+            <div class="slide">
+                <img src="/landing/air3.png" alt="Enterprise cargo logistics and air freight forwarding">
+            </div>
+            <div class="slide">
+                <img src="/landing/road2.png" alt="B2B freight forwarding in Kerala via ground transit">
+            </div>
+        </div>
+
+        <div class="hero-content-wrapper">
+            <div class="hero-content">
+                <p class="hero-subtitle section-tag">SINCE 1959</p>
+                <h1>TRUSTED LOGISTICS<br>SOLUTIONS.</h1>
+                <p class="hero-desc">Delivering trusted logistics solutions with precision and reliability. Based in Kochi, we leverage over six decades of expertise for your global shipping needs.</p>
+            </div>
+
+            <div class="slider-indicators">
+                <div class="indicator" onclick="goToSlide(0)"><div class="progress-bar-fill"></div></div>
+                <div class="indicator" onclick="goToSlide(1)"><div class="progress-bar-fill"></div></div>
+                <div class="indicator" onclick="goToSlide(2)"><div class="progress-bar-fill"></div></div>
+                <div class="indicator" onclick="goToSlide(3)"><div class="progress-bar-fill"></div></div>
+            </div>
+
+            <div class="portal-strip glass-widget">
+                <div class="widget-tabs">
+                    <button class="tab active">Get a Quote</button>
+                </div>
+                <div class="widget-input-group">
+                    <input type="text" id="widget-input" placeholder="Enter Cargo Weight/Volume and Destination">
+                    <button class="btn-action" id="widget-btn">Get Quote <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Core Sections Wrapper (Shared Background) -->
+    <div class="bg-layered" style="padding: 0;">
+        <div class="section-animated-bg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <linearGradient id="bg-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="var(--svg-bg-1)"/>
+                  <stop offset="100%" stop-color="var(--svg-bg-2)"/>
+                </linearGradient>
+                <g id="icon-plane"><g transform="translate(-12, -12) rotate(90 12 12)"><path class="svg-moving-icon" fill="var(--svg-icon)" d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></g></g>
+                <g id="icon-ship-side"><g transform="translate(-12, -12)"><path class="svg-moving-icon" fill="var(--svg-icon)" d="M2 13 H20 L23 16 V18 H2 V13 Z M4 13 V8 H9 V13 Z M10 13 V10 H18 V13 Z M5 8 V5 H7 V8 Z"/></g></g>
+                <g id="icon-truck-side"><g transform="translate(-12, -12)"><path class="svg-moving-icon" fill="var(--svg-icon)" d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></g></g>
+                <g id="icon-truck-left"><use href="#icon-truck-side" transform="scale(-1, 1)" /></g>
+                <g id="icon-warehouse"><g transform="translate(-12, -12)"><path fill="var(--svg-icon-base)" d="M12 3L2 12h3v8h14v-8h3L12 3zm-2 15H7v-2h3v2zm0-4H7v-2h3v2zm6 4h-3v-2h3v2zm0-4h-3v-2h3v2z"/></g></g>
+                <g id="icon-box"><g transform="translate(-12, -12)"><path fill="var(--svg-icon-base)" d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.991.991 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9zM12 4.15L6.04 7.5 12 10.85l5.96-3.35L12 4.15zM5 15.91l6 3.38v-6.71L5 9.19v6.72zm14 0v-6.72l-6 3.39v6.71l6-3.38z"/></g></g>
+                <g id="hub"><circle class="svg-hub-dot" cx="0" cy="0" r="6" fill="var(--svg-hub)" /><use href="#icon-warehouse" x="0" y="-12" transform="scale(1)" /></g>
+                
+                <path id="path-plane-1" d="M 150,450 C 350,100 650,100 850,450" />
+                <path id="path-plane-2" d="M 850,200 C 650,450 350,450 150,200" />
+                <path id="path-ship" d="M 100,560 Q 500,480 900,560" />
+                <path id="path-truck-1" d="M 250,320 L 750,320" />
+                <path id="path-truck-2" d="M 750,240 L 250,240" />
+              </defs>
+              <rect width="100%" height="100%" fill="url(#bg-grad)" />
+              
+              <use href="#hub" x="650" y="450" />
+              <circle class="svg-hub-dot" cx="500" cy="80" r="5" fill="var(--svg-hub)" />
+              <circle class="svg-hub-dot" cx="600" cy="380" r="4" fill="var(--svg-hub)" />
+              <circle class="svg-hub-dot" cx="450" cy="180" r="4" fill="var(--svg-hub)" />
+              <g transform="translate(680, 150) scale(0.8)"><use href="#icon-box" /></g>
+              <g transform="translate(380, 320) scale(0.75)"><use href="#icon-box" /></g>
+
+              <g class="svg-bg-left">
+                  <use href="#hub" x="150" y="450" />
+                  <use href="#hub" x="150" y="200" />
+                  <use href="#hub" x="100" y="560" />
+                  <use href="#hub" x="250" y="320" />
+                  <use href="#hub" x="250" y="240" />
+                  <use href="#hub" x="40" y="160" />
+                  <use href="#hub" x="90" y="350" />
+                  <circle class="svg-hub-dot" cx="60" cy="120" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="120" cy="50" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="50" cy="280" r="6" fill="var(--svg-hub)" />
+                  <use href="#icon-box" x="130" y="460" transform="scale(0.8)" />
+                  <use href="#icon-box" x="130" y="190" transform="scale(1)" />
+                  <use href="#icon-box" x="270" y="330" transform="scale(0.85)" />
+                  <g transform="translate(70, 200) scale(0.8)"><use href="#icon-box" /></g>
+              </g>
+
+              <g class="svg-bg-right">
+                  <use href="#hub" x="850" y="450" />
+                  <use href="#hub" x="850" y="200" />
+                  <use href="#hub" x="900" y="560" />
+                  <use href="#hub" x="750" y="320" />
+                  <use href="#hub" x="750" y="240" />
+                  <use href="#hub" x="940" y="120" />
+                  <use href="#hub" x="960" y="330" />
+                  <use href="#hub" x="880" y="550" />
+                  <circle class="svg-hub-dot" cx="940" cy="380" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="880" cy="60" r="4" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="950" cy="250" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="750" cy="580" r="5" fill="var(--svg-hub)" />
+                  <use href="#icon-box" x="870" y="440" transform="scale(0.9)" />
+                  <use href="#icon-box" x="830" y="210" transform="scale(0.7)" />
+                  <use href="#icon-box" x="730" y="310" transform="scale(0.75)" />
+                  <g transform="translate(920, 90) scale(0.9)"><use href="#icon-box" /></g>
+                  <g transform="translate(850, 280) scale(0.7)"><use href="#icon-box" /></g>
+                  <g transform="translate(720, 440) scale(0.85)"><use href="#icon-box" /></g>
+                  <g transform="translate(930, 520) scale(0.7)"><use href="#icon-box" /></g>
+              </g>
+
+              <use href="#icon-plane" x="400" y="70" transform="scale(1.0) rotate(15)" opacity="0.4" />
+              <use href="#icon-ship-side" x="500" y="580" transform="scale(1.2)" opacity="0.4" />
+              <use href="#icon-truck-left" x="500" y="150" transform="scale(1.0)" opacity="0.4" />
+              
+              <g><use href="#icon-plane" transform="scale(1.1)" /><animateMotion dur="12s" repeatCount="indefinite" rotate="auto"><mpath href="#path-plane-1" /></animateMotion></g>
+              <g><use href="#icon-plane" transform="scale(0.9)" /><animateMotion dur="14s" repeatCount="indefinite" rotate="auto"><mpath href="#path-plane-2" /></animateMotion></g>
+              <g><g transform="translate(0, -5)"><use href="#icon-ship-side" transform="scale(1.2)" /></g><animateMotion dur="18s" repeatCount="indefinite" rotate="auto"><mpath href="#path-ship" /></animateMotion></g>
+              <g><g transform="translate(0, -5)"><use href="#icon-truck-side" transform="scale(0.95)" /></g><animateMotion dur="8s" repeatCount="indefinite"><mpath href="#path-truck-1" /></animateMotion></g>
+              <g><g transform="translate(0, -5)"><use href="#icon-truck-left" transform="scale(0.95)" /></g><animateMotion dur="9s" repeatCount="indefinite"><mpath href="#path-truck-2" /></animateMotion></g>
+            </svg>
+        </div>
+
+        <!-- Capabilities Section -->
+        <section id="solutions" class="solutions" style="background-color: transparent;">
+            <div class="section-content-wrapper">
+                <div class="section-header">
+                    <p class="section-tag">CAPABILITIES</p>
+                    <h2>Our Core Services</h2>
+                    <p class="section-desc">Delivering comprehensive port operations and logistics support with the precision and reliability that only decades of experience can provide.</p>
+                </div>
+                <div class="solutions-grid">
+                    <div class="solution-card glass-day">
+                        <div class="card-img" style="background-image: url('/landing/transport.png');"></div>
+                        <div class="card-content">
+                            <h3>Comprehensive Logistics</h3>
+                            <ul class="card-list">
+                                <li><i class="fa-solid fa-angles-right list-icon"></i> Pivoting to make logistics our core focus in 1986, we have leveraged our extensive network and operational knowledge to serve diverse industries.</li>
+                                <li><i class="fa-solid fa-angles-right list-icon"></i> We manage everything from standard parcel deliveries to complex freight transportation, focusing on consistent reliability and customer satisfaction.</li>
+                            </ul>
+                            <a href="/Agency" class="card-link">Explore More <i class="fa-solid fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                    <div class="solution-card glass-day">
+                        <div class="card-img" style="background-image: url('/landing/warehouse.png');"></div>
+                        <div class="card-content">
+                            <h3>Clearing & Forwarding</h3>
+                            <ul class="card-list">
+                                <li><i class="fa-solid fa-angles-right list-icon"></i> As a licensed customs broker headquartered in Kochi, we maintain strategic offices across major Indian seaports and airports.</li>
+                                <li><i class="fa-solid fa-angles-right list-icon"></i> This robust national presence empowers us to easily streamline documentation, supporting efficient B2B freight management and timely delivery.</li>
+                            </ul>
+                            <a href="/Clearing" class="card-link">Explore More <i class="fa-solid fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                    <div class="solution-card glass-day">
+                        <div class="card-img" style="background-image: url('/landing/container.png');"></div>
+                        <div class="card-content">
+                            <h3>Global Freight Forwarding</h3>
+                            <ul class="card-list">
+                                <li><i class="fa-solid fa-angles-right list-icon"></i> We offer end-to-end cargo movement via sea and air, seamlessly connecting domestic markets to international trade lanes.</li>
+                                <li><i class="fa-solid fa-angles-right list-icon"></i> Supported by global partnerships, we facilitate smooth cross-border operations, compliant import and export processes, reliable customs clearance, and dedicated last-mile deliveries globally.</li>
+                            </ul>
+                            <a href="/Forwarding" class="card-link">Explore More <i class="fa-solid fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Metrics Section -->
+        <section id="at-a-glance" class="at-a-glance" style="background-color: transparent;">
+            <div class="section-content-wrapper glance-container">
+                <div class="glance-header">
+                    <p class="section-tag">METRICS</p>
+                    <h2>PVGT At A Glance</h2>
+                    <p class="section-desc">A snapshot of our operational performance and extensive global logistics network.</p>
+                </div>
+                <div class="glance-grid">
+                    <div class="glance-stat glass-day">
+                        <h3><span class="count" data-target="60">0</span>+</h3>
+                        <p class="card-desc">Years of Excellence</p>
+                    </div>
+                    <div class="glance-stat glass-day">
+                        <h3><span class="count" data-target="10">0</span>K+</h3>
+                        <p class="card-desc">Shipments Handled</p>
+                    </div>
+                    <div class="glance-stat glass-day">
+                        <h3><span class="count" data-target="50">0</span>+</h3>
+                        <p class="card-desc">Global Locations</p>
+                    </div>
+                    <div class="glance-stat glass-day">
+                        <h3><span class="count" data-target="99">0</span>%</h3>
+                        <p class="card-desc">On-Time Clearance</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- The PVGT Edge Section -->
+        <section id="why-pvgt" class="why-pvgt" style="background-color: transparent;">
+            <div class="section-content-wrapper why-container">
+                <div class="why-left">
+                    <p class="section-tag">THE PVGT EDGE</p>
+                    <h2>Why PVGT Logistics?</h2>
+                    <p class="section-desc">Supporting global supply chain efficiency through technological integration, responsive service, and established local expertise in the Indian subcontinent.</p>
+                </div>
+                <div class="why-right">
+                    <div class="edge-card glass-day">
+                        <div class="edge-icon"><i class="fa-solid fa-bolt"></i></div>
+                        <div class="edge-text">
+                            <h3>Agility & Speed</h3>
+                            <p class="card-desc">Responsive handling of market shifts and supply chain disruptions, designed to keep your cargo moving steadily.</p>
+                        </div>
+                    </div>
+                    <div class="edge-card glass-day">
+                        <div class="edge-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="edge-text">
+                            <h3>Compliance Reliability</h3>
+                            <p class="card-desc">Accurate management of complex customs documentation to minimize border delays and support strict regulatory compliance.</p>
+                        </div>
+                    </div>
+                    <div class="edge-card glass-day">
+                        <div class="edge-icon"><i class="fa-solid fa-network-wired"></i></div>
+                        <div class="edge-text">
+                            <h3>End-to-End Visibility</h3>
+                            <p class="card-desc">Clear visibility across the lifecycle of your shipment, from the origin facility to final delivery.</p>
+                        </div>
+                    </div>
+                    <div class="edge-card glass-day">
+                        <div class="edge-icon"><i class="fa-solid fa-users-gear"></i></div>
+                        <div class="edge-text">
+                            <h3>Operational Excellence</h3>
+                            <p class="card-desc">Leveraging robust management practices and continuous process optimization to maintain high operational standards and consistent service delivery.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Foundation Section -->
+    <section id="why-us" class="why-us">
+        <div class="section-header light">
+            <p class="section-tag">OUR FOUNDATION</p>
+            <h2 class="legacy-title">The PVGT Legacy</h2>
+            <p class="legacy-subtitle">Trusted by global and domestic clients since 1959.</p>
+            <a href="/Legacy" class="legacy-link">Explore More <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <div class="features-grid">
+            <div class="feature-item glassmorphic">
+                <div class="feature-icon"><i class="fa-solid fa-star"></i></div>
+                <h3>Established 1959</h3>
+                <p>With expertise spanning over six decades, our foundational knowledge of the shipping industry supports reliable and consistent service quality.</p>
+            </div>
+            <div class="feature-item glassmorphic">
+                <div class="feature-icon"><i class="fa-solid fa-anchor"></i></div>
+                <h3>Strategically Located</h3>
+                <p>Operating out of Kochi, Kerala—one of India's most critical maritime hubs—we offer direct, localized control over your port and customs operations.</p>
+            </div>
+            <div class="feature-item glassmorphic">
+                <div class="feature-icon"><i class="fa-solid fa-file-shield"></i></div>
+                <h3>Regulatory Mastery</h3>
+                <p>Our deep roots in Clearing and Forwarding mean we possess an intimate, highly specialized understanding of modern customs protocols and compliance.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="local-office bg-layered">
+        <div class="section-animated-bg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice">
+              <rect width="100%" height="100%" fill="url(#bg-grad)" />
+              <use href="#hub" x="650" y="450" />
+              <circle class="svg-hub-dot" cx="500" cy="80" r="5" fill="var(--svg-hub)" />
+              <circle class="svg-hub-dot" cx="600" cy="380" r="4" fill="var(--svg-hub)" />
+              <circle class="svg-hub-dot" cx="450" cy="180" r="4" fill="var(--svg-hub)" />
+              <g transform="translate(680, 150) scale(0.8)"><use href="#icon-box" /></g>
+              <g transform="translate(380, 320) scale(0.75)"><use href="#icon-box" /></g>
+
+              <g class="svg-bg-left">
+                  <use href="#hub" x="150" y="450" />
+                  <use href="#hub" x="150" y="200" />
+                  <use href="#hub" x="100" y="560" />
+                  <use href="#hub" x="250" y="320" />
+                  <use href="#hub" x="250" y="240" />
+                  <use href="#hub" x="40" y="160" />
+                  <use href="#hub" x="90" y="350" />
+                  <circle class="svg-hub-dot" cx="60" cy="120" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="120" cy="50" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="50" cy="280" r="6" fill="var(--svg-hub)" />
+                  <use href="#icon-box" x="130" y="460" transform="scale(0.8)" />
+                  <use href="#icon-box" x="130" y="190" transform="scale(1)" />
+                  <use href="#icon-box" x="270" y="330" transform="scale(0.85)" />
+                  <g transform="translate(70, 200) scale(0.8)"><use href="#icon-box" /></g>
+              </g>
+
+              <g class="svg-bg-right">
+                  <use href="#hub" x="850" y="450" />
+                  <use href="#hub" x="850" y="200" />
+                  <use href="#hub" x="900" y="560" />
+                  <use href="#hub" x="750" y="320" />
+                  <use href="#hub" x="750" y="240" />
+                  <use href="#hub" x="940" y="120" />
+                  <use href="#hub" x="960" y="330" />
+                  <use href="#hub" x="880" y="550" />
+                  <circle class="svg-hub-dot" cx="940" cy="380" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="880" cy="60" r="4" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="950" cy="250" r="5" fill="var(--svg-hub)" />
+                  <circle class="svg-hub-dot" cx="750" cy="580" r="5" fill="var(--svg-hub)" />
+                  <use href="#icon-box" x="870" y="440" transform="scale(0.9)" />
+                  <use href="#icon-box" x="830" y="210" transform="scale(0.7)" />
+                  <use href="#icon-box" x="730" y="310" transform="scale(0.75)" />
+                  <g transform="translate(920, 90) scale(0.9)"><use href="#icon-box" /></g>
+                  <g transform="translate(850, 280) scale(0.7)"><use href="#icon-box" /></g>
+                  <g transform="translate(720, 440) scale(0.85)"><use href="#icon-box" /></g>
+                  <g transform="translate(930, 520) scale(0.7)"><use href="#icon-box" /></g>
+              </g>
+
+              <use href="#icon-plane" x="400" y="70" transform="scale(1.0) rotate(15)" opacity="0.4" />
+              <use href="#icon-ship-side" x="500" y="580" transform="scale(1.2)" opacity="0.4" />
+              <use href="#icon-truck-left" x="500" y="150" transform="scale(1.0)" opacity="0.4" />
+              
+              <g><use href="#icon-plane" transform="scale(1.1)" /><animateMotion dur="12s" repeatCount="indefinite" rotate="auto"><mpath href="#path-plane-1" /></animateMotion></g>
+              <g><use href="#icon-plane" transform="scale(0.9)" /><animateMotion dur="14s" repeatCount="indefinite" rotate="auto"><mpath href="#path-plane-2" /></animateMotion></g>
+              <g><g transform="translate(0, -5)"><use href="#icon-ship-side" transform="scale(1.2)" /></g><animateMotion dur="18s" repeatCount="indefinite" rotate="auto"><mpath href="#path-ship" /></animateMotion></g>
+              <g><g transform="translate(0, -5)"><use href="#icon-truck-side" transform="scale(0.95)" /></g><animateMotion dur="8s" repeatCount="indefinite"><mpath href="#path-truck-1" /></animateMotion></g>
+              <g><g transform="translate(0, -5)"><use href="#icon-truck-left" transform="scale(0.95)" /></g><animateMotion dur="9s" repeatCount="indefinite"><mpath href="#path-truck-2" /></animateMotion></g>
+            </svg>
+        </div>
+        
+        <div class="section-content-wrapper contact-wrapper glass-day">
+            <div class="contact-text">
+                <h2>Connect With Our Kochi HQ</h2>
+                <p class="contact-desc">Reach out to our experts in Kerala for specialized inquiries.</p>
+            </div>
+            <div class="search-box">
+                <input type="text" placeholder="Email or phone number...">
+                <button class="btn-action">Request Contact</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+<!-- Footer -->
+<footer>
+    <div class="footer-wave-bg" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320" preserveAspectRatio="none" class="footer-wave footer-wave-1">
+            <path d="M0,192 C180,256 360,128 540,160 C720,192 900,288 1080,256 C1260,224 1380,160 1440,144 L1440,320 L0,320 Z"/>
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320" preserveAspectRatio="none" class="footer-wave footer-wave-2">
+            <path d="M0,224 C200,180 400,270 600,240 C800,210 1000,150 1200,200 C1320,228 1390,260 1440,272 L1440,320 L0,320 Z"/>
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 320" preserveAspectRatio="none" class="footer-arc-lines">
+            <g stroke="rgba(255,255,255,0.03)" stroke-width="1" fill="none">
+                <path d="M600,0 Q480,160 300,320"/><path d="M620,0 Q500,160 320,320"/>
+                <path d="M640,0 Q520,160 340,320"/><path d="M660,0 Q540,160 360,320"/>
+                <path d="M680,0 Q560,160 380,320"/><path d="M700,0 Q580,160 400,320"/>
+                <path d="M720,0 Q600,160 420,320"/><path d="M740,0 Q620,160 440,320"/>
+                <path d="M760,0 Q640,160 460,320"/><path d="M780,0 Q660,160 480,320"/>
+                <path d="M800,0 Q680,160 500,320"/><path d="M820,0 Q700,160 520,320"/>
+            </g>
+        </svg>
+    </div>
+
+    <div class="footer-grid">
+        <div class="footer-col-main">
+            <img src="/landing/pvgtlogo2.png" alt="PVGT Logistics LLP" class="footer-logo-img">
+            <p>Established in 1959. Your trusted Shipping, Clearing, and Forwarding Agents located in Kochi, Kerala.</p>
+            <div class="social-links">
+                <a href="#" class="social-btn facebook"  title="Facebook" rel="noopener noreferrer"><i class="fa-brands fa-facebook-f"></i></a>
+                <a href="#" class="social-btn instagram" title="Instagram" rel="noopener noreferrer"><i class="fa-brands fa-instagram"></i></a>
+                <a href="#" class="social-btn whatsapp"  title="WhatsApp" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i></a>
+                <a href="#" class="social-btn youtube"   title="YouTube" rel="noopener noreferrer"><i class="fa-brands fa-youtube"></i></a>
+                <a href="#" class="social-btn twitter"   title="X (Twitter)" rel="noopener noreferrer"><i class="fa-brands fa-x-twitter"></i></a>
+                <a href="#" class="social-btn linkedin"  title="LinkedIn" rel="noopener noreferrer"><i class="fa-brands fa-linkedin-in"></i></a>
+            </div>
+        </div>
+        
+        <div class="footer-links">
+            <h3>Company</h3>
+            <ul>
+                <li><a href="/Legacy">Our History (Since 1959)</a></li>
+                <li><a href="/Certification">Certifications</a></li>
+                <li><a href="/Privacy">Privacy Policy</a></li>
+                <li><a href="/Terms">Terms & Conditions</a></li>
+                <li><a href="/Pvgt#contact">Contact Us</a></li>
+            </ul>
+        </div>
+        <div class="footer-links">
+            <h3>Our Services</h3>
+            <ul>
+			    <li><a href="/Agency">Shipping Agent</a></li>
+                <li><a href="/Clearing">Clearing & Forwarding</a></li>
+                <li><a href="/Forwarding">Global Freight</a></li>
+                <li><a href="/Customs">Customs Documentation</a></li>
+            </ul>
+        </div>
+        <div class="footer-links">
+            <h3>Support</h3>
+            <ul>
+                <li><a href="#">Track Cargo</a></li>
+                <li><a href="#">Request a Quote</a></li>
+                <li><a href="#">Port Updates</a></li>
+                <li><a href="/login">Client Portal</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer-accreditations">
+        <div class="accred-row">
+            <span class="accred-label">Licenses &amp; Partnerships</span>
+            <span class="accred-pipe">:</span>
+            <div class="accred-badges">
+                <div class="accred-badge">
+                    <div class="accred-logo-wrap">
+                        <img src="/landing/cblms-logo.png" alt="CBLMS — Licensed Customs Broker">
+                    </div>
+                    <span>Licensed Customs Broker</span>
+                </div>
+                <div class="accred-badge">
+                    <div class="accred-logo-wrap accred-logo-dhl">
+                        <img src="/landing/dhl.png" alt="DHL Express — Authorised Partner">
+                    </div>
+                    <span>DHL Authorised Partner</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-bottom">
+        &copy; 2026 PVGT Group. All rights reserved. | Kochi, Kerala, India
+    </div>
+</footer>
+
+    <button id="goToTopBtn" class="go-to-top" aria-label="Go to Top">
+        <i class="fa-solid fa-caret-up"></i>
+    </button>
+
+    <script src="/landing/pvgt.js"></script>
+</body>
+</html>

@@ -442,6 +442,8 @@ using (var scope = app.Services.CreateScope())
         await DhlLogistics.Web.Database.MenuSeed.EnsureCustomerInvoiceMenuAsync(menuFactory);
         // Rename the "Export Jobs" menu entry to "Sea Shipments" on already-seeded installs (display only).
         await DhlLogistics.Web.Database.MenuSeed.EnsureSeaShipmentsMenuNameAsync(menuFactory);
+        // Additively insert the AI Email Automation pages under Operations on already-seeded installs.
+        await DhlLogistics.Web.Database.MenuSeed.EnsureAiEmailMenusAsync(menuFactory);
     }
     catch (Exception ex)
     {
@@ -506,6 +508,37 @@ if (requireHttps)
     app.UseHttpsRedirection();
 }
 
+// ── Landing site clean URLs ──────────────────────────────────────────────────
+// The public site is served at /Pvgt, /Agency, … rather than /landing/pvgt.html.
+// This is a REWRITE, not a redirect: swapping Request.Path here — before
+// UseStaticFiles reads it — makes the static-file middleware serve the .html while
+// the browser's address bar keeps showing the clean URL. Works identically locally
+// and on Elastic Beanstalk, because IIS hands every request to the ASP.NET Core
+// module and this middleware runs in-process either way.
+//
+// The canonical redirect runs FIRST and only matches the raw .html path, so it can
+// never see a rewritten request — swapping the two would bounce /Pvgt to
+// /landing/pvgt.html and straight back again, forever.
+app.Use(async (ctx, next) =>
+{
+    if (HttpMethods.IsGet(ctx.Request.Method))
+    {
+        if (DhlLogistics.Web.CommonFunctions.LandingSite.TryGetCleanUrl(ctx.Request.Path, out var cleanUrl))
+        {
+            // Old bookmark or a hand-typed .html — move it to the canonical clean URL.
+            ctx.Response.Redirect(cleanUrl + ctx.Request.QueryString);
+            return;
+        }
+
+        if (DhlLogistics.Web.CommonFunctions.LandingSite.TryGetFile(ctx.Request.Path, out var file))
+        {
+            ctx.Request.Path = file;
+        }
+    }
+
+    await next();
+});
+
 // Serve wwwroot/* + _framework/* (Blazor runtime) + _content/* (RCL assets).
 // Using UseStaticFiles (the .NET 8 / CBM-compatible pattern) instead of
 // MapStaticAssets because MapStaticAssets's fingerprint manifest doesn't
@@ -518,6 +551,38 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
+
+// ── Public landing site ──────────────────────────────────────────────────────
+// wwwroot/landing/* (pvgt.html and friends) is the public face of the product; the
+// Blazor app behind "/" is the private ERP. An anonymous visitor who asks for the
+// root gets the landing page instead of being bounced straight to a login form —
+// the landing page's "Sign In" links then bring them to /login, and signing out
+// returns them here (see Pages/Account/Logout.cshtml.cs).
+//
+// This must sit AFTER UseAuthentication so ctx.User is populated: a signed-in user
+// asking for "/" still gets the Blazor dashboard, untouched. It must also sit
+// BEFORE endpoint routing, because "/" is owned by MapRazorComponents (Dashboard)
+// and a competing MapGet("/") would be an ambiguous-match failure.
+app.Use(async (ctx, next) =>
+{
+    if (HttpMethods.IsGet(ctx.Request.Method)
+        && ctx.Request.Path == "/"
+        && !(ctx.User.Identity?.IsAuthenticated ?? false))
+    {
+        ctx.Response.Redirect(DhlLogistics.Web.CommonFunctions.LandingSite.Home);
+        return;
+    }
+
+    await next();
+});
+
+// Bare "/landing" is the asset folder, not a page — nothing serves it, so send anyone
+// who lands there to the site home instead of the 404 page. One registration covers the
+// trailing-slash form too: routing normalises "/landing/" to the same template, and
+// registering both is an AmbiguousMatchException at request time, not a build error.
+app.MapGet(DhlLogistics.Web.CommonFunctions.LandingSite.AssetRoot,
+    () => Results.Redirect(DhlLogistics.Web.CommonFunctions.LandingSite.Home))
+   .AllowAnonymous();
 
 
 // ── Diagnostic endpoints (Development only) ─────────────────────────────────

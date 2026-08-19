@@ -2,6 +2,7 @@
 @layout AuthLayout
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthState
+@using DhlLogistics.Web.CommonFunctions
 
 <PageTitle>Sign In — PVGT Logistics LLP</PageTitle>
 
@@ -118,6 +119,12 @@
             <div class="auth-help">
                 <span>Need access?</span>
                 <a href="mailto:admin@pvgt.co.in">Contact support</a>
+            </div>
+
+            <!-- Way back to the public site for anyone who arrived here by mistake.
+                 forceLoad is implicit: it's a plain <a> to a static file outside Blazor. -->
+            <div class="auth-help auth-back">
+                <a href="@LandingSite.Home">← Back to pvgt.co.in</a>
             </div>
         </div>
 
@@ -437,6 +444,8 @@ html, body { height: 100%; overflow: hidden; }
     font-weight: 600;
 }
 .auth-help a:hover { text-decoration: underline; }
+.auth-back { margin-top: 10px; }
+.auth-back a { color: #9CA3AF; font-weight: 500; }
 
 /* Footer */
 .auth-copy {
