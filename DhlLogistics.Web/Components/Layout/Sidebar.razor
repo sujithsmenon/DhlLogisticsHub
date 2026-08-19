@@ -21,18 +21,38 @@
       • The whole rail collapses to a 70px icon rail (@Collapsed) or slides in as a
         mobile drawer — both handled by CSS classes on the shell + .sidebar-collapsed.
 *@
-
+<style>
+    .sidebar-logo-img {
+        display: flex;
+        height: 33px !important;
+        width: auto;
+        align-items: center;
+        max-width: 80px !important;
+        justify-content:center;
+    }
+    .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 14px 14px 12px;
+        text-decoration: none;
+        border-bottom: 1px solid var(--sidebar-border);
+        overflow: hidden;
+        flex-shrink: 0;
+        justify-content: space-around !important;
+    }
+</style>
 <aside class="dhl-sidebar" aria-label="Primary navigation">
 
     <!-- Brand -->
     <a class="sidebar-brand" href="/" aria-label="PVGT Logistics — home">
-        <span class="sidebar-logo-block">
+        @* <span class="sidebar-logo-block"> *@
             <img src="img/pvgt-logo.png" alt="PVGT Logistics" class="sidebar-logo-img" />
-        </span>
-        <span class="sidebar-brand-text">
+      @*   </span> *@
+        @* <span class="sidebar-brand-text">
             <span class="sidebar-title">PVGT Logistics</span>
             <span class="sidebar-sub">Your Trust &amp; Satisfaction</span>
-        </span>
+        </span> *@
     </a>
 
     <!-- Navigation -->

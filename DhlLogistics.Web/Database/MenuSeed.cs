@@ -403,6 +403,57 @@ public static class MenuSeed
     }
 
     /// <summary>
+    /// Idempotent additive seed for the AI Email Automation pages under the existing
+    /// <b>Operations</b> group. <see cref="SeedAsync"/> only runs on an empty table, so
+    /// already-seeded installs would never gain these pages — this inserts any missing leaf
+    /// (keyed by PageName). Permission-controlled (these are approval/queue tools); an Admin
+    /// sees them because the sidebar treats a null viewable-set as "everything". Safe on every
+    /// startup: existing rows are left untouched, so hand-edited menus are never clobbered.
+    /// </summary>
+    public static async Task EnsureAiEmailMenusAsync(IDbContextFactory<AppDbContext> factory)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        if (!await db.Menus.AnyAsync()) return;   // fresh DB — SeedAsync will cover it
+
+        var ops = await db.Menus.FirstOrDefaultAsync(m => m.ParentId == null && m.MenuName == "Operations");
+        if (ops is null) return;
+
+        var existingPages = new HashSet<string>(
+            await db.Menus.Where(m => m.PageName != null).Select(m => m.PageName!).ToListAsync(),
+            StringComparer.OrdinalIgnoreCase);
+
+        var nextOrder = (await db.Menus.Where(m => m.ParentId == ops.MenuId)
+            .MaxAsync(m => (int?)m.ShowOrder) ?? ops.ShowOrder) + 1;
+
+        var toAdd = new List<Menu>();
+        void Add(string name, string icon, string page)
+        {
+            if (existingPages.Contains(page)) return;
+            toAdd.Add(new Menu
+            {
+                MenuName           = name,
+                Icon               = icon,
+                PageName           = page,
+                ParentId           = ops.MenuId,
+                ShowOrder          = nextOrder,
+                RequiresPermission = true,
+                Active             = true,
+            });
+            existingPages.Add(page);
+            nextOrder += 1;
+        }
+
+        Add("AI Email Reader",   "🤖", "ai-email-reader");
+        Add("Email Approvals",   "📨", "email-approvals");
+        Add("Job Approvals",     "🗂", "job-approvals");
+        Add("Pipeline Timeline", "🧭", "pipeline");
+
+        if (toAdd.Count == 0) return;
+        db.Menus.AddRange(toAdd);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
     /// Idempotent fixup for menu databases that were already seeded before the CBM
     /// user-management migration: repoints the old "Users" (/masters/users) entry to
     /// the new /usermanagement page and hides the standalone "Roles" (/admin/permissions)
